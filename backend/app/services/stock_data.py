@@ -175,29 +175,64 @@ def _get_twse_realtime(ticker: str) -> dict:
 
 
 def get_stock_info(ticker: str) -> dict:
-    """取得個股基本資訊：價格來自 TWSE 官方，PE/PB 來自 yfinance（允許失敗）"""
+    """取得個股基本資訊。
+    價格/成交量：優先 TWSE 即時 API，失敗則用 yfinance chart API（比 info API 限速寬鬆）
+    PE/PB/市值：yfinance fast_info（失敗給 None）
+    """
     cached = _cache_get(_info_cache, ticker, INFO_TTL)
     if cached:
         return cached
 
     _load_tw_stock_names()
 
-    # 主要：TWSE/TPEx 即時行情（穩定，不受 rate limit）
+    # 判斷交易所與 symbol
+    exchange = _tw_stock_exchange.get(ticker, "TW")
+    suffix = ".TW" if exchange == "TW" else ".TWO"
+    symbol = f"{ticker}{suffix}"
+    _symbol_cache[ticker] = symbol
+
+    # --- 取得股價（多重 fallback）---
+    price = None
+    volume = None
+    volume_zhang = None
+    week_52_high = None
+    week_52_low  = None
+
+    # 1) TWSE 即時 API
     twse = _get_twse_realtime(ticker)
     price = twse.get("price")
     volume = twse.get("volume")
     volume_zhang = twse.get("volume_zhang")
 
-    # 次要：yfinance 取 PE/PB/市值（允許失敗，失敗給 None）
-    yf_info = {}
+    # 2) 若 TWSE 失敗，改用 yfinance chart API（history 比 info 限速寬）
+    if not price:
+        try:
+            hist = yf.Ticker(symbol).history(period="5d")
+            if not hist.empty:
+                price = round(float(hist["Close"].iloc[-1]), 2)
+                volume = int(hist["Volume"].iloc[-1])
+                volume_zhang = round(volume / 1000)
+                week_52_high = round(float(hist["High"].max()), 2)
+                week_52_low  = round(float(hist["Low"].min()), 2)
+        except Exception:
+            pass
+
+    # --- yfinance fast_info（輕量，PE/市值/52週高低）---
+    yf_fi = None
     try:
-        exchange = _tw_stock_exchange.get(ticker, "TW")
-        suffix = ".TW" if exchange == "TW" else ".TWO"
-        symbol = f"{ticker}{suffix}"
-        _symbol_cache[ticker] = symbol
-        yf_info = yf.Ticker(symbol).fast_info  # fast_info 較輕量
+        yf_fi = yf.Ticker(symbol).fast_info
+        if week_52_high is None:
+            week_52_high = getattr(yf_fi, "year_high", None)
+        if week_52_low is None:
+            week_52_low  = getattr(yf_fi, "year_low", None)
     except Exception:
         pass
+
+    mktcap = getattr(yf_fi, "market_cap", None)
+    shares = getattr(yf_fi, "shares", None)
+    if not mktcap and price and shares:
+        mktcap = price * shares
+    capital_yi = round(shares * 10 / 1e8, 1) if shares else None
 
     # 名稱、產業
     is_etf = ticker in ETF_NAMES
@@ -208,22 +243,11 @@ def get_stock_info(ticker: str) -> dict:
         or _tw_stock_industry.get(ticker)
     )
 
-    # fast_info 欄位名稱不同
-    mktcap = getattr(yf_info, "market_cap", None)
-    shares = getattr(yf_info, "shares", None)
-    week_52_high = getattr(yf_info, "year_high", None)
-    week_52_low  = getattr(yf_info, "year_low", None)
-
-    # 市值：優先 yfinance，次選 TWSE 價格 × 股數
-    if not mktcap and price and shares:
-        mktcap = price * shares
-    capital_yi = round(shares * 10 / 1e8, 1) if shares else None
-
     result = {
         "ticker": ticker,
         "name": display_name,
         "price": price,
-        "pe_ratio": getattr(yf_info, "pe_forward", None),
+        "pe_ratio": getattr(yf_fi, "pe_forward", None),
         "pb_ratio": None,
         "dividend_yield": None,
         "market_cap": mktcap,
