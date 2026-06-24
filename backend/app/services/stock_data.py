@@ -142,104 +142,102 @@ def _load_tw_stock_names():
         pass
 
 
-def _yf_fetch_with_retry(symbol: str, max_retries: int = 3) -> dict:
-    """抓 yfinance info，遇到 429 自動等待重試"""
-    for attempt in range(max_retries):
-        try:
-            info = yf.Ticker(symbol).info
-            return info
-        except Exception as e:
-            msg = str(e).lower()
-            if "too many requests" in msg or "rate limit" in msg or "429" in msg:
-                wait = 2 ** attempt  # 1s, 2s, 4s
-                time.sleep(wait)
-            else:
-                raise
-    return {}
+_TWSE_HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
 
 
-def _get_yf_info(ticker: str) -> tuple:
-    """嘗試上市(.TW)與上櫃(.TWO)，回傳 (info, symbol)；優先用快取判斷交易所"""
-    if ticker in _symbol_cache:
-        symbol = _symbol_cache[ticker]
-        return _yf_fetch_with_retry(symbol), symbol
-    for suffix in [".TW", ".TWO"]:
-        symbol = f"{ticker}{suffix}"
-        info = _yf_fetch_with_retry(symbol)
-        if info.get("currentPrice") or info.get("regularMarketPrice"):
-            _symbol_cache[ticker] = symbol
-            return info, symbol
-    return _yf_fetch_with_retry(f"{ticker}.TW"), f"{ticker}.TW"
+def _get_twse_realtime(ticker: str) -> dict:
+    """從 TWSE/TPEx 即時行情 API 取得股價與成交量（不受 rate limit）"""
+    _load_tw_stock_names()
+    exchange = _tw_stock_exchange.get(ticker, "TW")
+    prefix = "tse" if exchange == "TW" else "otc"
+    url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={prefix}_{ticker}.tw&json=1&delay=0"
+    try:
+        resp = requests.get(url, timeout=10, headers=_TWSE_HEADERS)
+        arr = resp.json().get("msgArray", [])
+        if not arr:
+            return {}
+        item = arr[0]
+        # z=即時價，非交易時間為"-"，改用 pz（前收盤）
+        raw_price = item.get("z", "-")
+        price = float(raw_price) if raw_price not in ("-", "", None) else None
+        if price is None:
+            pz = item.get("pz", "-")
+            price = float(pz) if pz not in ("-", "", None) else None
+        raw_vol = item.get("v", "-")
+        volume_zhang = int(float(raw_vol)) if raw_vol not in ("-", "", None) else None
+        return {
+            "price": price,
+            "volume_zhang": volume_zhang,
+            "volume": volume_zhang * 1000 if volume_zhang else None,
+        }
+    except Exception:
+        return {}
 
 
 def get_stock_info(ticker: str) -> dict:
-    """取得個股基本資訊（支援上市/上櫃）"""
+    """取得個股基本資訊：價格來自 TWSE 官方，PE/PB 來自 yfinance（允許失敗）"""
     cached = _cache_get(_info_cache, ticker, INFO_TTL)
     if cached:
         return cached
 
     _load_tw_stock_names()
-    info, symbol = _get_yf_info(ticker)
 
-    is_etf = info.get("quoteType") == "ETF"
+    # 主要：TWSE/TPEx 即時行情（穩定，不受 rate limit）
+    twse = _get_twse_realtime(ticker)
+    price = twse.get("price")
+    volume = twse.get("volume")
+    volume_zhang = twse.get("volume_zhang")
 
-    chinese_name = ETF_NAMES.get(ticker) if is_etf else _tw_stock_names.get(ticker)
-    display_name = chinese_name or info.get("longName") or info.get("shortName", ticker)
+    # 次要：yfinance 取 PE/PB/市值（允許失敗，失敗給 None）
+    yf_info = {}
+    try:
+        exchange = _tw_stock_exchange.get(ticker, "TW")
+        suffix = ".TW" if exchange == "TW" else ".TWO"
+        symbol = f"{ticker}{suffix}"
+        _symbol_cache[ticker] = symbol
+        yf_info = yf.Ticker(symbol).fast_info  # fast_info 較輕量
+    except Exception:
+        pass
 
-    # 產業：ETF 直接標示，其他：手動細分 > TWSE官方 > yfinance
-    if is_etf:
-        industry = "ETF 指數股票型基金"
-    else:
-        industry = (
-            TICKER_INDUSTRY_OVERRIDE.get(ticker)
-            or _tw_stock_industry.get(ticker)
-            or info.get("industry")
-        )
+    # 名稱、產業
+    is_etf = ticker in ETF_NAMES
+    display_name = (ETF_NAMES.get(ticker) if is_etf else _tw_stock_names.get(ticker)) or ticker
+    industry = (
+        "ETF 指數股票型基金" if is_etf
+        else TICKER_INDUSTRY_OVERRIDE.get(ticker)
+        or _tw_stock_industry.get(ticker)
+    )
 
-    price  = info.get("currentPrice") or info.get("regularMarketPrice")
-    volume = info.get("regularMarketVolume")  # 單位：股
-    mktcap = info.get("marketCap")            # 單位：元
-    shares = info.get("sharesOutstanding")    # 股數
-    # 股本(億) = 股數 × 面值10元 ÷ 1億；台股面值統一10元
+    # fast_info 欄位名稱不同
+    mktcap = getattr(yf_info, "market_cap", None)
+    shares = getattr(yf_info, "shares", None)
+    week_52_high = getattr(yf_info, "year_high", None)
+    week_52_low  = getattr(yf_info, "year_low", None)
+
+    # 市值：優先 yfinance，次選 TWSE 價格 × 股數
+    if not mktcap and price and shares:
+        mktcap = price * shares
     capital_yi = round(shares * 10 / 1e8, 1) if shares else None
 
     result = {
         "ticker": ticker,
         "name": display_name,
         "price": price,
-        "pe_ratio": info.get("trailingPE"),
-        "pb_ratio": info.get("priceToBook"),
-        "dividend_yield": _calc_dividend_yield(info),
+        "pe_ratio": getattr(yf_info, "pe_forward", None),
+        "pb_ratio": None,
+        "dividend_yield": None,
         "market_cap": mktcap,
-        "market_cap_yi": round(mktcap / 1e8, 1) if mktcap else None,  # 億元
+        "market_cap_yi": round(mktcap / 1e8, 1) if mktcap else None,
         "capital_yi": capital_yi,
         "volume": volume,
-        "volume_zhang": round(volume / 1000) if volume else None,       # 張（千股）
-        "week_52_high": info.get("fiftyTwoWeekHigh"),
-        "week_52_low": info.get("fiftyTwoWeekLow"),
-        "sector": info.get("sector"),
+        "volume_zhang": volume_zhang,
+        "week_52_high": week_52_high,
+        "week_52_low": week_52_low,
+        "sector": None,
         "industry": industry,
     }
     _cache_set(_info_cache, ticker, result)
     return result
-
-
-def _calc_dividend_yield(info: dict):
-    """計算殖利率，ETF 直接用 dividendYield，一般股用年配息 ÷ 股價"""
-    price = info.get("currentPrice") or info.get("regularMarketPrice")
-    dividend_rate = info.get("dividendRate")
-
-    if price and dividend_rate and price > 0:
-        # 一般股：用 dividendRate（年配息元）÷ 股價 計算
-        yield_pct = round(dividend_rate / price * 100, 2)
-        return yield_pct if yield_pct <= 30 else None
-
-    # ETF 或 dividendRate 缺失：yfinance 的 dividendYield 已是百分比數值
-    raw_yield = info.get("dividendYield")
-    if raw_yield and 0 < raw_yield <= 30:
-        return round(raw_yield, 2)
-
-    return None
 
 
 def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None) -> list:
@@ -280,53 +278,112 @@ def _get_symbol(ticker: str) -> str:
     return _symbol_cache[ticker]
 
 
+_PERIOD_MONTHS = {
+    "1mo": 1, "3mo": 3, "6mo": 6, "1y": 12, "2y": 24, "5y": 60,
+}
+
+
+def _fetch_twse_month(ticker: str, year: int, month: int, exchange: str) -> list:
+    """抓單月 OHLC（上市用 TWSE，上櫃用 TPEx）"""
+    date_str = f"{year}{month:02d}01"
+    try:
+        if exchange == "TW":
+            url = (f"https://www.twse.com.tw/exchangeReport/STOCK_DAY"
+                   f"?response=json&date={date_str}&stockNo={ticker}")
+            resp = requests.get(url, timeout=10, headers=_TWSE_HEADERS)
+            data = resp.json()
+            if data.get("stat") != "OK":
+                return []
+            rows = data.get("data", [])
+            result = []
+            for row in rows:
+                try:
+                    # 日期格式：民國年/月/日 → 西元
+                    parts = row[0].split("/")
+                    w_year = int(parts[0]) + 1911
+                    date = f"{w_year}-{parts[1]}-{parts[2]}"
+                    result.append({
+                        "date": date,
+                        "open":   float(row[3].replace(",", "")),
+                        "high":   float(row[4].replace(",", "")),
+                        "low":    float(row[5].replace(",", "")),
+                        "close":  float(row[6].replace(",", "")),
+                        "volume": int(row[1].replace(",", "")),
+                    })
+                except (ValueError, IndexError):
+                    continue
+            return result
+        else:  # TWO (上櫃)
+            roc_year = year - 1911
+            url = (f"https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_info/"
+                   f"st43_result.php?l=zh-tw&d={roc_year}/{month:02d}&stkno={ticker}&s=0,asc,0")
+            resp = requests.get(url, timeout=10, headers=_TWSE_HEADERS)
+            data = resp.json()
+            rows = data.get("aaData", [])
+            result = []
+            for row in rows:
+                try:
+                    parts = row[0].split("/")
+                    w_year = int(parts[0]) + 1911
+                    date = f"{w_year}-{parts[1]}-{parts[2]}"
+                    result.append({
+                        "date": date,
+                        "open":   float(row[3].replace(",", "")),
+                        "high":   float(row[4].replace(",", "")),
+                        "low":    float(row[5].replace(",", "")),
+                        "close":  float(row[6].replace(",", "")),
+                        "volume": int(row[1].replace(",", "")),
+                    })
+                except (ValueError, IndexError):
+                    continue
+            return result
+    except Exception:
+        return []
+
+
 def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") -> list:
-    """取得個股歷史股價（支援上市/上櫃），可重採樣為週K/月K"""
+    """取得個股歷史股價（TWSE/TPEx 官方 API，不受 rate limit）"""
     cache_key = (ticker, period, interval)
     cached = _cache_get(_history_cache, cache_key, HISTORY_TTL)
     if cached is not None:
         return cached
 
-    symbol = _get_symbol(ticker)
-    hist = None
-    for attempt in range(3):
-        try:
-            hist = yf.Ticker(symbol).history(period=period)
-            break
-        except Exception as e:
-            if "too many requests" in str(e).lower() or "429" in str(e):
-                time.sleep(2 ** attempt)
-            else:
-                raise
-    if hist is None or hist.empty:
-        return []
+    _load_tw_stock_names()
+    exchange = _tw_stock_exchange.get(ticker, "TW")
+    months_needed = _PERIOD_MONTHS.get(period, 3)
 
-    # 重採樣：週K 或 月K
-    if interval == "1wk":
-        hist = hist.resample("W-FRI").agg(
-            Open=("Open", "first"), High=("High", "max"),
-            Low=("Low", "min"), Close=("Close", "last"),
-            Volume=("Volume", "sum")
-        ).dropna(subset=["Open"])
-    elif interval == "1mo":
-        hist = hist.resample("ME").agg(
-            Open=("Open", "first"), High=("High", "max"),
-            Low=("Low", "min"), Close=("Close", "last"),
-            Volume=("Volume", "sum")
-        ).dropna(subset=["Open"])
+    today = pd.Timestamp.now()
+    all_records = []
+    for i in range(months_needed):
+        target = today - pd.DateOffset(months=i)
+        month_records = _fetch_twse_month(ticker, target.year, target.month, exchange)
+        all_records.extend(month_records)
+        if i < months_needed - 1:
+            time.sleep(0.2)  # 避免對官方 API 請求過快
 
-    records = []
-    for date, row in hist.iterrows():
-        records.append({
-            "date": date.strftime("%Y-%m-%d"),
-            "open": round(row["Open"], 2),
-            "high": round(row["High"], 2),
-            "low": round(row["Low"], 2),
-            "close": round(row["Close"], 2),
-            "volume": int(row["Volume"]),
-        })
-    _cache_set(_history_cache, cache_key, records)
-    return records
+    all_records.sort(key=lambda x: x["date"])
+
+    # 週K / 月K 重採樣
+    if interval in ("1wk", "1mo") and all_records:
+        df = pd.DataFrame(all_records)
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.set_index("date")
+        df.columns = ["Open", "High", "Low", "Close", "Volume"]
+        rule = "W-FRI" if interval == "1wk" else "ME"
+        df = df.resample(rule).agg(
+            Open=("Open","first"), High=("High","max"),
+            Low=("Low","min"), Close=("Close","last"),
+            Volume=("Volume","sum")
+        ).dropna(subset=["Open"])
+        all_records = [
+            {"date": d.strftime("%Y-%m-%d"), "open": round(r.Open,2),
+             "high": round(r.High,2), "low": round(r.Low,2),
+             "close": round(r.Close,2), "volume": int(r.Volume)}
+            for d, r in df.iterrows()
+        ]
+
+    _cache_set(_history_cache, cache_key, all_records)
+    return all_records
 
 
 def _get_weekly_change(ticker: str):
