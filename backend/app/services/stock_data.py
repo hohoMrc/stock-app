@@ -142,19 +142,34 @@ def _load_tw_stock_names():
         pass
 
 
+def _yf_fetch_with_retry(symbol: str, max_retries: int = 3) -> dict:
+    """抓 yfinance info，遇到 429 自動等待重試"""
+    for attempt in range(max_retries):
+        try:
+            info = yf.Ticker(symbol).info
+            return info
+        except Exception as e:
+            msg = str(e).lower()
+            if "too many requests" in msg or "rate limit" in msg or "429" in msg:
+                wait = 2 ** attempt  # 1s, 2s, 4s
+                time.sleep(wait)
+            else:
+                raise
+    return {}
+
+
 def _get_yf_info(ticker: str) -> tuple:
     """嘗試上市(.TW)與上櫃(.TWO)，回傳 (info, symbol)；優先用快取判斷交易所"""
-    # 若已知是哪個交易所，直接用
     if ticker in _symbol_cache:
         symbol = _symbol_cache[ticker]
-        return yf.Ticker(symbol).info, symbol
+        return _yf_fetch_with_retry(symbol), symbol
     for suffix in [".TW", ".TWO"]:
         symbol = f"{ticker}{suffix}"
-        info = yf.Ticker(symbol).info
+        info = _yf_fetch_with_retry(symbol)
         if info.get("currentPrice") or info.get("regularMarketPrice"):
             _symbol_cache[ticker] = symbol
             return info, symbol
-    return yf.Ticker(f"{ticker}.TW").info, f"{ticker}.TW"
+    return _yf_fetch_with_retry(f"{ticker}.TW"), f"{ticker}.TW"
 
 
 def get_stock_info(ticker: str) -> dict:
@@ -273,9 +288,17 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
         return cached
 
     symbol = _get_symbol(ticker)
-    hist = yf.Ticker(symbol).history(period=period)
-
-    if hist.empty:
+    hist = None
+    for attempt in range(3):
+        try:
+            hist = yf.Ticker(symbol).history(period=period)
+            break
+        except Exception as e:
+            if "too many requests" in str(e).lower() or "429" in str(e):
+                time.sleep(2 ** attempt)
+            else:
+                raise
+    if hist is None or hist.empty:
         return []
 
     # 重採樣：週K 或 月K
