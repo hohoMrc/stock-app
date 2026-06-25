@@ -89,10 +89,11 @@ def _fugle_quote(ticker: str) -> dict:
         price  = data.get("closePrice") or data.get("lastPrice") or data.get("referencePrice")
         volume = data.get("tradeVolume")   # 股數
         return {
-            "price":       round(float(price), 2) if price else None,
-            "volume":      int(volume) if volume else None,
+            "price":        round(float(price), 2) if price else None,
+            "volume":       int(volume) if volume else None,
             "volume_zhang": round(int(volume) / 1000) if volume else None,
-            "name":        data.get("name"),
+            "name":         data.get("name"),
+            "exchange":     data.get("exchange"),  # "TWSE" 或 "TPEX"
         }
     except Exception as e:
         print(f"[Fugle] quote {ticker} 失敗: {e}")
@@ -314,6 +315,16 @@ def get_stock_info(ticker: str) -> dict:
 
     _load_tw_stock_names()
 
+    # 1) Fugle 即時報價（最穩定，同時帶回股名與交易所）
+    fugle_q = _fugle_quote(ticker)
+
+    # 用 Fugle 回傳的交易所更新本地映射（比 TWSE 清單更即時）
+    fugle_exchange_raw = fugle_q.get("exchange") if fugle_q else None
+    if fugle_exchange_raw == "TWSE":
+        _tw_stock_exchange[ticker] = "TW"
+    elif fugle_exchange_raw in ("TPEX", "TPEx"):
+        _tw_stock_exchange[ticker] = "TWO"
+
     exchange = _tw_stock_exchange.get(ticker, "TW")
     suffix   = ".TW" if exchange == "TW" else ".TWO"
     symbol   = f"{ticker}{suffix}"
@@ -325,8 +336,6 @@ def get_stock_info(ticker: str) -> dict:
     week_52_high = None
     week_52_low  = None
 
-    # 1) Fugle 即時報價（最穩定，不受 rate limit）
-    fugle_q = _fugle_quote(ticker)
     if fugle_q.get("price"):
         price        = fugle_q["price"]
         volume       = fugle_q.get("volume")
@@ -369,12 +378,12 @@ def get_stock_info(ticker: str) -> dict:
         mktcap = price * shares
     capital_yi = round(shares * 10 / 1e8, 1) if shares else None
 
-    # 名稱、產業（TWSE 清單優先，Fugle 報價名稱作備援）
+    # 名稱：ETF 手動表 → Fugle 報價 → TWSE 清單 → 代號本身
     is_etf = ticker in ETF_NAMES
     fugle_name = fugle_q.get("name") if fugle_q else None
     display_name = (
         ETF_NAMES.get(ticker) if is_etf
-        else _tw_stock_names.get(ticker) or fugle_name
+        else fugle_name or _tw_stock_names.get(ticker)
     ) or ticker
     industry = (
         "ETF 指數股票型基金" if is_etf
