@@ -426,7 +426,23 @@ def get_stock_info(ticker: str) -> dict:
         except Exception:
             pass
 
-    # yfinance fast_info 取 PE / 市值 / 52 週高低（輕量，選用）
+    # Fugle historical stats 取 52 週高低（比 yfinance 準且無浮點問題）
+    fugle_client = _get_fugle()
+    if fugle_client:
+        try:
+            stats_resp = fugle_client.stock.historical.stats(symbol=ticker)
+            stats_data = stats_resp.get("data", stats_resp) if isinstance(stats_resp, dict) else {}
+            if isinstance(stats_data, dict):
+                v = stats_data.get("week52High")
+                if v is not None:
+                    week_52_high = round(float(v), 2)
+                v = stats_data.get("week52Low")
+                if v is not None:
+                    week_52_low = round(float(v), 2)
+        except Exception as e:
+            print(f"[Fugle] stats {ticker} 失敗: {e}")
+
+    # yfinance fast_info 取 PE / 市值（52 週高低已由 Fugle 提供）
     yf_fi = None
     try:
         yf_fi = yf.Ticker(symbol).fast_info
