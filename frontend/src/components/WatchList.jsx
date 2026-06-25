@@ -41,7 +41,6 @@ export default function WatchList({ watchlist, onRemove, onSelect }) {
               <th>代號</th>
               <th>名稱</th>
               <th>股價</th>
-              <th>本益比</th>
               <th>殖利率</th>
               <th>52週高</th>
               <th>52週低</th>
@@ -54,7 +53,6 @@ export default function WatchList({ watchlist, onRemove, onSelect }) {
                 <td>{s.ticker}</td>
                 <td>{s.name}</td>
                 <td>{s.price ?? "—"}</td>
-                <td>{s.pe_ratio?.toFixed(2) ?? "—"}</td>
                 <td>{s.dividend_yield ? `${s.dividend_yield}%` : "—"}</td>
                 <td>{s.week_52_high ?? "—"}</td>
                 <td>{s.week_52_low ?? "—"}</td>

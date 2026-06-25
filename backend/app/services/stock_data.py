@@ -471,24 +471,7 @@ def get_stock_info(ticker: str) -> dict:
             except Exception as e:
                 print(f"[Fugle] dividends {ticker} 失敗: {e}")
 
-    # yfinance fast_info 取市值/52週高低（輕量，不觸發 rate limit）
-    yf_fi = None
-    try:
-        yf_fi = yf.Ticker(symbol).fast_info
-        if week_52_high is None:
-            v = getattr(yf_fi, "year_high", None)
-            week_52_high = round(float(v), 2) if v is not None else None
-        if week_52_low is None:
-            v = getattr(yf_fi, "year_low", None)
-            week_52_low  = round(float(v), 2) if v is not None else None
-    except Exception:
-        pass
-
-    mktcap = getattr(yf_fi, "market_cap", None)
-    shares = getattr(yf_fi, "shares", None)
-    if not mktcap and price and shares:
-        mktcap = price * shares
-    capital_yi = round(shares * 10 / 1e8, 1) if shares else None
+    # 52週高低由 Fugle stats 提供，不再呼叫 yfinance（避免 rate limit）
 
     # 名稱：ETF 手動表 → Fugle ticker → Fugle quote → TWSE 清單 → 代號本身
     is_etf = ticker in ETF_NAMES
@@ -513,17 +496,11 @@ def get_stock_info(ticker: str) -> dict:
         "ticker":         ticker,
         "name":           display_name,
         "price":          price,
-        "pe_ratio":       pe_ratio,
-        "pb_ratio":       pb_ratio,
         "dividend_yield": dividend_yield,
-        "market_cap":     mktcap,
-        "market_cap_yi":  round(mktcap / 1e8, 1) if mktcap else None,
-        "capital_yi":     capital_yi,
         "volume":         volume,
         "volume_zhang":   volume_zhang,
         "week_52_high":   week_52_high,
         "week_52_low":    week_52_low,
-        "sector":         None,
         "industry":       industry,
         "source":         price_source,
         "is_attention":             fugle_t.get("is_attention",             False),

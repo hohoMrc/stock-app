@@ -323,8 +323,6 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                   <th>股價</th>
                   <th>週漲幅</th>
                   <th>成交量(張)</th>
-                  <th>市值(億)</th>
-                  <th>本益比</th>
                   <th>殖利率</th>
                   {hasMA && <th>{MA_OPTIONS.find(o => o.value === filters.near_ma)?.label}</th>}
                   {hasMA && <th>偏離</th>}
@@ -342,8 +340,6 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                       {s.weekly_change_pct != null ? `${s.weekly_change_pct > 0 ? "+" : ""}${s.weekly_change_pct}%` : "—"}
                     </td>
                     <td>{s.volume_zhang != null ? s.volume_zhang.toLocaleString() : "—"}</td>
-                    <td>{s.market_cap_yi != null ? s.market_cap_yi.toLocaleString() : "—"}</td>
-                    <td>{s.pe_ratio?.toFixed(2) ?? "—"}</td>
                     <td>{s.dividend_yield ? `${s.dividend_yield}%` : "—"}</td>
                     {hasMA && <td>{s.ma_value ?? "—"}</td>}
                     {hasMA && (

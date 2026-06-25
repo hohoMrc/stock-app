@@ -36,7 +36,6 @@ export default function IndustryStocks({ industry, excludeTicker, onSelect, onBa
               <th>代號</th>
               <th>名稱</th>
               <th>股價</th>
-              <th>本益比</th>
               <th>殖利率</th>
               <th>操作</th>
             </tr>
@@ -47,7 +46,6 @@ export default function IndustryStocks({ industry, excludeTicker, onSelect, onBa
                 <td>{s.ticker}</td>
                 <td>{s.name}</td>
                 <td>{s.price ?? "—"}</td>
-                <td>{s.pe_ratio?.toFixed(2) ?? "—"}</td>
                 <td>{s.dividend_yield ? `${s.dividend_yield}%` : "—"}</td>
                 <td>
                   <button className="view-btn" onClick={() => onSelect(s.ticker)}>

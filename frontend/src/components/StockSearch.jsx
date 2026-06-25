@@ -53,8 +53,6 @@ export default function StockSearch({ onSelect }) {
           </div>
 
           <div className="info-grid">
-            <InfoItem label="本益比" value={result.pe_ratio?.toFixed(2) ?? "—"} />
-            <InfoItem label="股價淨值比" value={result.pb_ratio?.toFixed(2) ?? "—"} />
             <InfoItem label="殖利率" value={result.dividend_yield ? `${result.dividend_yield}%` : "—"} />
             <InfoItem label="產業" value={result.industry ?? "—"} />
             <InfoItem label="52週高" value={result.week_52_high ?? "—"} />
