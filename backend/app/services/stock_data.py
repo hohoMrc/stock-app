@@ -86,14 +86,21 @@ def _fugle_quote(ticker: str) -> dict:
     try:
         resp = client.stock.intraday.quote(symbol=ticker)
         data = resp.get("data", resp) if isinstance(resp, dict) else {}
+        if not isinstance(data, dict):
+            data = {}
         price  = data.get("closePrice") or data.get("lastPrice") or data.get("referencePrice")
-        volume = data.get("tradeVolume")   # 股數
+        volume = data.get("tradeVolume")
+        name   = data.get("name")
+        if not price:
+            print(f"[Fugle] {ticker} 無報價，欄位: {list(data.keys())}")
+        elif not name:
+            print(f"[Fugle] {ticker} 有報價但無名稱，欄位: {list(data.keys())}")
         return {
             "price":        round(float(price), 2) if price else None,
             "volume":       int(volume) if volume else None,
             "volume_zhang": round(int(volume) / 1000) if volume else None,
-            "name":         data.get("name"),
-            "exchange":     data.get("exchange"),  # "TWSE" 或 "TPEX"
+            "name":         name,
+            "exchange":     data.get("exchange"),
         }
     except Exception as e:
         print(f"[Fugle] quote {ticker} 失敗: {e}")
@@ -353,11 +360,13 @@ def get_stock_info(ticker: str) -> dict:
     volume_zhang = None
     week_52_high = None
     week_52_low  = None
+    price_source = None
 
     if fugle_q.get("price"):
         price        = fugle_q["price"]
         volume       = fugle_q.get("volume")
         volume_zhang = fugle_q.get("volume_zhang")
+        price_source = "fugle"
 
     # 2) TWSE/TPEx 官方即時 API
     if not price:
@@ -365,6 +374,8 @@ def get_stock_info(ticker: str) -> dict:
         price        = twse.get("price")
         volume       = twse.get("volume")
         volume_zhang = twse.get("volume_zhang")
+        if price:
+            price_source = "twse"
 
     # 3) yfinance chart API（最後手段）
     if not price:
@@ -376,6 +387,7 @@ def get_stock_info(ticker: str) -> dict:
                 volume_zhang = round(volume / 1000)
                 week_52_high = round(float(hist["High"].max()), 2)
                 week_52_low  = round(float(hist["Low"].min()), 2)
+                price_source = "yfinance"
         except Exception:
             pass
 
@@ -425,6 +437,7 @@ def get_stock_info(ticker: str) -> dict:
         "week_52_low": week_52_low,
         "sector": None,
         "industry": industry,
+        "source": price_source,
     }
     _cache_set(_info_cache, ticker, result)
     return result

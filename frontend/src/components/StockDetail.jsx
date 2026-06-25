@@ -62,6 +62,11 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
         <div>
           <h2>{info.name}</h2>
           <span className="ticker-badge">{ticker}</span>
+          {info.source && (
+            <span className="source-badge" title="資料來源">
+              {{ fugle: "富邦 Fugle", twse: "TWSE", yfinance: "Yahoo Finance" }[info.source] ?? info.source}
+            </span>
+          )}
           {info.industry && (
             <span
               className="industry-badge clickable"
