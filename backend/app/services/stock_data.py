@@ -404,9 +404,11 @@ def get_stock_info(ticker: str) -> dict:
     try:
         yf_fi = yf.Ticker(symbol).fast_info
         if week_52_high is None:
-            week_52_high = getattr(yf_fi, "year_high", None)
+            v = getattr(yf_fi, "year_high", None)
+            week_52_high = round(float(v), 2) if v is not None else None
         if week_52_low is None:
-            week_52_low  = getattr(yf_fi, "year_low", None)
+            v = getattr(yf_fi, "year_low", None)
+            week_52_low  = round(float(v), 2) if v is not None else None
     except Exception:
         pass
 
