@@ -103,6 +103,30 @@ def _fugle_quote(ticker: str) -> dict:
         return {}
 
 
+def _fugle_ticker(ticker: str) -> dict:
+    """從 Fugle intraday ticker 取得股票基本資訊（股名、市場別、產業別、注意/處置股）。"""
+    client = _get_fugle()
+    if not client:
+        return {}
+    try:
+        resp = client.stock.intraday.ticker(symbol=ticker)
+        data = resp.get("data", resp) if isinstance(resp, dict) else {}
+        if not isinstance(data, dict):
+            data = {}
+        return {
+            "name":           data.get("name"),
+            "exchange":       data.get("exchange"),      # "TWSE" / "TPEX"
+            "market":         data.get("market"),
+            "industry":       data.get("industry"),
+            "is_attention":   bool(data.get("isAttention",   False)),
+            "is_disposition": bool(data.get("isDisposition", False)),
+            "is_halted":      bool(data.get("isHalted",      False)),
+        }
+    except Exception as e:
+        print(f"[Fugle] ticker {ticker} 失敗: {e}")
+        return {}
+
+
 def _fugle_candles(ticker: str, from_date: str, to_date: str) -> list:
     """從 Fugle historical candles 取得日K，回傳 list of {date,open,high,low,close,volume(股數)}。"""
     client = _get_fugle()
@@ -336,11 +360,14 @@ def get_stock_info(ticker: str) -> dict:
 
     _load_tw_stock_names()
 
-    # 1) Fugle 即時報價（最穩定，同時帶回股名與交易所）
+    # 1a) Fugle ticker — 股票基本資訊（股名、產業別、注意/處置股）
+    fugle_t = _fugle_ticker(ticker)
+
+    # 1b) Fugle 即時報價（價格、成交量）
     fugle_q = _fugle_quote(ticker)
 
     # 用 Fugle 回傳的交易所更新本地映射（比 TWSE 清單更即時）
-    fugle_exchange_raw = fugle_q.get("exchange") if fugle_q else None
+    fugle_exchange_raw = fugle_t.get("exchange") or fugle_q.get("exchange")
     if fugle_exchange_raw == "TWSE":
         _tw_stock_exchange[ticker] = "TW"
     elif fugle_exchange_raw in ("TPEX", "TPEx"):
@@ -418,36 +445,42 @@ def get_stock_info(ticker: str) -> dict:
         mktcap = price * shares
     capital_yi = round(shares * 10 / 1e8, 1) if shares else None
 
-    # 名稱：ETF 手動表 → Fugle 報價 → TWSE 清單 → 代號本身
+    # 名稱：ETF 手動表 → Fugle ticker → Fugle quote → TWSE 清單 → 代號本身
     is_etf = ticker in ETF_NAMES
-    fugle_name = fugle_q.get("name") if fugle_q else None
+    fugle_name = fugle_t.get("name") or fugle_q.get("name")
     display_name = (
         ETF_NAMES.get(ticker) if is_etf
         else fugle_name or _tw_stock_names.get(ticker)
     ) or ticker
+
+    # 產業別：ETF 固定 → Fugle ticker（最準） → 手動覆寫表 → TWSE 清單
     industry = (
         "ETF 指數股票型基金" if is_etf
-        else TICKER_INDUSTRY_OVERRIDE.get(ticker)
+        else fugle_t.get("industry")
+        or TICKER_INDUSTRY_OVERRIDE.get(ticker)
         or _tw_stock_industry.get(ticker)
     )
 
     result = {
-        "ticker": ticker,
-        "name": display_name,
-        "price": price,
-        "pe_ratio": getattr(yf_fi, "pe_forward", None),
-        "pb_ratio": None,
+        "ticker":         ticker,
+        "name":           display_name,
+        "price":          price,
+        "pe_ratio":       getattr(yf_fi, "pe_forward", None),
+        "pb_ratio":       None,
         "dividend_yield": None,
-        "market_cap": mktcap,
-        "market_cap_yi": round(mktcap / 1e8, 1) if mktcap else None,
-        "capital_yi": capital_yi,
-        "volume": volume,
-        "volume_zhang": volume_zhang,
-        "week_52_high": week_52_high,
-        "week_52_low": week_52_low,
-        "sector": None,
-        "industry": industry,
-        "source": price_source,
+        "market_cap":     mktcap,
+        "market_cap_yi":  round(mktcap / 1e8, 1) if mktcap else None,
+        "capital_yi":     capital_yi,
+        "volume":         volume,
+        "volume_zhang":   volume_zhang,
+        "week_52_high":   week_52_high,
+        "week_52_low":    week_52_low,
+        "sector":         None,
+        "industry":       industry,
+        "source":         price_source,
+        "is_attention":   fugle_t.get("is_attention",   False),
+        "is_disposition": fugle_t.get("is_disposition", False),
+        "is_halted":      fugle_t.get("is_halted",      False),
     }
     _cache_set(_info_cache, ticker, result)
     return result
