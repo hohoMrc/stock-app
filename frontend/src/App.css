@@ -430,6 +430,18 @@
   font-size: 11px;
 }
 
+.kd-label-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 4px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.kd-label-title { color: var(--text-secondary); }
+.kd-k-val       { color: #f59e0b; }
+.kd-d-val       { color: #3b82f6; }
+
 /* ── Analysis ── */
 .analysis-section {
   background: var(--bg-card);

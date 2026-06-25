@@ -18,6 +18,26 @@ function calcMA(data, period) {
   return result;
 }
 
+// KD 隨機指標（9日）：K = 2/3 × 前K + 1/3 × RSV，D = 2/3 × 前D + 1/3 × K
+function calcKD(data, period = 9) {
+  const kArr = [];
+  const dArr = [];
+  let prevK = 50;
+  let prevD = 50;
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) continue;
+    const slice = data.slice(i - period + 1, i + 1);
+    const lowest  = Math.min(...slice.map((d) => d.low));
+    const highest = Math.max(...slice.map((d) => d.high));
+    const rsv = highest === lowest ? 50 : ((data[i].close - lowest) / (highest - lowest)) * 100;
+    prevK = (2 / 3) * prevK + (1 / 3) * rsv;
+    prevD = (2 / 3) * prevD + (1 / 3) * prevK;
+    kArr.push({ time: data[i].date, value: parseFloat(prevK.toFixed(2)) });
+    dArr.push({ time: data[i].date, value: parseFloat(prevD.toFixed(2)) });
+  }
+  return { kArr, dArr };
+}
+
 const PERIOD_DAYS = {
   "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825,
 };
@@ -30,91 +50,135 @@ function getFromDate(period) {
 }
 
 export default function CandlestickChart({ data, period = "3mo", height = 320 }) {
-  const containerRef = useRef(null);
-  const chartRef = useRef(null);
+  const containerRef   = useRef(null);
+  const kdContainerRef = useRef(null);
+  const chartRef       = useRef(null);
+  const kdChartRef     = useRef(null);
   const candleSeriesRef = useRef(null);
-  const maSeriesRefs = useRef({});
-  const dataRef = useRef([]);           // 供 crosshair callback 查前一根收盤價
-  const dataIndexRef = useRef(new Map());
+  const kSeriesRef     = useRef(null);
+  const dSeriesRef     = useRef(null);
+  const maSeriesRefs   = useRef({});
+  const dataRef        = useRef([]);
+  const dataIndexRef   = useRef(new Map());
+  const kdMapRef       = useRef(new Map());
+  const syncingRef     = useRef(false);
+
   const [activeMA, setActiveMA] = useState({ ma5: true, ma20: true, ma60: false, ma120: false });
   const [hoveredBar, setHoveredBar] = useState(null);
+  const [hoveredKD,  setHoveredKD]  = useState(null);
 
-  // 初始化圖表
+  // 初始化兩個 chart
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !kdContainerRef.current) return;
 
-    chartRef.current = createChart(containerRef.current, {
+    const mainChart = createChart(containerRef.current, {
       width: containerRef.current.clientWidth,
       height,
-      layout: {
-        background: { color: "#111827" },
-        textColor: "#7a94b0",
-      },
-      grid: {
-        vertLines: { color: "#1a2235" },
-        horzLines: { color: "#1a2235" },
-      },
+      layout: { background: { color: "#111827" }, textColor: "#7a94b0" },
+      grid:   { vertLines: { color: "#1a2235" }, horzLines: { color: "#1a2235" } },
       rightPriceScale: { borderColor: "#1e3a5f" },
       timeScale: { borderColor: "#1e3a5f", timeVisible: false },
       crosshair: {
         vertLine: { color: "rgba(6,182,212,0.4)", style: 0 },
         horzLine: { color: "rgba(6,182,212,0.4)", style: 0 },
       },
-      localization: {
-        dateFormat: "yyyy/MM/dd",
+      localization: { dateFormat: "yyyy/MM/dd" },
+    });
+
+    const kdChart = createChart(kdContainerRef.current, {
+      width: kdContainerRef.current.clientWidth,
+      height: 100,
+      layout: { background: { color: "#111827" }, textColor: "#7a94b0" },
+      grid:   { vertLines: { color: "#1a2235" }, horzLines: { color: "#1a2235" } },
+      rightPriceScale: {
+        borderColor: "#1e3a5f",
+        scaleMargins: { top: 0.1, bottom: 0.1 },
+        // 固定 Y 軸 0–100
+        autoScale: false,
       },
+      timeScale: { borderColor: "#1e3a5f", timeVisible: false, visible: false },
+      crosshair: {
+        vertLine: { color: "rgba(6,182,212,0.4)", style: 0 },
+        horzLine: { visible: false },
+      },
+      localization: { dateFormat: "yyyy/MM/dd" },
     });
 
-    candleSeriesRef.current = chartRef.current.addSeries(CandlestickSeries, {
-      upColor: "#dc2626",
-      downColor: "#16a34a",
-      borderUpColor: "#dc2626",
-      borderDownColor: "#16a34a",
-      wickUpColor: "#dc2626",
-      wickDownColor: "#16a34a",
+    chartRef.current   = mainChart;
+    kdChartRef.current = kdChart;
+
+    candleSeriesRef.current = mainChart.addSeries(CandlestickSeries, {
+      upColor: "#dc2626", downColor: "#16a34a",
+      borderUpColor: "#dc2626", borderDownColor: "#16a34a",
+      wickUpColor:   "#dc2626", wickDownColor:   "#16a34a",
     });
 
-    // 建立所有 MA 線系列
     MA_CONFIG.forEach(({ key, color }) => {
-      maSeriesRefs.current[key] = chartRef.current.addSeries(LineSeries, {
-        color,
-        lineWidth: 1.5,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
+      maSeriesRefs.current[key] = mainChart.addSeries(LineSeries, {
+        color, lineWidth: 1.5,
+        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
       });
     });
 
-    // crosshair 移動時顯示 OHLC + 漲跌
-    chartRef.current.subscribeCrosshairMove((param) => {
+    kSeriesRef.current = kdChart.addSeries(LineSeries, {
+      color: "#f59e0b", lineWidth: 1.5,
+      priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+    });
+    dSeriesRef.current = kdChart.addSeries(LineSeries, {
+      color: "#3b82f6", lineWidth: 1.5,
+      priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+    });
+
+    // crosshair → OHLC + KD 懸浮資訊
+    mainChart.subscribeCrosshairMove((param) => {
       if (!param.time || param.point === undefined ||
           param.point.x < 0 || param.point.y < 0) {
         setHoveredBar(null);
+        setHoveredKD(null);
         return;
       }
       const candle = param.seriesData.get(candleSeriesRef.current);
-      if (!candle) { setHoveredBar(null); return; }
+      if (!candle) { setHoveredBar(null); setHoveredKD(null); return; }
 
       const idx = dataIndexRef.current.get(String(param.time)) ?? -1;
       const prevClose = idx > 0 ? dataRef.current[idx - 1].close : candle.open;
-      const change = +(candle.close - prevClose).toFixed(2);
+      const change    = +(candle.close - prevClose).toFixed(2);
       const changePct = +((change / prevClose) * 100).toFixed(2);
-
       setHoveredBar({ ...candle, change, changePct });
+      setHoveredKD(kdMapRef.current.get(String(param.time)) ?? null);
+    });
+
+    // 時間軸雙向同步（防止無窮迴圈）
+    mainChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+      if (syncingRef.current || !range) return;
+      syncingRef.current = true;
+      kdChart.timeScale().setVisibleLogicalRange(range);
+      syncingRef.current = false;
+    });
+    kdChart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+      if (syncingRef.current || !range) return;
+      syncingRef.current = true;
+      mainChart.timeScale().setVisibleLogicalRange(range);
+      syncingRef.current = false;
     });
 
     const handleResize = () => {
-      if (chartRef.current && containerRef.current) {
+      if (chartRef.current && containerRef.current)
         chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
-      }
+      if (kdChartRef.current && kdContainerRef.current)
+        kdChartRef.current.applyOptions({ width: kdContainerRef.current.clientWidth });
     };
     window.addEventListener("resize", handleResize);
 
     return () => {
       window.removeEventListener("resize", handleResize);
       chartRef.current?.remove();
+      kdChartRef.current?.remove();
       chartRef.current = null;
+      kdChartRef.current = null;
       candleSeriesRef.current = null;
+      kSeriesRef.current = null;
+      dSeriesRef.current = null;
       maSeriesRefs.current = {};
     };
   }, [height]);
@@ -122,15 +186,14 @@ export default function CandlestickChart({ data, period = "3mo", height = 320 })
   function applyVisibleRange(p) {
     if (!chartRef.current || !data?.length) return;
     const from = getFromDate(p);
-    const to = data[data.length - 1]?.date;
+    const to   = data[data.length - 1]?.date;
     if (from && to) chartRef.current.timeScale().setVisibleRange({ from, to });
   }
 
-  // 資料更新時重算均線並套用可見範圍
+  // 資料更新
   useEffect(() => {
     if (!candleSeriesRef.current || !data?.length) return;
 
-    // 建立 date → index 查找表，供 crosshair 計算漲跌
     dataRef.current = data;
     const indexMap = new Map();
     data.forEach((d, i) => indexMap.set(d.date, i));
@@ -141,30 +204,33 @@ export default function CandlestickChart({ data, period = "3mo", height = 320 })
     );
 
     MA_CONFIG.forEach(({ key, period: maPeriod }) => {
-      const maData = calcMA(data, maPeriod);
-      maSeriesRefs.current[key]?.setData(maData);
+      maSeriesRefs.current[key]?.setData(calcMA(data, maPeriod));
     });
+
+    const { kArr, dArr } = calcKD(data);
+    kSeriesRef.current?.setData(kArr);
+    dSeriesRef.current?.setData(dArr);
+
+    // 設定 KD Y 軸範圍固定 0–100
+    kSeriesRef.current?.applyOptions({ autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: 100 } }) });
+
+    // 建立 time → { k, d } 查找表
+    const kdMap = new Map();
+    kArr.forEach((item, i) => kdMap.set(item.time, { k: item.value, d: dArr[i].value }));
+    kdMapRef.current = kdMap;
 
     applyVisibleRange(period);
   }, [data]);
 
-  // 切換 period 時只調整可見範圍，不重抓資料
-  useEffect(() => {
-    applyVisibleRange(period);
-  }, [period]);
+  useEffect(() => { applyVisibleRange(period); }, [period]);
 
-  // 切換顯示/隱藏均線
   useEffect(() => {
     MA_CONFIG.forEach(({ key }) => {
-      const series = maSeriesRefs.current[key];
-      if (!series) return;
-      series.applyOptions({ visible: activeMA[key] });
+      maSeriesRefs.current[key]?.applyOptions({ visible: activeMA[key] });
     });
   }, [activeMA]);
 
-  const toggleMA = (key) => {
-    setActiveMA((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
+  const toggleMA = (key) => setActiveMA((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const sign = (v) => (v > 0 ? "+" : "");
   const changeColor = hoveredBar
@@ -187,7 +253,6 @@ export default function CandlestickChart({ data, period = "3mo", height = 320 })
         ))}
       </div>
 
-      {/* OHLC 懸浮資訊列 */}
       <div className="ohlc-bar" style={{ opacity: hoveredBar ? 1 : 0 }}>
         {hoveredBar && (
           <>
@@ -206,6 +271,16 @@ export default function CandlestickChart({ data, period = "3mo", height = 320 })
       </div>
 
       <div ref={containerRef} style={{ width: "100%" }} />
+
+      {/* KD 副圖 */}
+      <div style={{ position: "relative", marginTop: "2px" }}>
+        <div className="kd-label-bar">
+          <span className="kd-label-title">KD(9)</span>
+          <span className="kd-k-val">K: {hoveredKD ? hoveredKD.k.toFixed(2) : "—"}</span>
+          <span className="kd-d-val">D: {hoveredKD ? hoveredKD.d.toFixed(2) : "—"}</span>
+        </div>
+        <div ref={kdContainerRef} style={{ width: "100%" }} />
+      </div>
     </div>
   );
 }
