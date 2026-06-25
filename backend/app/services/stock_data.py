@@ -33,7 +33,6 @@ def _init_fugle():
 
     try:
         from fubon_neo.sdk import FubonSDK
-        from fugle_marketdata import RestClient
 
         cert_data = base64.b64decode(cert_b64)
         fd, cert_path = tempfile.mkstemp(suffix=".p12")
@@ -53,9 +52,8 @@ def _init_fugle():
             _fugle_available = False
             return
 
-        token = sdk.exchange_realtime_token()
-        token_str = token if isinstance(token, str) else getattr(token, "token", str(token))
-        _fugle_client = RestClient(api_key=token_str)
+        sdk.init_realtime()          # 建立 marketdata.rest_client（用 sdk_token 認證）
+        _fugle_client = sdk.marketdata.rest_client
         _fugle_sdk    = sdk
         _fugle_available = True
         print("[Fubon] Fugle 行情客戶端初始化成功")
