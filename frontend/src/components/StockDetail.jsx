@@ -95,9 +95,6 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
       </div>
 
       <div className="info-grid">
-        <InfoItem label="本益比" value={info.pe_ratio?.toFixed(2) ?? "—"} />
-        <InfoItem label="股價淨值比" value={info.pb_ratio?.toFixed(2) ?? "—"} />
-        <InfoItem label="殖利率" value={info.dividend_yield ? `${info.dividend_yield}%` : "—"} />
         <InfoItem label="52週高" value={info.week_52_high ?? "—"} />
         <InfoItem label="52週低" value={info.week_52_low ?? "—"} />
       </div>
