@@ -1,3 +1,4 @@
+import threading
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,9 +10,11 @@ load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 啟動時初始化 Fugle 行情客戶端
-    from app.services.stock_data import _get_fugle
-    _get_fugle()
+    # 背景執行緒初始化 Fugle，避免阻塞 health check 導致部署 timeout
+    def _bg_init():
+        from app.services.stock_data import _get_fugle
+        _get_fugle()
+    threading.Thread(target=_bg_init, daemon=True).start()
     yield
 
 
