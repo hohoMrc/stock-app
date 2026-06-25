@@ -469,11 +469,14 @@ def get_stock_info(ticker: str) -> dict:
         else fugle_name or _tw_stock_names.get(ticker)
     ) or ticker
 
-    # 產業別：ETF 固定 → Fugle ticker（最準） → 手動覆寫表 → TWSE 清單
+    # 產業別：ETF 固定 → 手動覆寫表 → Fugle ticker（代碼轉中文）→ TWSE 清單
+    fugle_industry_raw = fugle_t.get("industry")
+    # Fugle 可能回傳數字代碼（如 "25"），需對應中文名稱
+    fugle_industry = TWSE_INDUSTRY_CODE_MAP.get(str(fugle_industry_raw), fugle_industry_raw) if fugle_industry_raw else None
     industry = (
         "ETF 指數股票型基金" if is_etf
-        else fugle_t.get("industry")
-        or TICKER_INDUSTRY_OVERRIDE.get(ticker)
+        else TICKER_INDUSTRY_OVERRIDE.get(ticker)
+        or fugle_industry
         or _tw_stock_industry.get(ticker)
     )
 
@@ -503,11 +506,28 @@ def get_stock_info(ticker: str) -> dict:
 
 
 def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None) -> list:
-    """找出相同產業的其他股票（從預設清單搜尋）"""
+    """找出相同產業的其他股票。
+    先從 TWSE/TPEx 完整清單（_tw_stock_industry）找候選，不足時補 DEFAULT_TICKERS。
+    """
+    _load_tw_stock_names()
+
+    # 從完整清單找出同產業代號（最多取 40 支）
+    candidates = [
+        t for t, ind in _tw_stock_industry.items()
+        if ind == industry_zh and t != exclude_ticker
+    ]
+
+    # 若完整清單為空（Render 抓不到 TWSE）就退回預設清單
+    if not candidates:
+        candidates = [t for t in DEFAULT_TICKERS if t != exclude_ticker]
+    else:
+        # 把 DEFAULT_TICKERS 中不在清單裡的也補進來（確保涵蓋重要個股）
+        for t in DEFAULT_TICKERS:
+            if t != exclude_ticker and t not in candidates:
+                candidates.append(t)
+
     results = []
-    for ticker in DEFAULT_TICKERS:
-        if ticker == exclude_ticker:
-            continue
+    for ticker in candidates[:40]:
         try:
             info = get_stock_info(ticker)
             if info.get("industry") == industry_zh and info.get("price"):
