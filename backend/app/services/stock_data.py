@@ -450,14 +450,15 @@ def get_stock_info(ticker: str) -> dict:
         # Fugle corporate actions dividends：近一年現金股利加總算殖利率
         if price:
             try:
-                one_year_ago = (date.today() - timedelta(days=365)).strftime("%Y-%m-%d")
-                today_str    = date.today().strftime("%Y-%m-%d")
+                one_year_ago  = (date.today() - timedelta(days=365)).strftime("%Y-%m-%d")
+                three_mo_later = (date.today() + timedelta(days=90)).strftime("%Y-%m-%d")
                 div_resp = fugle_client.stock.corporate_actions.dividends(
-                    symbol=ticker, start_date=one_year_ago, end_date=today_str
+                    symbol=ticker, start_date=one_year_ago, end_date=three_mo_later
                 )
                 div_data = div_resp.get("data", div_resp) if isinstance(div_resp, dict) else []
                 if not isinstance(div_data, list):
                     div_data = []
+                print(f"[Fugle] dividends {ticker} 共 {len(div_data)} 筆，前2筆: {div_data[:2]}")
                 # 加總近一年現金股利（cashDividend / cash / dividendCash 視 API 版本而定）
                 total_cash = 0.0
                 for row in div_data:
