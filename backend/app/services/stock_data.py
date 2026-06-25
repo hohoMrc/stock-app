@@ -444,10 +444,12 @@ def get_stock_info(ticker: str) -> dict:
         except Exception as e:
             print(f"[Fugle] stats {ticker} 失敗: {e}")
 
-    # yfinance fast_info 取 PE / 市值（52 週高低已由 Fugle 提供）
-    yf_fi = None
+    # yfinance：fast_info 取市值/52週高低，info 取本益比/股價淨值比/殖利率
+    yf_fi   = None
+    yf_info = {}
     try:
-        yf_fi = yf.Ticker(symbol).fast_info
+        yf_ticker = yf.Ticker(symbol)
+        yf_fi = yf_ticker.fast_info
         if week_52_high is None:
             v = getattr(yf_fi, "year_high", None)
             week_52_high = round(float(v), 2) if v is not None else None
@@ -457,11 +459,25 @@ def get_stock_info(ticker: str) -> dict:
     except Exception:
         pass
 
+    try:
+        yf_info = yf.Ticker(symbol).info or {}
+    except Exception:
+        pass
+
     mktcap = getattr(yf_fi, "market_cap", None)
     shares = getattr(yf_fi, "shares", None)
     if not mktcap and price and shares:
         mktcap = price * shares
     capital_yi = round(shares * 10 / 1e8, 1) if shares else None
+
+    pe_ratio = yf_info.get("trailingPE") or yf_info.get("forwardPE")
+    pe_ratio = round(float(pe_ratio), 2) if pe_ratio else None
+
+    pb_ratio = yf_info.get("priceToBook")
+    pb_ratio = round(float(pb_ratio), 2) if pb_ratio else None
+
+    div_raw  = yf_info.get("dividendYield")
+    dividend_yield = round(float(div_raw) * 100, 2) if div_raw else None
 
     # 名稱：ETF 手動表 → Fugle ticker → Fugle quote → TWSE 清單 → 代號本身
     is_etf = ticker in ETF_NAMES
@@ -486,9 +502,9 @@ def get_stock_info(ticker: str) -> dict:
         "ticker":         ticker,
         "name":           display_name,
         "price":          price,
-        "pe_ratio":       getattr(yf_fi, "pe_forward", None),
-        "pb_ratio":       None,
-        "dividend_yield": None,
+        "pe_ratio":       pe_ratio,
+        "pb_ratio":       pb_ratio,
+        "dividend_yield": dividend_yield,
         "market_cap":     mktcap,
         "market_cap_yi":  round(mktcap / 1e8, 1) if mktcap else None,
         "capital_yi":     capital_yi,
