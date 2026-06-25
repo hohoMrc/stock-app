@@ -428,7 +428,8 @@ def get_stock_info(ticker: str) -> dict:
         except Exception:
             pass
 
-    # Fugle historical stats 取 52 週高低（比 yfinance 準且無浮點問題）
+    # Fugle historical stats：52週高低 + 基本面（PE/PB/殖利率）
+    pe_ratio = pb_ratio = dividend_yield = None
     fugle_client = _get_fugle()
     if fugle_client:
         try:
@@ -440,16 +441,31 @@ def get_stock_info(ticker: str) -> dict:
                     week_52_high = round(float(v), 2)
                 v = stats_data.get("week52Low")
                 if v is not None:
-                    week_52_low = round(float(v), 2)
+                    week_52_low  = round(float(v), 2)
+                # 嘗試取 PE/PB/殖利率（欄位名稱依 Fugle API 版本而定）
+                for key in ("peRatio", "pe", "trailingPE"):
+                    v = stats_data.get(key)
+                    if v is not None:
+                        pe_ratio = round(float(v), 2)
+                        break
+                for key in ("pbRatio", "pb", "priceToBook"):
+                    v = stats_data.get(key)
+                    if v is not None:
+                        pb_ratio = round(float(v), 2)
+                        break
+                for key in ("dividendYield", "yield"):
+                    v = stats_data.get(key)
+                    if v is not None:
+                        dv = float(v)
+                        dividend_yield = round(dv if dv > 1 else dv * 100, 2)
+                        break
         except Exception as e:
             print(f"[Fugle] stats {ticker} 失敗: {e}")
 
-    # yfinance：fast_info 取市值/52週高低，info 取本益比/股價淨值比/殖利率
-    yf_fi   = None
-    yf_info = {}
+    # yfinance fast_info 取市值/52週高低（輕量，不觸發 rate limit）
+    yf_fi = None
     try:
-        yf_ticker = yf.Ticker(symbol)
-        yf_fi = yf_ticker.fast_info
+        yf_fi = yf.Ticker(symbol).fast_info
         if week_52_high is None:
             v = getattr(yf_fi, "year_high", None)
             week_52_high = round(float(v), 2) if v is not None else None
@@ -459,30 +475,29 @@ def get_stock_info(ticker: str) -> dict:
     except Exception:
         pass
 
-    try:
-        yf_info = yf.Ticker(symbol).info or {}
-    except Exception:
-        pass
+    # yfinance info 取 PE/PB/殖利率（只在 Fugle 沒有資料時才呼叫，避免 rate limit）
+    if not all([pe_ratio, pb_ratio, dividend_yield]):
+        try:
+            yf_info = yf.Ticker(symbol).info or {}
+            if pe_ratio is None:
+                v = yf_info.get("trailingPE") or yf_info.get("forwardPE")
+                pe_ratio = round(float(v), 2) if v else None
+            if pb_ratio is None:
+                v = yf_info.get("priceToBook")
+                pb_ratio = round(float(v), 2) if v else None
+            if dividend_yield is None:
+                v = yf_info.get("dividendYield")
+                if v:
+                    dv = float(v)
+                    dividend_yield = round(dv if dv > 1 else dv * 100, 2)
+        except Exception:
+            pass
 
     mktcap = getattr(yf_fi, "market_cap", None)
     shares = getattr(yf_fi, "shares", None)
     if not mktcap and price and shares:
         mktcap = price * shares
     capital_yi = round(shares * 10 / 1e8, 1) if shares else None
-
-    pe_ratio = yf_info.get("trailingPE") or yf_info.get("forwardPE")
-    pe_ratio = round(float(pe_ratio), 2) if pe_ratio else None
-
-    pb_ratio = yf_info.get("priceToBook")
-    pb_ratio = round(float(pb_ratio), 2) if pb_ratio else None
-
-    div_raw = yf_info.get("dividendYield")
-    if div_raw:
-        div_raw = float(div_raw)
-        # yfinance 對 ETF 回傳百分比（如 7.17），對一般股回傳小數（如 0.05）
-        dividend_yield = round(div_raw if div_raw > 1 else div_raw * 100, 2)
-    else:
-        dividend_yield = None
 
     # 名稱：ETF 手動表 → Fugle ticker → Fugle quote → TWSE 清單 → 代號本身
     is_etf = ticker in ETF_NAMES
