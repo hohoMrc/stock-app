@@ -1,10 +1,138 @@
+import os
+import base64
+import tempfile
+import threading
 import time
 import requests
 import yfinance as yf
 import pandas as pd
+from datetime import date, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# 簡易 TTL cache：key → (timestamp, value)
+# ── Fugle / Fubon 行情客戶端（懶初始化）─────────────────────────────────────
+_fugle_client = None
+_fugle_sdk    = None
+_fugle_available: bool | None = None  # None=尚未嘗試
+_fugle_lock   = threading.Lock()
+
+_PERIOD_DAYS = {"1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825}
+
+
+def _init_fugle():
+    """用 Fubon API Key 登入，取得 Fugle 行情 token 並建立 RestClient。"""
+    global _fugle_client, _fugle_sdk, _fugle_available
+    pid      = os.environ.get("FUBON_PERSONAL_ID")
+    api_key  = os.environ.get("FUBON_API_KEY")
+    cert_b64 = os.environ.get("FUBON_CERT_B64")
+    cert_pw  = os.environ.get("FUBON_CERT_PASS")
+
+    if not all([pid, api_key, cert_b64, cert_pw]):
+        print("[Fubon] 環境變數未設定，略過 Fugle 初始化")
+        _fugle_available = False
+        return
+
+    try:
+        from fubon_neo.sdk import FubonSDK
+        from fugle_marketdata import RestClient
+
+        cert_data = base64.b64decode(cert_b64)
+        fd, cert_path = tempfile.mkstemp(suffix=".p12")
+        try:
+            os.write(fd, cert_data)
+            os.close(fd)
+            sdk = FubonSDK()
+            result = sdk.apikey_login(pid, api_key, cert_path, cert_pw)
+        finally:
+            try:
+                os.unlink(cert_path)
+            except Exception:
+                pass
+
+        if not result.is_success:
+            print(f"[Fubon] 登入失敗: {result.message}")
+            _fugle_available = False
+            return
+
+        token = sdk.exchange_realtime_token()
+        token_str = token if isinstance(token, str) else getattr(token, "token", str(token))
+        _fugle_client = RestClient(api_key=token_str)
+        _fugle_sdk    = sdk
+        _fugle_available = True
+        print("[Fubon] Fugle 行情客戶端初始化成功")
+
+    except ImportError as e:
+        print(f"[Fubon] 套件未安裝，略過: {e}")
+        _fugle_available = False
+    except Exception as e:
+        print(f"[Fubon] 初始化失敗: {e}")
+        _fugle_available = False
+
+
+def _get_fugle():
+    """取得 Fugle RestClient，首次呼叫時做懶初始化。"""
+    global _fugle_available
+    if _fugle_available is None:
+        with _fugle_lock:
+            if _fugle_available is None:
+                _init_fugle()
+    return _fugle_client if _fugle_available else None
+
+
+def _fugle_quote(ticker: str) -> dict:
+    """從 Fugle intraday quote 取得即時報價。"""
+    client = _get_fugle()
+    if not client:
+        return {}
+    try:
+        resp = client.stock.intraday.quote(symbol=ticker)
+        data = resp.get("data", resp) if isinstance(resp, dict) else {}
+        price  = data.get("closePrice") or data.get("lastPrice") or data.get("referencePrice")
+        volume = data.get("tradeVolume")   # 股數
+        return {
+            "price":       round(float(price), 2) if price else None,
+            "volume":      int(volume) if volume else None,
+            "volume_zhang": round(int(volume) / 1000) if volume else None,
+            "name":        data.get("name"),
+        }
+    except Exception as e:
+        print(f"[Fugle] quote {ticker} 失敗: {e}")
+        return {}
+
+
+def _fugle_candles(ticker: str, from_date: str, to_date: str) -> list:
+    """從 Fugle historical candles 取得日K，回傳 list of {date,open,high,low,close,volume(股數)}。"""
+    client = _get_fugle()
+    if not client:
+        return []
+    try:
+        resp = client.stock.historical.candles(**{
+            "symbol": ticker,
+            "from":   from_date,
+            "to":     to_date,
+            "fields": "open,high,low,close,volume",
+        })
+        data    = resp.get("data", resp) if isinstance(resp, dict) else {}
+        candles = data.get("candles", []) if isinstance(data, dict) else []
+        result  = []
+        for c in candles:
+            if not c.get("close"):
+                continue
+            vol_lots = c.get("volume", 0) or 0   # Fugle 歷史 K 線 volume 單位為張
+            result.append({
+                "date":   str(c["date"])[:10],
+                "open":   round(float(c.get("open",  c["close"])), 2),
+                "high":   round(float(c.get("high",  c["close"])), 2),
+                "low":    round(float(c.get("low",   c["close"])), 2),
+                "close":  round(float(c["close"]), 2),
+                "volume": int(vol_lots) * 1000,  # 張 → 股數（與 TWSE 一致）
+            })
+        return sorted(result, key=lambda x: x["date"])
+    except Exception as e:
+        print(f"[Fugle] candles {ticker} 失敗: {e}")
+        return []
+
+
+# ── TTL cache ──────────────────────────────────────────────────────────────────
 _info_cache: dict = {}
 _history_cache: dict = {}
 INFO_TTL = 300      # 個股基本資訊快取 5 分鐘
@@ -176,8 +304,8 @@ def _get_twse_realtime(ticker: str) -> dict:
 
 def get_stock_info(ticker: str) -> dict:
     """取得個股基本資訊。
-    價格/成交量：優先 TWSE 即時 API，失敗則用 yfinance chart API（比 info API 限速寬鬆）
-    PE/PB/市值：yfinance fast_info（失敗給 None）
+    價格/成交量：優先 Fugle → TWSE 即時 API → yfinance chart API
+    PE/市值：yfinance fast_info（失敗給 None）
     """
     cached = _cache_get(_info_cache, ticker, INFO_TTL)
     if cached:
@@ -185,39 +313,45 @@ def get_stock_info(ticker: str) -> dict:
 
     _load_tw_stock_names()
 
-    # 判斷交易所與 symbol
     exchange = _tw_stock_exchange.get(ticker, "TW")
-    suffix = ".TW" if exchange == "TW" else ".TWO"
-    symbol = f"{ticker}{suffix}"
+    suffix   = ".TW" if exchange == "TW" else ".TWO"
+    symbol   = f"{ticker}{suffix}"
     _symbol_cache[ticker] = symbol
 
-    # --- 取得股價（多重 fallback）---
-    price = None
-    volume = None
+    price        = None
+    volume       = None
     volume_zhang = None
     week_52_high = None
     week_52_low  = None
 
-    # 1) TWSE 即時 API
-    twse = _get_twse_realtime(ticker)
-    price = twse.get("price")
-    volume = twse.get("volume")
-    volume_zhang = twse.get("volume_zhang")
+    # 1) Fugle 即時報價（最穩定，不受 rate limit）
+    fugle_q = _fugle_quote(ticker)
+    if fugle_q.get("price"):
+        price        = fugle_q["price"]
+        volume       = fugle_q.get("volume")
+        volume_zhang = fugle_q.get("volume_zhang")
 
-    # 2) 若 TWSE 失敗，改用 yfinance chart API（history 比 info 限速寬）
+    # 2) TWSE/TPEx 官方即時 API
+    if not price:
+        twse = _get_twse_realtime(ticker)
+        price        = twse.get("price")
+        volume       = twse.get("volume")
+        volume_zhang = twse.get("volume_zhang")
+
+    # 3) yfinance chart API（最後手段）
     if not price:
         try:
             hist = yf.Ticker(symbol).history(period="5d")
             if not hist.empty:
-                price = round(float(hist["Close"].iloc[-1]), 2)
-                volume = int(hist["Volume"].iloc[-1])
+                price        = round(float(hist["Close"].iloc[-1]), 2)
+                volume       = int(hist["Volume"].iloc[-1])
                 volume_zhang = round(volume / 1000)
                 week_52_high = round(float(hist["High"].max()), 2)
                 week_52_low  = round(float(hist["Low"].min()), 2)
         except Exception:
             pass
 
-    # --- yfinance fast_info（輕量，PE/市值/52週高低）---
+    # yfinance fast_info 取 PE / 市值 / 52 週高低（輕量，選用）
     yf_fi = None
     try:
         yf_fi = yf.Ticker(symbol).fast_info
@@ -365,64 +499,93 @@ def _fetch_twse_month(ticker: str, year: int, month: int, exchange: str) -> list
         return []
 
 
+def _resample_candles(records: list, interval: str) -> list:
+    """將日K重採樣為週K或月K。"""
+    if interval not in ("1wk", "1mo") or not records:
+        return records
+    df = pd.DataFrame(records)
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.set_index("date")
+    df.columns = ["Open", "High", "Low", "Close", "Volume"]
+    rule = "W-FRI" if interval == "1wk" else "ME"
+    df = df.resample(rule).agg(
+        Open=("Open", "first"), High=("High", "max"),
+        Low=("Low", "min"),   Close=("Close", "last"),
+        Volume=("Volume", "sum"),
+    ).dropna(subset=["Open"])
+    return [
+        {"date": d.strftime("%Y-%m-%d"), "open": round(r.Open, 2),
+         "high": round(r.High, 2), "low": round(r.Low, 2),
+         "close": round(r.Close, 2), "volume": int(r.Volume)}
+        for d, r in df.iterrows()
+    ]
+
+
 def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") -> list:
-    """取得個股歷史股價（TWSE/TPEx 官方 API，不受 rate limit）"""
+    """取得個股歷史日K。
+    優先使用 Fugle historical candles，失敗則退回 TWSE/TPEx 官方月報 API。
+    """
     cache_key = (ticker, period, interval)
     cached = _cache_get(_history_cache, cache_key, HISTORY_TTL)
     if cached is not None:
         return cached
 
     _load_tw_stock_names()
-    exchange = _tw_stock_exchange.get(ticker, "TW")
-    months_needed = _PERIOD_MONTHS.get(period, 3)
+    all_records: list = []
 
-    today = pd.Timestamp.now()
-    all_records = []
-    for i in range(months_needed):
-        target = today - pd.DateOffset(months=i)
-        month_records = _fetch_twse_month(ticker, target.year, target.month, exchange)
-        all_records.extend(month_records)
-        if i < months_needed - 1:
-            time.sleep(0.2)  # 避免對官方 API 請求過快
+    # 1) Fugle historical candles
+    days_needed = _PERIOD_DAYS.get(period, 90)
+    to_dt   = date.today()
+    from_dt = to_dt - timedelta(days=days_needed)
+    fugle_data = _fugle_candles(ticker, from_dt.strftime("%Y-%m-%d"), to_dt.strftime("%Y-%m-%d"))
+    if fugle_data:
+        all_records = fugle_data
 
-    all_records.sort(key=lambda x: x["date"])
+    # 2) 退回 TWSE/TPEx 月報 API
+    if not all_records:
+        exchange      = _tw_stock_exchange.get(ticker, "TW")
+        months_needed = _PERIOD_MONTHS.get(period, 3)
+        today_ts      = pd.Timestamp.now()
+        for i in range(months_needed):
+            target = today_ts - pd.DateOffset(months=i)
+            all_records.extend(_fetch_twse_month(ticker, target.year, target.month, exchange))
+            if i < months_needed - 1:
+                time.sleep(0.2)
+        all_records.sort(key=lambda x: x["date"])
 
-    # 週K / 月K 重採樣
-    if interval in ("1wk", "1mo") and all_records:
-        df = pd.DataFrame(all_records)
-        df["date"] = pd.to_datetime(df["date"])
-        df = df.set_index("date")
-        df.columns = ["Open", "High", "Low", "Close", "Volume"]
-        rule = "W-FRI" if interval == "1wk" else "ME"
-        df = df.resample(rule).agg(
-            Open=("Open","first"), High=("High","max"),
-            Low=("Low","min"), Close=("Close","last"),
-            Volume=("Volume","sum")
-        ).dropna(subset=["Open"])
-        all_records = [
-            {"date": d.strftime("%Y-%m-%d"), "open": round(r.Open,2),
-             "high": round(r.High,2), "low": round(r.Low,2),
-             "close": round(r.Close,2), "volume": int(r.Volume)}
-            for d, r in df.iterrows()
-        ]
-
+    all_records = _resample_candles(all_records, interval)
     _cache_set(_history_cache, cache_key, all_records)
     return all_records
 
 
 def _get_weekly_change(ticker: str):
-    """計算週漲幅：本週收盤 vs 上週五收盤，與週K圖表顯示一致"""
-    symbol = _get_symbol(ticker)
-    hist = yf.Ticker(symbol).history(period="1mo")
-    if hist.empty:
+    """計算週漲幅：本週收盤 vs 上週五收盤，與週K圖表顯示一致。
+    優先使用 Fugle candles，失敗則退回 yfinance。
+    """
+    # 1) Fugle
+    to_dt   = date.today()
+    from_dt = to_dt - timedelta(days=40)
+    candles = _fugle_candles(ticker, from_dt.strftime("%Y-%m-%d"), to_dt.strftime("%Y-%m-%d"))
+    if candles:
+        df = pd.DataFrame(candles)
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.set_index("date")
+        weekly = df["close"].resample("W-FRI").last().dropna()
+        if len(weekly) >= 2:
+            return round((weekly.iloc[-1] - weekly.iloc[-2]) / weekly.iloc[-2] * 100, 2)
+
+    # 2) yfinance fallback
+    try:
+        symbol = _get_symbol(ticker)
+        hist   = yf.Ticker(symbol).history(period="1mo")
+        if hist.empty:
+            return None
+        weekly = hist["Close"].resample("W-FRI").last().dropna()
+        if len(weekly) < 2:
+            return None
+        return round((weekly.iloc[-1] - weekly.iloc[-2]) / weekly.iloc[-2] * 100, 2)
+    except Exception:
         return None
-    # 重採樣為週K（以週五為結束日），取最後兩根收盤
-    weekly = hist["Close"].resample("W-FRI").last().dropna()
-    if len(weekly) < 2:
-        return None
-    prev_close = weekly.iloc[-2]
-    curr_close = weekly.iloc[-1]
-    return round((curr_close - prev_close) / prev_close * 100, 2)
 
 
 def scan_all_weekly_surge(min_weekly_change: float = 20.0,

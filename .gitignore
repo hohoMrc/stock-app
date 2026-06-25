@@ -1,2 +1,8 @@
 .DS_Store
 .claude/
+.vercel
+*.p12
+*.pfx
+backend/log/
+backend/fubon_mac.zip
+backend/fubon_neo-*-macosx*.whl
