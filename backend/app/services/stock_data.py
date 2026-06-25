@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # ── Fugle / Fubon 行情客戶端（懶初始化）─────────────────────────────────────
 _fugle_client = None
 _fugle_sdk    = None
-_fugle_available: bool | None = None  # None=尚未嘗試
+_fugle_available = None  # None=尚未嘗試, True=可用, False=不可用
 _fugle_lock   = threading.Lock()
 
 _PERIOD_DAYS = {"1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825}
