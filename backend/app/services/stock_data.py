@@ -114,13 +114,15 @@ def _fugle_ticker(ticker: str) -> dict:
         if not isinstance(data, dict):
             data = {}
         return {
-            "name":           data.get("name"),
-            "exchange":       data.get("exchange"),      # "TWSE" / "TPEX"
-            "market":         data.get("market"),
-            "industry":       data.get("industry"),
-            "is_attention":   bool(data.get("isAttention",   False)),
-            "is_disposition": bool(data.get("isDisposition", False)),
-            "is_halted":      bool(data.get("isHalted",      False)),
+            "name":                    data.get("name"),
+            "exchange":                data.get("exchange"),
+            "market":                  data.get("market"),
+            "industry":                data.get("industry"),
+            "is_attention":            bool(data.get("isAttention",            False)),
+            "is_disposition":          bool(data.get("isDisposition",          False)),
+            "is_halted":               bool(data.get("isHalted",               False)),
+            "is_unusually_recommended":bool(data.get("isUnusuallyRecommended", False)),
+            "is_specific_abnormally":  bool(data.get("isSpecificAbnormally",   False)),
         }
     except Exception as e:
         print(f"[Fugle] ticker {ticker} 失敗: {e}")
@@ -451,7 +453,7 @@ def get_stock_info(ticker: str) -> dict:
                 one_year_ago = (date.today() - timedelta(days=365)).strftime("%Y-%m-%d")
                 today_str    = date.today().strftime("%Y-%m-%d")
                 div_resp = fugle_client.stock.corporate_actions.dividends(
-                    symbol=ticker, **{"from": one_year_ago, "to": today_str}
+                    symbol=ticker, start_date=one_year_ago, end_date=today_str
                 )
                 div_data = div_resp.get("data", div_resp) if isinstance(div_resp, dict) else []
                 if not isinstance(div_data, list):
@@ -524,9 +526,11 @@ def get_stock_info(ticker: str) -> dict:
         "sector":         None,
         "industry":       industry,
         "source":         price_source,
-        "is_attention":   fugle_t.get("is_attention",   False),
-        "is_disposition": fugle_t.get("is_disposition", False),
-        "is_halted":      fugle_t.get("is_halted",      False),
+        "is_attention":             fugle_t.get("is_attention",             False),
+        "is_disposition":           fugle_t.get("is_disposition",           False),
+        "is_halted":                fugle_t.get("is_halted",                False),
+        "is_unusually_recommended": fugle_t.get("is_unusually_recommended", False),
+        "is_specific_abnormally":   fugle_t.get("is_specific_abnormally",   False),
     }
     _cache_set(_info_cache, ticker, result)
     return result

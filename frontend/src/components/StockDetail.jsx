@@ -67,9 +67,11 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
               {{ fugle: "富邦 Fugle", twse: "TWSE", yfinance: "Yahoo Finance" }[info.source] ?? info.source}
             </span>
           )}
-          {info.is_attention   && <span className="warn-badge attention-badge"  title="注意股">注意股</span>}
-          {info.is_disposition && <span className="warn-badge disposition-badge" title="處置股">處置股</span>}
-          {info.is_halted      && <span className="warn-badge halted-badge"      title="暫停交易">暫停交易</span>}
+          {info.is_attention             && <span className="warn-badge attention-badge"   title="注意股">注意股</span>}
+          {info.is_disposition           && <span className="warn-badge disposition-badge" title="處置股">處置股</span>}
+          {info.is_unusually_recommended && <span className="warn-badge attention-badge"   title="異常推介股">異常推介</span>}
+          {info.is_specific_abnormally   && <span className="warn-badge disposition-badge" title="特定異常股">特定異常</span>}
+          {info.is_halted                && <span className="warn-badge halted-badge"       title="暫停交易">暫停交易</span>}
           {info.industry && (
             <span
               className="industry-badge clickable"
