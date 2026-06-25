@@ -389,6 +389,18 @@ def get_stock_info(ticker: str) -> dict:
         except Exception:
             pass
 
+    # 4) 成交量備援：收盤後即時 API 不提供量，從 TWSE 月報取今日數字
+    if price and not volume:
+        try:
+            today_d  = date.today()
+            exch     = _tw_stock_exchange.get(ticker, "TW")
+            monthly  = _fetch_twse_month(ticker, today_d.year, today_d.month, exch)
+            if monthly and monthly[-1]["date"] == today_d.strftime("%Y-%m-%d"):
+                volume       = monthly[-1]["volume"]
+                volume_zhang = round(volume / 1000) if volume else None
+        except Exception:
+            pass
+
     # yfinance fast_info 取 PE / 市值 / 52 週高低（輕量，選用）
     yf_fi = None
     try:
