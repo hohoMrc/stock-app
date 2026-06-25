@@ -89,14 +89,13 @@ def _fugle_quote(ticker: str) -> dict:
         price  = data.get("closePrice") or data.get("lastPrice") or data.get("referencePrice")
         volume = data.get("tradeVolume")
         name   = data.get("name")
-        if not price:
-            print(f"[Fugle] {ticker} 無報價，欄位: {list(data.keys())}")
-        elif not name:
-            print(f"[Fugle] {ticker} 有報價但無名稱，欄位: {list(data.keys())}")
+        print(f"[Fugle] {ticker}: price={price}, volume={volume}, name={name}, keys={list(data.keys())[:8]}")
+        # volume 可能為 0（收盤後重置），用 is not None 判斷
+        volume_int = int(volume) if volume is not None else None
         return {
             "price":        round(float(price), 2) if price else None,
-            "volume":       int(volume) if volume else None,
-            "volume_zhang": round(int(volume) / 1000) if volume else None,
+            "volume":       volume_int,
+            "volume_zhang": round(volume_int / 1000) if volume_int else None,
             "name":         name,
             "exchange":     data.get("exchange"),
         }
