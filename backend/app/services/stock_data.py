@@ -177,8 +177,9 @@ def _cache_set(store: dict, key, value):
 
 # 從證交所快取中文股名與產業別
 _tw_stock_names: dict = {}
-_tw_stock_industry: dict = {}  # ticker → 中文產業別
-_tw_stock_exchange: dict = {}  # ticker → "TW" 或 "TWO"
+_tw_stock_industry: dict = {}   # ticker → 中文產業別
+_tw_stock_exchange: dict = {}   # ticker → "TW" 或 "TWO"
+_tw_stock_names_attempted = False  # 避免每次請求都重試失敗的 TWSE 連線
 
 # TWSE 產業別代碼對照
 TWSE_INDUSTRY_CODE_MAP = {
@@ -264,10 +265,11 @@ DEFAULT_TICKERS = [
 
 
 def _load_tw_stock_names():
-    """從證交所與櫃買中心抓股票中文名稱與產業別"""
-    global _tw_stock_names, _tw_stock_industry, _tw_stock_exchange
-    if _tw_stock_names:
+    """從證交所與櫃買中心抓股票中文名稱與產業別（每次程序生命週期只嘗試一次）"""
+    global _tw_stock_names, _tw_stock_industry, _tw_stock_exchange, _tw_stock_names_attempted
+    if _tw_stock_names or _tw_stock_names_attempted:
         return
+    _tw_stock_names_attempted = True
     # 上市（TWSE）
     try:
         rows = requests.get("https://openapi.twse.com.tw/v1/opendata/t187ap03_L", timeout=10).json()
@@ -657,11 +659,12 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
     _load_tw_stock_names()
     all_records: list = []
 
-    # 1) Fugle historical candles
-    days_needed = _PERIOD_DAYS.get(period, 90)
-    to_dt   = date.today()
-    from_dt = to_dt - timedelta(days=days_needed)
-    fugle_data = _fugle_candles(ticker, from_dt.strftime("%Y-%m-%d"), to_dt.strftime("%Y-%m-%d"))
+    # 1) Fugle historical candles（API 限制：日期範圍必須 < 365 天）
+    days_needed  = _PERIOD_DAYS.get(period, 90)
+    to_dt        = date.today()
+    fugle_days   = min(days_needed, 364)   # Fugle 要求嚴格小於一年
+    fugle_from   = to_dt - timedelta(days=fugle_days)
+    fugle_data   = _fugle_candles(ticker, fugle_from.strftime("%Y-%m-%d"), to_dt.strftime("%Y-%m-%d"))
     if fugle_data:
         all_records = fugle_data
 
