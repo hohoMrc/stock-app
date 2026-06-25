@@ -578,7 +578,7 @@ def _resample_candles(records: list, interval: str) -> list:
 
 def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") -> list:
     """取得個股歷史日K。
-    優先使用 Fugle historical candles，失敗則退回 TWSE/TPEx 官方月報 API。
+    優先使用 Fugle historical candles，失敗則退回 TWSE/TPEx 月報，再退回 yfinance。
     """
     cache_key = (ticker, period, interval)
     cached = _cache_get(_history_cache, cache_key, HISTORY_TTL)
@@ -596,7 +596,7 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
     if fugle_data:
         all_records = fugle_data
 
-    # 2) 退回 TWSE/TPEx 月報 API
+    # 2) 退回 TWSE/TPEx 月報 API（上市/上櫃各試一次避免交易所辨識錯誤）
     if not all_records:
         exchange      = _tw_stock_exchange.get(ticker, "TW")
         months_needed = _PERIOD_MONTHS.get(period, 3)
@@ -607,6 +607,40 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
             if i < months_needed - 1:
                 time.sleep(0.2)
         all_records.sort(key=lambda x: x["date"])
+
+        # 若仍空白，換另一個交易所再試一次
+        if not all_records:
+            alt_exchange = "TWO" if exchange == "TW" else "TW"
+            for i in range(months_needed):
+                target = today_ts - pd.DateOffset(months=i)
+                all_records.extend(_fetch_twse_month(ticker, target.year, target.month, alt_exchange))
+                if i < months_needed - 1:
+                    time.sleep(0.2)
+            if all_records:
+                _tw_stock_exchange[ticker] = alt_exchange  # 更新正確的交易所
+            all_records.sort(key=lambda x: x["date"])
+
+    # 3) yfinance fallback（歷史資料不受地區限制）
+    if not all_records:
+        try:
+            symbol = _get_symbol(ticker)
+            hist = yf.Ticker(symbol).history(period=period, interval=interval)
+            if not hist.empty:
+                hist.index = hist.index.tz_localize(None)
+                all_records = [
+                    {
+                        "date":   d.strftime("%Y-%m-%d"),
+                        "open":   round(float(r["Open"]),  2),
+                        "high":   round(float(r["High"]),  2),
+                        "low":    round(float(r["Low"]),   2),
+                        "close":  round(float(r["Close"]), 2),
+                        "volume": int(r["Volume"]),
+                    }
+                    for d, r in hist.iterrows()
+                ]
+                print(f"[yfinance] history fallback {ticker}: {len(all_records)} 筆")
+        except Exception as e:
+            print(f"[yfinance] history {ticker} 失敗: {e}")
 
     all_records = _resample_candles(all_records, interval)
     _cache_set(_history_cache, cache_key, all_records)
