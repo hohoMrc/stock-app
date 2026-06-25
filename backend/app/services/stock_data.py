@@ -275,11 +275,8 @@ def _load_tw_stock_names():
 _TWSE_HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
 
 
-def _get_twse_realtime(ticker: str) -> dict:
-    """從 TWSE/TPEx 即時行情 API 取得股價與成交量（不受 rate limit）"""
-    _load_tw_stock_names()
-    exchange = _tw_stock_exchange.get(ticker, "TW")
-    prefix = "tse" if exchange == "TW" else "otc"
+def _fetch_twse_price(ticker: str, prefix: str) -> dict:
+    """用指定前綴（tse/otc）查 TWSE 即時行情，回傳 {price, volume_zhang, volume}"""
     url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={prefix}_{ticker}.tw&json=1&delay=0"
     try:
         resp = requests.get(url, timeout=10, headers=_TWSE_HEADERS)
@@ -287,7 +284,6 @@ def _get_twse_realtime(ticker: str) -> dict:
         if not arr:
             return {}
         item = arr[0]
-        # z=即時價，非交易時間為"-"，改用 pz（前收盤）
         raw_price = item.get("z", "-")
         price = float(raw_price) if raw_price not in ("-", "", None) else None
         if price is None:
@@ -302,6 +298,28 @@ def _get_twse_realtime(ticker: str) -> dict:
         }
     except Exception:
         return {}
+
+
+def _get_twse_realtime(ticker: str) -> dict:
+    """從 TWSE/TPEx 即時行情 API 取得股價。
+    若 TWSE 清單未載入（美國機房常見），自動嘗試 tse/otc 兩種前綴。
+    """
+    _load_tw_stock_names()
+    exchange = _tw_stock_exchange.get(ticker)  # None 表示清單未載入
+    if exchange:
+        # 已知交易所，直接查
+        prefix = "tse" if exchange == "TW" else "otc"
+        return _fetch_twse_price(ticker, prefix)
+    else:
+        # 未知交易所（清單載入失敗），tse 先試，失敗再試 otc
+        result = _fetch_twse_price(ticker, "tse")
+        if result.get("price"):
+            _tw_stock_exchange[ticker] = "TW"
+            return result
+        result = _fetch_twse_price(ticker, "otc")
+        if result.get("price"):
+            _tw_stock_exchange[ticker] = "TWO"
+        return result
 
 
 def get_stock_info(ticker: str) -> dict:
