@@ -428,8 +428,8 @@ def get_stock_info(ticker: str) -> dict:
         except Exception:
             pass
 
-    # Fugle historical stats：52週高低 + 基本面（PE/PB/殖利率）
-    pe_ratio = pb_ratio = dividend_yield = None
+    # Fugle historical stats：52週高低
+    dividend_yield = None
     fugle_client = _get_fugle()
     if fugle_client:
         try:
@@ -442,25 +442,32 @@ def get_stock_info(ticker: str) -> dict:
                 v = stats_data.get("week52Low")
                 if v is not None:
                     week_52_low  = round(float(v), 2)
-                # 嘗試取 PE/PB/殖利率（欄位名稱依 Fugle API 版本而定）
-                for key in ("peRatio", "pe", "trailingPE"):
-                    v = stats_data.get(key)
-                    if v is not None:
-                        pe_ratio = round(float(v), 2)
-                        break
-                for key in ("pbRatio", "pb", "priceToBook"):
-                    v = stats_data.get(key)
-                    if v is not None:
-                        pb_ratio = round(float(v), 2)
-                        break
-                for key in ("dividendYield", "yield"):
-                    v = stats_data.get(key)
-                    if v is not None:
-                        dv = float(v)
-                        dividend_yield = round(dv if dv > 1 else dv * 100, 2)
-                        break
         except Exception as e:
             print(f"[Fugle] stats {ticker} 失敗: {e}")
+
+        # Fugle corporate actions dividends：近一年現金股利加總算殖利率
+        if price:
+            try:
+                one_year_ago = (date.today() - timedelta(days=365)).strftime("%Y-%m-%d")
+                today_str    = date.today().strftime("%Y-%m-%d")
+                div_resp = fugle_client.stock.corporate_actions.dividends(
+                    symbol=ticker, **{"from": one_year_ago, "to": today_str}
+                )
+                div_data = div_resp.get("data", div_resp) if isinstance(div_resp, dict) else []
+                if not isinstance(div_data, list):
+                    div_data = []
+                # 加總近一年現金股利（cashDividend / cash / dividendCash 視 API 版本而定）
+                total_cash = 0.0
+                for row in div_data:
+                    for key in ("cashDividend", "cash", "dividendCash", "cashEarning"):
+                        v = row.get(key)
+                        if v is not None:
+                            total_cash += float(v)
+                            break
+                if total_cash > 0:
+                    dividend_yield = round(total_cash / price * 100, 2)
+            except Exception as e:
+                print(f"[Fugle] dividends {ticker} 失敗: {e}")
 
     # yfinance fast_info 取市值/52週高低（輕量，不觸發 rate limit）
     yf_fi = None
