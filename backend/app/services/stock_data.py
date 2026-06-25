@@ -476,8 +476,13 @@ def get_stock_info(ticker: str) -> dict:
     pb_ratio = yf_info.get("priceToBook")
     pb_ratio = round(float(pb_ratio), 2) if pb_ratio else None
 
-    div_raw  = yf_info.get("dividendYield")
-    dividend_yield = round(float(div_raw) * 100, 2) if div_raw else None
+    div_raw = yf_info.get("dividendYield")
+    if div_raw:
+        div_raw = float(div_raw)
+        # yfinance 對 ETF 回傳百分比（如 7.17），對一般股回傳小數（如 0.05）
+        dividend_yield = round(div_raw if div_raw > 1 else div_raw * 100, 2)
+    else:
+        dividend_yield = None
 
     # 名稱：ETF 手動表 → Fugle ticker → Fugle quote → TWSE 清單 → 代號本身
     is_etf = ticker in ETF_NAMES
