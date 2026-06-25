@@ -252,8 +252,9 @@ def _load_tw_stock_names():
                 _tw_stock_exchange[code] = "TW"
             if code and industry_code:
                 _tw_stock_industry[code] = TWSE_INDUSTRY_CODE_MAP.get(industry_code, industry_code)
-    except Exception:
-        pass
+        print(f"[TWSE] 上市股票清單載入 {len(_tw_stock_names)} 筆")
+    except Exception as e:
+        print(f"[TWSE] 上市股票清單載入失敗: {e}")
     # 上櫃（TPEx）
     try:
         rows = requests.get("https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O", timeout=10).json()
@@ -368,9 +369,13 @@ def get_stock_info(ticker: str) -> dict:
         mktcap = price * shares
     capital_yi = round(shares * 10 / 1e8, 1) if shares else None
 
-    # 名稱、產業
+    # 名稱、產業（TWSE 清單優先，Fugle 報價名稱作備援）
     is_etf = ticker in ETF_NAMES
-    display_name = (ETF_NAMES.get(ticker) if is_etf else _tw_stock_names.get(ticker)) or ticker
+    fugle_name = fugle_q.get("name") if fugle_q else None
+    display_name = (
+        ETF_NAMES.get(ticker) if is_etf
+        else _tw_stock_names.get(ticker) or fugle_name
+    ) or ticker
     industry = (
         "ETF 指數股票型基金" if is_etf
         else TICKER_INDUSTRY_OVERRIDE.get(ticker)
