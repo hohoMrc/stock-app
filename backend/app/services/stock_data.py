@@ -475,24 +475,6 @@ def get_stock_info(ticker: str) -> dict:
     except Exception:
         pass
 
-    # yfinance info 取 PE/PB/殖利率（只在 Fugle 沒有資料時才呼叫，避免 rate limit）
-    if not all([pe_ratio, pb_ratio, dividend_yield]):
-        try:
-            yf_info = yf.Ticker(symbol).info or {}
-            if pe_ratio is None:
-                v = yf_info.get("trailingPE") or yf_info.get("forwardPE")
-                pe_ratio = round(float(v), 2) if v else None
-            if pb_ratio is None:
-                v = yf_info.get("priceToBook")
-                pb_ratio = round(float(v), 2) if v else None
-            if dividend_yield is None:
-                v = yf_info.get("dividendYield")
-                if v:
-                    dv = float(v)
-                    dividend_yield = round(dv if dv > 1 else dv * 100, 2)
-        except Exception:
-            pass
-
     mktcap = getattr(yf_fi, "market_cap", None)
     shares = getattr(yf_fi, "shares", None)
     if not mktcap and price and shares:
