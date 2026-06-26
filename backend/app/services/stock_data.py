@@ -458,10 +458,11 @@ def get_stock_info(ticker: str) -> dict:
                 div_data = div_resp.get("data", div_resp) if isinstance(div_resp, dict) else []
                 if not isinstance(div_data, list):
                     div_data = []
-                print(f"[Fugle] dividends {ticker} 共 {len(div_data)} 筆，前2筆: {div_data[:2]}")
-                # 加總近一年現金股利（cashDividend / cash / dividendCash 視 API 版本而定）
+                # 加總近一年現金股利（API 回傳全市場資料，需過濾 symbol）
                 total_cash = 0.0
                 for row in div_data:
+                    if row.get("symbol") != ticker:
+                        continue
                     for key in ("cashDividend", "cash", "dividendCash", "cashEarning"):
                         v = row.get(key)
                         if v is not None:
