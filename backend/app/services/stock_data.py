@@ -6,8 +6,9 @@ import time
 import requests
 import yfinance as yf
 import pandas as pd
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from app.db import get_candles, save_candles, is_candles_fresh, get_stock_meta, save_stock_meta
 
 # ── Fugle / Fubon 行情客戶端（懶初始化）─────────────────────────────────────
 _fugle_client = None
@@ -544,6 +545,11 @@ def get_stock_info(ticker: str) -> dict:
         "is_specific_abnormally":   fugle_t.get("is_specific_abnormally",   False),
     }
     _cache_set(_info_cache, ticker, result)
+    # 寫入 SQLite meta 快取（名稱、產業、交易所）
+    try:
+        save_stock_meta(ticker, display_name, industry, price_source)
+    except Exception:
+        pass
     return result
 
 
@@ -699,6 +705,17 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
     _load_tw_stock_names()
     all_records: list = []
 
+    # 0) SQLite K 線快取（日K 且資料夠新則直接回傳）
+    if interval == "1d":
+        days_needed_pre = _PERIOD_DAYS.get(period, 90)
+        from_pre = (date.today() - timedelta(days=days_needed_pre)).strftime("%Y-%m-%d")
+        to_pre   = date.today().strftime("%Y-%m-%d")
+        if is_candles_fresh(ticker, from_pre, to_pre):
+            db_records = get_candles(ticker, from_pre, to_pre)
+            if len(db_records) >= 5:
+                _cache_set(_history_cache, cache_key, db_records)
+                return db_records
+
     # 1) Fugle historical candles（API 限制：日期範圍必須 < 365 天）
     days_needed  = _PERIOD_DAYS.get(period, 90)
     to_dt        = date.today()
@@ -755,6 +772,14 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
             print(f"[yfinance] history {ticker} 失敗: {e}")
 
     all_records = _resample_candles(all_records, interval)
+
+    # 寫入 SQLite K 線快取（僅日K）
+    if interval == "1d" and all_records:
+        try:
+            save_candles(ticker, all_records)
+        except Exception:
+            pass
+
     _cache_set(_history_cache, cache_key, all_records)
     return all_records
 

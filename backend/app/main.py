@@ -10,7 +10,8 @@ load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 背景執行緒初始化 Fugle，避免阻塞 health check 導致部署 timeout
+    from app.db import init_db
+    init_db()
     def _bg_init():
         from app.services.stock_data import _get_fugle
         _get_fugle()
