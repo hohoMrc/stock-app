@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from app.services.stock_data import get_stock_info, get_stock_history, screen_stocks, get_stocks_by_industry, scan_all_weekly_surge
+from app.services.stock_data import get_stock_info, get_stock_history, screen_stocks, get_stocks_by_industry, scan_all_weekly_surge, search_stocks
 from app.services.ai_analysis import analyze_stock
 
 router = APIRouter(prefix="/api/stocks", tags=["stocks"])
@@ -31,6 +31,12 @@ class ScreenFilter(BaseModel):
     near_ma: Optional[str] = None
     near_ma_pct: float = 3.0
     pattern: Optional[str] = None
+
+
+@router.get("/search")
+async def search(q: str = Query(..., min_length=1)):
+    results = search_stocks(q, limit=10)
+    return {"results": results}
 
 
 @router.get("/scan/weekly-surge")
