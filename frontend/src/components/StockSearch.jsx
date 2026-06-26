@@ -32,6 +32,7 @@ export default function StockSearch({ onSelect }) {
       setShowSuggestions(false);
       return;
     }
+    // 100ms debounce，讓建議更快出現
     debounceRef.current = setTimeout(async () => {
       try {
         const res = await searchStocks(val.trim());
@@ -40,7 +41,7 @@ export default function StockSearch({ onSelect }) {
       } catch {
         setSuggestions([]);
       }
-    }, 250);
+    }, 100);
   };
 
   const handleSelect = (ticker) => {
@@ -52,6 +53,12 @@ export default function StockSearch({ onSelect }) {
 
   const handleSearch = () => {
     if (!input.trim()) return;
+    // 有建議且第一筆代號完全符合輸入 → 直接用它；否則若有建議清單先選第一筆
+    if (suggestions.length > 0) {
+      const exact = suggestions.find((s) => s.ticker === input.trim());
+      handleSelect(exact ? exact.ticker : suggestions[0].ticker);
+      return;
+    }
     setShowSuggestions(false);
     fetchStock(input.trim());
   };
