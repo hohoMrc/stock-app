@@ -34,7 +34,7 @@ export default function App() {
   const [activePage, setActivePage] = useState("search");
   const [selectedTicker, setSelectedTicker] = useState(null);
   const [selectedIndustry, setSelectedIndustry] = useState(null);
-  const [prevPage, setPrevPage] = useState("search");
+  const [pageHistory, setPageHistory] = useState([]);
 
   // 篩選頁狀態提升，切頁後不遺失
   const [screenerFilters, setScreenerFilters] = useState(INIT_FILTERS);
@@ -77,15 +77,24 @@ export default function App() {
     }
   };
 
-  const handleSelectStock = (ticker, from = "search") => {
+  const goBack = () => {
+    setPageHistory((prev) => {
+      const history = [...prev];
+      const target = history.pop() || "search";
+      setActivePage(target);
+      return history;
+    });
+  };
+
+  const handleSelectStock = (ticker) => {
     setSelectedTicker(ticker);
-    setPrevPage(from);
+    setPageHistory((prev) => [...prev, activePage]);
     setActivePage("detail");
   };
 
   const handleSelectIndustry = (industry, fromTicker) => {
     setSelectedIndustry({ name: industry, excludeTicker: fromTicker });
-    setPrevPage("detail");
+    setPageHistory((prev) => [...prev, activePage]);
     setActivePage("industry");
   };
 
@@ -130,12 +139,12 @@ export default function App() {
 
       <main className="main">
         {activePage === "search" && (
-          <StockSearch onSelect={(t) => handleSelectStock(t, "search")} />
+          <StockSearch onSelect={(t) => handleSelectStock(t)} />
         )}
         {activePage === "detail" && selectedTicker && (
           <StockDetail
             ticker={selectedTicker}
-            onBack={() => setActivePage(prevPage)}
+            onBack={goBack}
             onIndustry={handleSelectIndustry}
             watchlist={watchlist}
             onToggleWatch={toggleWatch}
@@ -145,15 +154,15 @@ export default function App() {
           <IndustryStocks
             industry={selectedIndustry.name}
             excludeTicker={selectedIndustry.excludeTicker}
-            onSelect={(t) => handleSelectStock(t, "industry")}
-            onBack={() => setActivePage(prevPage)}
+            onSelect={(t) => handleSelectStock(t)}
+            onBack={goBack}
           />
         )}
         {activePage === "watchlist" && (
           <WatchList
             watchlist={watchlist}
             onRemove={toggleWatch}
-            onSelect={(t) => handleSelectStock(t, "watchlist")}
+            onSelect={(t) => handleSelectStock(t)}
           />
         )}
         {/* 保持 DOM 存在（display:none 效果），避免切頁時狀態消失 */}
