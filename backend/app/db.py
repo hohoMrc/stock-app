@@ -84,6 +84,27 @@ def get_tickers_by_industry(industry: str, exclude_ticker: str | None = None) ->
     return [r["ticker"] for r in rows]
 
 
+def get_industry_stocks_with_price(industry: str, exclude_ticker: str | None = None, limit: int = 40) -> list[dict]:
+    """從 DB 直接回傳同產業股票 + 最新收盤價，不打外部 API。"""
+    with _conn() as conn:
+        rows = conn.execute("""
+            SELECT m.ticker, m.name, m.exchange, m.industry,
+                   c.close AS price, c.date AS price_date
+            FROM stock_meta m
+            LEFT JOIN (
+                SELECT ticker, close, date
+                FROM candles
+                WHERE (ticker, date) IN (
+                    SELECT ticker, MAX(date) FROM candles GROUP BY ticker
+                )
+            ) c ON m.ticker = c.ticker
+            WHERE m.industry = ? AND m.ticker != ?
+            ORDER BY c.close DESC
+            LIMIT ?
+        """, (industry, exclude_ticker or "", limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
 # ── candles ─────────────────────────────────────────────
 
 def get_candles(ticker: str, from_date: str, to_date: str) -> list[dict]:

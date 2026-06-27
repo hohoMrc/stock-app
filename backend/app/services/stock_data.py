@@ -555,29 +555,27 @@ def get_stock_info(ticker: str) -> dict:
 
 def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None) -> list:
     """找出相同產業的其他股票。
-    優先從 DB stock_meta 查，其次 _tw_stock_industry 記憶體。
-    若細分類（如 TICKER_INDUSTRY_OVERRIDE）無候選，自動退到上層 TWSE 產業。
+    優先從 DB 直接回傳（昨收價），不打外部 API。
+    細分類無資料時退到上層 TWSE 產業，最後才退到 DEFAULT_TICKERS + 即時 API。
     """
-    from app.db import get_tickers_by_industry
+    from app.db import get_industry_stocks_with_price, get_tickers_by_industry
     _load_tw_stock_names()
 
-    def _candidates_for(ind: str) -> list[str]:
-        res = get_tickers_by_industry(ind, exclude_ticker)
-        if not res:
-            res = [t for t, v in _tw_stock_industry.items() if v == ind and t != exclude_ticker]
-        return res
+    # 快速路徑：DB 直接回傳（含昨收價）
+    db_results = get_industry_stocks_with_price(industry_zh, exclude_ticker, limit=40)
+    if len(db_results) >= 3:
+        return db_results
 
-    candidates = _candidates_for(industry_zh)
-
-    # 細分類（如「記憶體IC」）在 DB/記憶體都找不到時，退到該 ticker 的上層 TWSE 產業
-    if not candidates and exclude_ticker:
+    # 細分類（如「記憶體IC」）結果不足，退到上層 TWSE 產業
+    if exclude_ticker:
         parent = _tw_stock_industry.get(exclude_ticker)
         if parent and parent != industry_zh:
-            candidates = _candidates_for(parent)
+            db_results = get_industry_stocks_with_price(parent, exclude_ticker, limit=40)
+            if len(db_results) >= 3:
+                return db_results
 
-    # 最後退到預設清單
-    if not candidates:
-        candidates = [t for t in DEFAULT_TICKERS if t != exclude_ticker]
+    # 最後退到 DEFAULT_TICKERS，打即時 API
+    candidates = [t for t in DEFAULT_TICKERS if t != exclude_ticker]
 
     def _fetch(ticker):
         try:
