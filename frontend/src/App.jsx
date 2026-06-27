@@ -5,6 +5,7 @@ import StockScreener from "./components/StockScreener";
 import IndustryStocks from "./components/IndustryStocks";
 import WatchList from "./components/WatchList";
 import AuthModal from "./components/AuthModal";
+import WatchNoteModal from "./components/WatchNoteModal";
 import { fetchWatchlist, addWatch, removeWatch, updateWatchNote } from "./api";
 import "./App.css";
 
@@ -44,6 +45,7 @@ export default function App() {
   // 帳號狀態
   const [username, setUsername] = useState(() => localStorage.getItem("username") || null);
   const [showAuth, setShowAuth] = useState(false);
+  const [pendingWatch, setPendingWatch] = useState(null); // 等待填備注的 ticker
 
   const logout = () => {
     localStorage.removeItem("token");
@@ -81,11 +83,28 @@ export default function App() {
   const toggleWatch = async (ticker) => {
     if (!username) { setShowAuth(true); return; }
     const has = watchlist.includes(ticker);
-    setWatchlist((prev) => has ? prev.filter((t) => t !== ticker) : [...prev, ticker]);
+    if (has) {
+      // 移除：直接執行
+      setWatchlist((prev) => prev.filter((t) => t !== ticker));
+      setWatchNotes((prev) => { const n = { ...prev }; delete n[ticker]; return n; });
+      try { await removeWatch(ticker); } catch {
+        setWatchlist((prev) => [...prev, ticker]);
+      }
+    } else {
+      // 加入：先彈備注視窗
+      setPendingWatch(ticker);
+    }
+  };
+
+  const confirmAddWatch = async (ticker, note) => {
+    setPendingWatch(null);
+    setWatchlist((prev) => [...prev, ticker]);
+    if (note) setWatchNotes((prev) => ({ ...prev, [ticker]: note }));
     try {
-      has ? await removeWatch(ticker) : await addWatch(ticker);
+      await addWatch(ticker);
+      if (note) await updateWatchNote(ticker, note);
     } catch {
-      setWatchlist((prev) => has ? [...prev, ticker] : prev.filter((t) => t !== ticker));
+      setWatchlist((prev) => prev.filter((t) => t !== ticker));
     }
   };
 
@@ -197,6 +216,14 @@ export default function App() {
         <AuthModal
           onSuccess={(name) => { setUsername(name); setShowAuth(false); }}
           onClose={() => setShowAuth(false)}
+        />
+      )}
+
+      {pendingWatch && (
+        <WatchNoteModal
+          ticker={pendingWatch}
+          onConfirm={confirmAddWatch}
+          onCancel={() => setPendingWatch(null)}
         />
       )}
 

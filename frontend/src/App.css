@@ -889,6 +889,29 @@
 .empty-watchlist p { margin-bottom: 8px; }
 .empty-hint { font-size: 13px; color: var(--text-muted); }
 
+/* ── 加入自選備注 modal ── */
+.watch-note-modal { max-width: 360px; }
+
+.watch-note-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.watch-note-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.watch-note-actions .logout-btn {
+  flex: 1;
+}
+
+.watch-note-actions .auth-submit {
+  flex: 2;
+}
+
 /* ── 自選清單備注欄 ── */
 .note-cell { min-width: 120px; max-width: 200px; }
 
