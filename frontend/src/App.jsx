@@ -46,6 +46,7 @@ export default function App() {
   const [username, setUsername] = useState(() => localStorage.getItem("username") || null);
   const [showAuth, setShowAuth] = useState(false);
   const [pendingWatch, setPendingWatch] = useState(null); // 等待填備注的 ticker
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const logout = () => {
     localStorage.removeItem("token");
@@ -139,7 +140,9 @@ export default function App() {
     <div className="app">
       <header className="header">
         <h1>台股分析工具</h1>
-        <div className="header-right">
+
+        {/* 桌機版：帳號區 + 導覽 */}
+        <div className="header-right desktop-only">
           {username ? (
             <div className="user-info">
               <span className="user-email">{username}</span>
@@ -149,7 +152,7 @@ export default function App() {
             <button className="login-btn" onClick={() => setShowAuth(true)}>登入 / 註冊</button>
           )}
         </div>
-        <nav className="top-nav">
+        <nav className="top-nav desktop-only">
           <button
             className={["search", "detail", "industry"].includes(activePage) ? "active" : ""}
             onClick={() => setActivePage("search")}
@@ -172,6 +175,44 @@ export default function App() {
             )}
           </button>
         </nav>
+
+        {/* 手機版：漢堡按鈕 */}
+        <button
+          className="hamburger-btn mobile-only"
+          onClick={() => setMenuOpen((v) => !v)}
+          aria-label="選單"
+        >
+          {menuOpen ? "✕" : "☰"}
+        </button>
+
+        {/* 手機版：展開選單 */}
+        {menuOpen && (
+          <div className="mobile-menu" onClick={() => setMenuOpen(false)}>
+            <button
+              className={["search", "detail", "industry"].includes(activePage) ? "active" : ""}
+              onClick={() => setActivePage("search")}
+            >個股查詢</button>
+            <button
+              className={activePage === "screener" ? "active" : ""}
+              onClick={() => setActivePage("screener")}
+            >選股篩選</button>
+            <button
+              className={activePage === "watchlist" ? "active" : ""}
+              onClick={() => setActivePage("watchlist")}
+            >
+              自選清單{watchlist.length > 0 && <span className="watch-count">{watchlist.length}</span>}
+            </button>
+            <div className="mobile-menu-divider" />
+            {username ? (
+              <>
+                <span className="mobile-menu-user">{username}</span>
+                <button className="mobile-menu-logout" onClick={logout}>登出</button>
+              </>
+            ) : (
+              <button className="mobile-menu-login" onClick={() => setShowAuth(true)}>登入 / 註冊</button>
+            )}
+          </div>
+        )}
       </header>
 
       <main className="main">
