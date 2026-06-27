@@ -1,6 +1,13 @@
 import axios from "axios";
 
-const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:8000", timeout: 300000 }); // 最長等 5 分鐘
+const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:8000", timeout: 300000 });
+
+// 自動帶入 JWT token
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
 export const searchStocks = (q) => api.get("/api/stocks/search", { params: { q } });
 export const getStock = (ticker) => api.get(`/api/stocks/${ticker}`);
@@ -10,3 +17,12 @@ export const screenStocks = (filters) => api.post("/api/stocks/screen", filters)
 export const scanWeeklySurge = (params) => api.get("/api/stocks/scan/weekly-surge", { params });
 export const getIndustryStocks = (industry, exclude) =>
   api.get(`/api/stocks/industry/${encodeURIComponent(industry)}`, { params: { exclude } });
+
+// Auth
+export const register = (email, password) => api.post("/api/auth/register", { email, password });
+export const login    = (email, password) => api.post("/api/auth/login",    { email, password });
+
+// Watchlist（後端版）
+export const fetchWatchlist   = ()       => api.get("/api/watchlist");
+export const addWatch         = (ticker) => api.post(`/api/watchlist/${ticker}`);
+export const removeWatch      = (ticker) => api.delete(`/api/watchlist/${ticker}`);

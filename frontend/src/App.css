@@ -889,6 +889,94 @@
 .empty-watchlist p { margin-bottom: 8px; }
 .empty-hint { font-size: 13px; color: var(--text-muted); }
 
+/* ── Header 右側帳號區 ── */
+.header { justify-content: space-between; }
+.header-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.user-info { display: flex; align-items: center; gap: 8px; }
+.user-email { font-size: 12px; color: var(--text-secondary); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.login-btn, .logout-btn {
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(6,182,212,0.3);
+  background: var(--accent-glow2);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.login-btn:hover, .logout-btn:hover { background: var(--accent-glow); border-color: var(--accent); }
+.logout-btn { border-color: rgba(248,113,113,0.3); color: #f87171; background: transparent; }
+.logout-btn:hover { background: rgba(248,113,113,0.08); }
+
+/* ── Auth Modal ── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 500;
+  backdrop-filter: blur(4px);
+}
+.modal-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  width: min(380px, 90vw);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.modal-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-elevated);
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 22px;
+}
+.modal-tabs button {
+  flex: 1;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.modal-tabs button.active {
+  background: var(--accent-dark);
+  color: #fff;
+}
+.auth-form { display: flex; flex-direction: column; gap: 12px; }
+.auth-form input {
+  padding: 11px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.2s;
+}
+.auth-form input:focus { border-color: var(--accent); }
+.auth-error { font-size: 13px; color: #f87171; }
+.auth-submit {
+  padding: 12px;
+  background: linear-gradient(135deg, var(--accent-dark), #0369a1);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.auth-submit:hover { background: linear-gradient(135deg, var(--accent), var(--accent-dark)); }
+.auth-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
 /* ── 底部導覽列（桌面隱藏）── */
 .bottom-nav { display: none; }
 

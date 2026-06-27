@@ -15,6 +15,21 @@ def _conn():
 def init_db():
     with _conn() as conn:
         conn.executescript("""
+        CREATE TABLE IF NOT EXISTS users (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            email       TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at  REAL
+        );
+
+        CREATE TABLE IF NOT EXISTS watchlists (
+            user_id     INTEGER NOT NULL,
+            ticker      TEXT NOT NULL,
+            added_at    REAL,
+            PRIMARY KEY (user_id, ticker),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
         CREATE TABLE IF NOT EXISTS stock_meta (
             ticker          TEXT PRIMARY KEY,
             name            TEXT,
@@ -178,3 +193,56 @@ def is_candles_fresh(ticker: str, from_date: str, to_date: str) -> bool:
         return False
     latest = datetime.strptime(row["latest"], "%Y-%m-%d").date()
     return (datetime.now().date() - latest).days <= 3
+
+
+# ── users ────────────────────────────────────────────────
+
+def create_user(email: str, password_hash: str) -> int:
+    with _conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO users(email, password_hash, created_at) VALUES (?, ?, ?)",
+            (email, password_hash, time.time())
+        )
+        return cur.lastrowid
+
+
+def get_user_by_email(email: str) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, email, password_hash FROM users WHERE email=?", (email,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def get_user_by_id(user_id: int) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id, email FROM users WHERE id=?", (user_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+# ── watchlists ───────────────────────────────────────────
+
+def get_watchlist(user_id: int) -> list[str]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker FROM watchlists WHERE user_id=? ORDER BY added_at DESC",
+            (user_id,)
+        ).fetchall()
+    return [r["ticker"] for r in rows]
+
+
+def add_to_watchlist(user_id: int, ticker: str):
+    with _conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO watchlists(user_id, ticker, added_at) VALUES (?, ?, ?)",
+            (user_id, ticker, time.time())
+        )
+
+
+def remove_from_watchlist(user_id: int, ticker: str):
+    with _conn() as conn:
+        conn.execute(
+            "DELETE FROM watchlists WHERE user_id=? AND ticker=?", (user_id, ticker)
+        )

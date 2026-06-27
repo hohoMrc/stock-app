@@ -4,6 +4,8 @@ import StockDetail from "./components/StockDetail";
 import StockScreener from "./components/StockScreener";
 import IndustryStocks from "./components/IndustryStocks";
 import WatchList from "./components/WatchList";
+import AuthModal from "./components/AuthModal";
+import { fetchWatchlist, addWatch, removeWatch } from "./api";
 import "./App.css";
 
 const DEFAULT_TICKERS = [
@@ -39,18 +41,40 @@ export default function App() {
   const [screenerResults, setScreenerResults] = useState([]);
   const [screenerSearched, setScreenerSearched] = useState(false);
 
-  // 自選清單（localStorage 持久化）
+  // 帳號狀態
+  const [userEmail, setUserEmail] = useState(() => localStorage.getItem("userEmail") || null);
+  const [showAuth, setShowAuth]   = useState(false);
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("userEmail");
+    setUserEmail(null);
+    setWatchlist([]);
+  };
+
+  // 自選清單（登入後從後端同步，否則用 localStorage）
   const [watchlist, setWatchlist] = useState(() => {
     try { return JSON.parse(localStorage.getItem("watchlist") || "[]"); }
     catch { return []; }
   });
+
   useEffect(() => {
-    localStorage.setItem("watchlist", JSON.stringify(watchlist));
-  }, [watchlist]);
-  const toggleWatch = (ticker) => {
-    setWatchlist((prev) =>
-      prev.includes(ticker) ? prev.filter((t) => t !== ticker) : [...prev, ticker]
-    );
+    if (userEmail) {
+      fetchWatchlist().then((res) => setWatchlist(res.data.tickers)).catch(() => {});
+    } else {
+      localStorage.setItem("watchlist", JSON.stringify(watchlist));
+    }
+  }, [userEmail]);
+
+  const toggleWatch = async (ticker) => {
+    if (!userEmail) { setShowAuth(true); return; }
+    const has = watchlist.includes(ticker);
+    setWatchlist((prev) => has ? prev.filter((t) => t !== ticker) : [...prev, ticker]);
+    try {
+      has ? await removeWatch(ticker) : await addWatch(ticker);
+    } catch {
+      setWatchlist((prev) => has ? [...prev, ticker] : prev.filter((t) => t !== ticker));
+    }
   };
 
   const handleSelectStock = (ticker, from = "search") => {
@@ -69,6 +93,16 @@ export default function App() {
     <div className="app">
       <header className="header">
         <h1>台股分析工具</h1>
+        <div className="header-right">
+          {userEmail ? (
+            <div className="user-info">
+              <span className="user-email">{userEmail}</span>
+              <button className="logout-btn" onClick={logout}>登出</button>
+            </div>
+          ) : (
+            <button className="login-btn" onClick={() => setShowAuth(true)}>登入 / 註冊</button>
+          )}
+        </div>
         <nav className="top-nav">
           <button
             className={["search", "detail", "industry"].includes(activePage) ? "active" : ""}
@@ -135,6 +169,13 @@ export default function App() {
           />
         </div>
       </main>
+
+      {showAuth && (
+        <AuthModal
+          onSuccess={(email) => { setUserEmail(email); setShowAuth(false); }}
+          onClose={() => setShowAuth(false)}
+        />
+      )}
 
       {/* 手機底部導覽列 */}
       <nav className="bottom-nav">
