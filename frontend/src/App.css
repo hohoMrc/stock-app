@@ -836,7 +836,6 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  margin-top: 8px;
 }
 
 .watch-btn:hover {
@@ -1176,7 +1175,7 @@
   /* 股票卡片 */
   .stock-card { padding: 16px; border-radius: 12px; }
   .stock-header { flex-direction: column; gap: 10px; }
-  .stock-name-row h2 { font-size: 24px; }
+  .stock-name-row h2 { font-size: 30px; }
   .price-block .price { font-size: 26px; }
 
   /* 圖表區 */
