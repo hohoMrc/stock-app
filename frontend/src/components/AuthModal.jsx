@@ -2,11 +2,11 @@ import { useState } from "react";
 import { login, register } from "../api";
 
 export default function AuthModal({ onSuccess, onClose }) {
-  const [mode, setMode]       = useState("login"); // "login" | "register"
-  const [email, setEmail]     = useState("");
-  const [password, setPass]   = useState("");
-  const [error, setError]     = useState("");
-  const [loading, setLoading] = useState(false);
+  const [mode, setMode]         = useState("login");
+  const [username, setUsername] = useState("");
+  const [password, setPass]     = useState("");
+  const [error, setError]       = useState("");
+  const [loading, setLoading]   = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -14,10 +14,10 @@ export default function AuthModal({ onSuccess, onClose }) {
     setLoading(true);
     try {
       const fn  = mode === "login" ? login : register;
-      const res = await fn(email, password);
+      const res = await fn(username, password);
       localStorage.setItem("token", res.data.token);
-      localStorage.setItem("userEmail", res.data.email);
-      onSuccess(res.data.email);
+      localStorage.setItem("username", res.data.username);
+      onSuccess(res.data.username);
     } catch (err) {
       setError(err.response?.data?.detail || "發生錯誤，請稍後再試");
     } finally {
@@ -35,11 +35,11 @@ export default function AuthModal({ onSuccess, onClose }) {
 
         <form onSubmit={submit} className="auth-form">
           <input
-            type="email" placeholder="Email" required
-            value={email} onChange={(e) => setEmail(e.target.value)}
+            type="text" placeholder="帳號" required autoComplete="username"
+            value={username} onChange={(e) => setUsername(e.target.value)}
           />
           <input
-            type="password" placeholder="密碼（至少 6 個字元）" required
+            type="password" placeholder="密碼（至少 6 個字元）" required autoComplete="current-password"
             value={password} onChange={(e) => setPass(e.target.value)}
           />
           {error && <p className="auth-error">{error}</p>}

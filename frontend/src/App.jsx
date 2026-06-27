@@ -42,13 +42,13 @@ export default function App() {
   const [screenerSearched, setScreenerSearched] = useState(false);
 
   // 帳號狀態
-  const [userEmail, setUserEmail] = useState(() => localStorage.getItem("userEmail") || null);
-  const [showAuth, setShowAuth]   = useState(false);
+  const [username, setUsername] = useState(() => localStorage.getItem("username") || null);
+  const [showAuth, setShowAuth] = useState(false);
 
   const logout = () => {
     localStorage.removeItem("token");
-    localStorage.removeItem("userEmail");
-    setUserEmail(null);
+    localStorage.removeItem("username");
+    setUsername(null);
     setWatchlist([]);
   };
 
@@ -59,15 +59,15 @@ export default function App() {
   });
 
   useEffect(() => {
-    if (userEmail) {
+    if (username) {
       fetchWatchlist().then((res) => setWatchlist(res.data.tickers)).catch(() => {});
     } else {
       localStorage.setItem("watchlist", JSON.stringify(watchlist));
     }
-  }, [userEmail]);
+  }, [username]);
 
   const toggleWatch = async (ticker) => {
-    if (!userEmail) { setShowAuth(true); return; }
+    if (!username) { setShowAuth(true); return; }
     const has = watchlist.includes(ticker);
     setWatchlist((prev) => has ? prev.filter((t) => t !== ticker) : [...prev, ticker]);
     try {
@@ -94,9 +94,9 @@ export default function App() {
       <header className="header">
         <h1>台股分析工具</h1>
         <div className="header-right">
-          {userEmail ? (
+          {username ? (
             <div className="user-info">
-              <span className="user-email">{userEmail}</span>
+              <span className="user-email">{username}</span>
               <button className="logout-btn" onClick={logout}>登出</button>
             </div>
           ) : (
@@ -172,7 +172,7 @@ export default function App() {
 
       {showAuth && (
         <AuthModal
-          onSuccess={(email) => { setUserEmail(email); setShowAuth(false); }}
+          onSuccess={(name) => { setUsername(name); setShowAuth(false); }}
           onClose={() => setShowAuth(false)}
         />
       )}

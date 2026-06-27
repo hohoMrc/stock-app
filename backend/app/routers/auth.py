@@ -3,9 +3,9 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from jose import jwt
-from app.db import create_user, get_user_by_email
+from app.db import create_user, get_user_by_username
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -43,28 +43,30 @@ def verify_token(token: str) -> int:
 
 
 class RegisterBody(BaseModel):
-    email: EmailStr
+    username: str
     password: str
 
 
 class LoginBody(BaseModel):
-    email: EmailStr
+    username: str
     password: str
 
 
 @router.post("/register")
 def register(body: RegisterBody):
+    if len(body.username) < 2:
+        raise HTTPException(status_code=400, detail="帳號至少 2 個字元")
     if len(body.password) < 6:
         raise HTTPException(status_code=400, detail="密碼至少 6 個字元")
-    if get_user_by_email(body.email):
-        raise HTTPException(status_code=400, detail="此 Email 已被註冊")
-    user_id = create_user(body.email, _hash_password(body.password))
-    return {"token": _make_token(user_id), "email": body.email}
+    if get_user_by_username(body.username):
+        raise HTTPException(status_code=400, detail="此帳號已被使用")
+    user_id = create_user(body.username, _hash_password(body.password))
+    return {"token": _make_token(user_id), "username": body.username}
 
 
 @router.post("/login")
 def login(body: LoginBody):
-    user = get_user_by_email(body.email)
+    user = get_user_by_username(body.username)
     if not user or not _verify_password(body.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Email 或密碼錯誤")
-    return {"token": _make_token(user["id"]), "email": user["email"]}
+        raise HTTPException(status_code=401, detail="帳號或密碼錯誤")
+    return {"token": _make_token(user["id"]), "username": user["username"]}

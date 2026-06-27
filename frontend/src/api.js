@@ -19,8 +19,8 @@ export const getIndustryStocks = (industry, exclude) =>
   api.get(`/api/stocks/industry/${encodeURIComponent(industry)}`, { params: { exclude } });
 
 // Auth
-export const register = (email, password) => api.post("/api/auth/register", { email, password });
-export const login    = (email, password) => api.post("/api/auth/login",    { email, password });
+export const register = (username, password) => api.post("/api/auth/register", { username, password });
+export const login    = (username, password) => api.post("/api/auth/login",    { username, password });
 
 // Watchlist（後端版）
 export const fetchWatchlist   = ()       => api.get("/api/watchlist");

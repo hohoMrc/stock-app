@@ -16,10 +16,10 @@ def init_db():
     with _conn() as conn:
         conn.executescript("""
         CREATE TABLE IF NOT EXISTS users (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            email       TEXT UNIQUE NOT NULL,
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            username      TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
-            created_at  REAL
+            created_at    REAL
         );
 
         CREATE TABLE IF NOT EXISTS watchlists (
@@ -197,19 +197,19 @@ def is_candles_fresh(ticker: str, from_date: str, to_date: str) -> bool:
 
 # ── users ────────────────────────────────────────────────
 
-def create_user(email: str, password_hash: str) -> int:
+def create_user(username: str, password_hash: str) -> int:
     with _conn() as conn:
         cur = conn.execute(
-            "INSERT INTO users(email, password_hash, created_at) VALUES (?, ?, ?)",
-            (email, password_hash, time.time())
+            "INSERT INTO users(username, password_hash, created_at) VALUES (?, ?, ?)",
+            (username, password_hash, time.time())
         )
         return cur.lastrowid
 
 
-def get_user_by_email(email: str) -> dict | None:
+def get_user_by_username(username: str) -> dict | None:
     with _conn() as conn:
         row = conn.execute(
-            "SELECT id, email, password_hash FROM users WHERE email=?", (email,)
+            "SELECT id, username, password_hash FROM users WHERE username=?", (username,)
         ).fetchone()
     return dict(row) if row else None
 
@@ -217,7 +217,7 @@ def get_user_by_email(email: str) -> dict | None:
 def get_user_by_id(user_id: int) -> dict | None:
     with _conn() as conn:
         row = conn.execute(
-            "SELECT id, email FROM users WHERE id=?", (user_id,)
+            "SELECT id, username FROM users WHERE id=?", (user_id,)
         ).fetchone()
     return dict(row) if row else None
 
