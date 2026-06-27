@@ -254,6 +254,8 @@
   padding-top: 0;
   padding-bottom: 0;
   line-height: 30px;
+  -webkit-appearance: none;
+  vertical-align: middle;
 }
 
 .ticker-badge {
@@ -1196,8 +1198,7 @@
   /* 股票卡片 */
   .stock-card { padding: 16px; border-radius: 12px; }
   .stock-header { flex-direction: column; gap: 10px; }
-  .stock-name-row h2,
-  .stock-name-row .price { font-size: 30px; }
+  /* stock-name-row font-size 已在全域設為 30px，不需重複 */
 
   /* 圖表區 */
   .chart-section { padding: 14px 12px; }
