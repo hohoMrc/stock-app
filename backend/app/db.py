@@ -64,6 +64,26 @@ def save_stock_meta(ticker: str, name: str | None, industry: str | None, exchang
         )
 
 
+def bulk_save_stock_meta(records: list[tuple]):
+    """批次寫入 (ticker, name, industry, exchange)，已存在則略過（不覆蓋新鮮資料）。"""
+    now = time.time()
+    with _conn() as conn:
+        conn.executemany(
+            "INSERT OR IGNORE INTO stock_meta(ticker, name, industry, exchange, updated_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            [(t, n, i, e, now) for t, n, i, e in records]
+        )
+
+
+def get_tickers_by_industry(industry: str, exclude_ticker: str | None = None) -> list[str]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker FROM stock_meta WHERE industry=? AND ticker!=? ORDER BY ticker",
+            (industry, exclude_ticker or "")
+        ).fetchall()
+    return [r["ticker"] for r in rows]
+
+
 # ── candles ─────────────────────────────────────────────
 
 def get_candles(ticker: str, from_date: str, to_date: str) -> list[dict]:

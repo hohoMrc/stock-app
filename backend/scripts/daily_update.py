@@ -12,13 +12,24 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "../.env"))
 
-from app.db import init_db, save_candles, _conn
-from app.services.stock_data import _fugle_candles, _load_tw_stock_names, _tw_stock_names
+from app.db import init_db, save_candles, bulk_save_stock_meta, _conn
+from app.services.stock_data import (
+    _fugle_candles, _load_tw_stock_names,
+    _tw_stock_names, _tw_stock_industry, _tw_stock_exchange,
+)
 from datetime import date, timedelta
 import time
 
 init_db()
 _load_tw_stock_names()
+
+# 批次寫入所有股票的 meta（名稱、產業別、交易所），已有新鮮資料的略過
+_meta_records = [
+    (t, _tw_stock_names.get(t), _tw_stock_industry.get(t), _tw_stock_exchange.get(t, "TW"))
+    for t in _tw_stock_names
+]
+bulk_save_stock_meta(_meta_records)
+print(f"[daily_update] 已更新 {len(_meta_records)} 筆股票 meta")
 
 FULL_MODE = "--full" in sys.argv
 

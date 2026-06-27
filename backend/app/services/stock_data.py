@@ -555,24 +555,24 @@ def get_stock_info(ticker: str) -> dict:
 
 def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None) -> list:
     """找出相同產業的其他股票。
-    先從 TWSE/TPEx 完整清單（_tw_stock_industry）找候選，不足時補 DEFAULT_TICKERS。
+    優先從 DB stock_meta 查，其次 _tw_stock_industry 記憶體，最後 DEFAULT_TICKERS。
     """
+    from app.db import get_tickers_by_industry
     _load_tw_stock_names()
 
-    # 從完整清單找出同產業代號（最多取 40 支）
-    candidates = [
-        t for t, ind in _tw_stock_industry.items()
-        if ind == industry_zh and t != exclude_ticker
-    ]
+    # 優先從 DB 取（daily_update 已批次寫入）
+    candidates = get_tickers_by_industry(industry_zh, exclude_ticker)
 
-    # 若完整清單為空（Render 抓不到 TWSE）就退回預設清單
+    # DB 沒資料時退回記憶體清單
+    if not candidates:
+        candidates = [
+            t for t, ind in _tw_stock_industry.items()
+            if ind == industry_zh and t != exclude_ticker
+        ]
+
+    # 若仍為空就退回預設清單
     if not candidates:
         candidates = [t for t in DEFAULT_TICKERS if t != exclude_ticker]
-    else:
-        # 把 DEFAULT_TICKERS 中不在清單裡的也補進來（確保涵蓋重要個股）
-        for t in DEFAULT_TICKERS:
-            if t != exclude_ticker and t not in candidates:
-                candidates.append(t)
 
     results = []
     for ticker in candidates[:40]:
