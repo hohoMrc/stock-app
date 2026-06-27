@@ -84,6 +84,15 @@ def bulk_save_stock_meta(records: list[tuple]):
         )
 
 
+def get_parent_industry(ticker: str) -> str | None:
+    """回傳 ticker 在 stock_meta 裡的 parent_industry（TWSE 大分類）。"""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT parent_industry FROM stock_meta WHERE ticker=?", (ticker,)
+        ).fetchone()
+    return row["parent_industry"] if row else None
+
+
 def get_tickers_by_industry(industry: str, exclude_ticker: str | None = None) -> list[str]:
     with _conn() as conn:
         rows = conn.execute(
