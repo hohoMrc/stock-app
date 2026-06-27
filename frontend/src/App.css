@@ -235,7 +235,8 @@
   gap: 12px;
   flex-wrap: wrap;
 }
-.stock-name-row h2 { margin-bottom: 0; font-size: 30px !important; }
+.stock-name-row h2 { margin: 0; font-size: 30px !important; line-height: 1; }
+.stock-name-row .price { line-height: 1; }
 
 .ticker-badge {
   display: inline-block;
