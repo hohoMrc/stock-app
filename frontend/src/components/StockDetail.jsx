@@ -62,6 +62,7 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
         <div>
           <div className="stock-name-row">
             <h2>{info.name}</h2>
+            <span className="price">{info.price} 元</span>
             {onToggleWatch && (
               <button
                 className={`watch-btn ${watchlist.includes(ticker) ? "watched" : ""}`}
@@ -92,9 +93,6 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
               {info.industry}
             </span>
           )}
-        </div>
-        <div className="price-block">
-          <span className="price">{info.price} 元</span>
         </div>
       </div>
 

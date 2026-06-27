@@ -278,12 +278,14 @@
   color: #c7d2fe;
 }
 
-.price-block .price {
+.price-block .price,
+.stock-name-row .price {
   font-size: 30px;
   font-weight: 800;
   color: var(--up);
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 20px var(--red-glow);
+  white-space: nowrap;
 }
 
 /* ── Info Grid ── */
@@ -1175,8 +1177,8 @@
   /* 股票卡片 */
   .stock-card { padding: 16px; border-radius: 12px; }
   .stock-header { flex-direction: column; gap: 10px; }
-  .stock-name-row h2 { font-size: 30px; }
-  .price-block .price { font-size: 26px; }
+  .stock-name-row h2,
+  .stock-name-row .price { font-size: 30px; }
 
   /* 圖表區 */
   .chart-section { padding: 14px 12px; }
