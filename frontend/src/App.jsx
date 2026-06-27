@@ -102,9 +102,15 @@ export default function App() {
     if (note) setWatchNotes((prev) => ({ ...prev, [ticker]: note }));
     try {
       await addWatch(ticker);
-      if (note) await updateWatchNote(ticker, note);
     } catch {
+      // addWatch 失敗才 rollback
       setWatchlist((prev) => prev.filter((t) => t !== ticker));
+      setWatchNotes((prev) => { const n = { ...prev }; delete n[ticker]; return n; });
+      return;
+    }
+    // 備注儲存失敗不影響加入
+    if (note) {
+      try { await updateWatchNote(ticker, note); } catch { /* ignore */ }
     }
   };
 
