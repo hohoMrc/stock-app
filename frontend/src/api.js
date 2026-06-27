@@ -23,6 +23,7 @@ export const register = (username, password) => api.post("/api/auth/register", {
 export const login    = (username, password) => api.post("/api/auth/login",    { username, password });
 
 // Watchlist（後端版）
-export const fetchWatchlist   = ()       => api.get("/api/watchlist");
-export const addWatch         = (ticker) => api.post(`/api/watchlist/${ticker}`);
-export const removeWatch      = (ticker) => api.delete(`/api/watchlist/${ticker}`);
+export const fetchWatchlist   = ()                => api.get("/api/watchlist");
+export const addWatch         = (ticker)          => api.post(`/api/watchlist/${ticker}`);
+export const removeWatch      = (ticker)          => api.delete(`/api/watchlist/${ticker}`);
+export const updateWatchNote  = (ticker, note)    => api.patch(`/api/watchlist/${ticker}/note`, { note });

@@ -5,7 +5,7 @@ import StockScreener from "./components/StockScreener";
 import IndustryStocks from "./components/IndustryStocks";
 import WatchList from "./components/WatchList";
 import AuthModal from "./components/AuthModal";
-import { fetchWatchlist, addWatch, removeWatch } from "./api";
+import { fetchWatchlist, addWatch, removeWatch, updateWatchNote } from "./api";
 import "./App.css";
 
 const DEFAULT_TICKERS = [
@@ -50,6 +50,7 @@ export default function App() {
     localStorage.removeItem("username");
     setUsername(null);
     setWatchlist([]);
+    setWatchNotes({});
   };
 
   // 自選清單（登入後從後端同步，否則用 localStorage）
@@ -57,14 +58,25 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem("watchlist") || "[]"); }
     catch { return []; }
   });
+  const [watchNotes, setWatchNotes] = useState({});
 
   useEffect(() => {
     if (username) {
-      fetchWatchlist().then((res) => setWatchlist(res.data.tickers)).catch(() => {});
+      fetchWatchlist()
+        .then((res) => {
+          setWatchlist(res.data.tickers);
+          setWatchNotes(res.data.notes || {});
+        })
+        .catch(() => {});
     } else {
       localStorage.setItem("watchlist", JSON.stringify(watchlist));
     }
   }, [username]);
+
+  const handleUpdateNote = async (ticker, note) => {
+    setWatchNotes((prev) => ({ ...prev, [ticker]: note }));
+    try { await updateWatchNote(ticker, note); } catch { /* ignore */ }
+  };
 
   const toggleWatch = async (ticker) => {
     if (!username) { setShowAuth(true); return; }
@@ -161,8 +173,10 @@ export default function App() {
         {activePage === "watchlist" && (
           <WatchList
             watchlist={watchlist}
+            watchNotes={watchNotes}
             onRemove={toggleWatch}
             onSelect={(t) => handleSelectStock(t)}
+            onUpdateNote={handleUpdateNote}
           />
         )}
         {/* 保持 DOM 存在（display:none 效果），避免切頁時狀態消失 */}

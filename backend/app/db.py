@@ -25,6 +25,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS watchlists (
             user_id     INTEGER NOT NULL,
             ticker      TEXT NOT NULL,
+            note        TEXT DEFAULT '',
             added_at    REAL,
             PRIMARY KEY (user_id, ticker),
             FOREIGN KEY (user_id) REFERENCES users(id)
@@ -56,6 +57,11 @@ def init_db():
         # Migration: 舊版 DB 沒有 parent_industry 欄位
         try:
             conn.execute("ALTER TABLE stock_meta ADD COLUMN parent_industry TEXT")
+        except Exception:
+            pass
+        # Migration: 舊版 watchlists 沒有 note 欄位
+        try:
+            conn.execute("ALTER TABLE watchlists ADD COLUMN note TEXT DEFAULT ''")
         except Exception:
             pass
 
@@ -224,13 +230,21 @@ def get_user_by_id(user_id: int) -> dict | None:
 
 # ── watchlists ───────────────────────────────────────────
 
-def get_watchlist(user_id: int) -> list[str]:
+def get_watchlist(user_id: int) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT ticker FROM watchlists WHERE user_id=? ORDER BY added_at DESC",
+            "SELECT ticker, note FROM watchlists WHERE user_id=? ORDER BY added_at DESC",
             (user_id,)
         ).fetchall()
-    return [r["ticker"] for r in rows]
+    return [{"ticker": r["ticker"], "note": r["note"] or ""} for r in rows]
+
+
+def update_watchlist_note(user_id: int, ticker: str, note: str):
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE watchlists SET note=? WHERE user_id=? AND ticker=?",
+            (note, user_id, ticker)
+        )
 
 
 def add_to_watchlist(user_id: int, ticker: str):

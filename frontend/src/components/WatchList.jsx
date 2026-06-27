@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
 import { getStock } from "../api";
 
-export default function WatchList({ watchlist, onRemove, onSelect }) {
+export default function WatchList({ watchlist, watchNotes = {}, onRemove, onSelect, onUpdateNote }) {
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(false);
+  // 追蹤哪個 ticker 正在編輯備注
+  const [editingTicker, setEditingTicker] = useState(null);
+  const [editingNote, setEditingNote] = useState("");
 
   useEffect(() => {
     if (!watchlist.length) { setStocks([]); return; }
@@ -20,8 +23,15 @@ export default function WatchList({ watchlist, onRemove, onSelect }) {
     fetchAll();
   }, [watchlist]);
 
-  const changeColor = (v) =>
-    v > 0 ? "var(--up)" : v < 0 ? "var(--down)" : "var(--text-muted)";
+  const startEdit = (ticker) => {
+    setEditingTicker(ticker);
+    setEditingNote(watchNotes[ticker] || "");
+  };
+
+  const commitEdit = (ticker) => {
+    if (onUpdateNote) onUpdateNote(ticker, editingNote);
+    setEditingTicker(null);
+  };
 
   return (
     <div className="page">
@@ -44,6 +54,7 @@ export default function WatchList({ watchlist, onRemove, onSelect }) {
               <th>殖利率</th>
               <th>52週高</th>
               <th>52週低</th>
+              <th>備注</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -56,6 +67,29 @@ export default function WatchList({ watchlist, onRemove, onSelect }) {
                 <td>{s.dividend_yield ? `${s.dividend_yield}%` : "—"}</td>
                 <td>{s.week_52_high ?? "—"}</td>
                 <td>{s.week_52_low ?? "—"}</td>
+                <td className="note-cell">
+                  {editingTicker === s.ticker ? (
+                    <input
+                      className="note-input"
+                      autoFocus
+                      value={editingNote}
+                      onChange={(e) => setEditingNote(e.target.value)}
+                      onBlur={() => commitEdit(s.ticker)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitEdit(s.ticker);
+                        if (e.key === "Escape") setEditingTicker(null);
+                      }}
+                    />
+                  ) : (
+                    <span
+                      className="note-text"
+                      onClick={() => onUpdateNote && startEdit(s.ticker)}
+                      title="點擊編輯備注"
+                    >
+                      {watchNotes[s.ticker] || <span className="note-placeholder">點擊新增</span>}
+                    </span>
+                  )}
+                </td>
                 <td className="watchlist-actions">
                   <button className="view-btn" onClick={() => onSelect(s.ticker)}>查看</button>
                   <button className="remove-btn" onClick={() => onRemove(s.ticker)}>移除</button>

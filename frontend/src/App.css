@@ -889,6 +889,34 @@
 .empty-watchlist p { margin-bottom: 8px; }
 .empty-hint { font-size: 13px; color: var(--text-muted); }
 
+/* ── 自選清單備注欄 ── */
+.note-cell { min-width: 120px; max-width: 200px; }
+
+.note-text {
+  display: block;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.note-text:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.note-placeholder { color: var(--text-muted); font-style: italic; }
+
+.note-input {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 4px 6px;
+  outline: none;
+}
+
 /* ── Header 右側帳號區 ── */
 .header { justify-content: space-between; }
 .header-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
