@@ -229,6 +229,14 @@
   color: var(--text-primary);
 }
 
+.stock-name-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.stock-name-row h2 { margin-bottom: 0; }
+
 .ticker-badge {
   display: inline-block;
   background: rgba(6, 182, 212, 0.12);
@@ -1168,9 +1176,8 @@
   /* 股票卡片 */
   .stock-card { padding: 16px; border-radius: 12px; }
   .stock-header { flex-direction: column; gap: 10px; }
-  .price-block { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+  .stock-name-row h2 { font-size: 24px; }
   .price-block .price { font-size: 26px; }
-  .price-block .watch-btn { margin-top: 0; }
 
   /* 圖表區 */
   .chart-section { padding: 14px 12px; }

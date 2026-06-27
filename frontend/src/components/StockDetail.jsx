@@ -60,7 +60,18 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
 
       <div className="stock-header">
         <div>
-          <h2>{info.name}</h2>
+          <div className="stock-name-row">
+            <h2>{info.name}</h2>
+            {onToggleWatch && (
+              <button
+                className={`watch-btn ${watchlist.includes(ticker) ? "watched" : ""}`}
+                onClick={() => onToggleWatch(ticker)}
+                title={watchlist.includes(ticker) ? "從自選清單移除" : "加入自選清單"}
+              >
+                {watchlist.includes(ticker) ? "★ 已加入" : "☆ 加入自選"}
+              </button>
+            )}
+          </div>
           <span className="ticker-badge">{ticker}</span>
           {info.source && (
             <span className="source-badge" title="資料來源">
@@ -84,15 +95,6 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
         </div>
         <div className="price-block">
           <span className="price">{info.price} 元</span>
-          {onToggleWatch && (
-            <button
-              className={`watch-btn ${watchlist.includes(ticker) ? "watched" : ""}`}
-              onClick={() => onToggleWatch(ticker)}
-              title={watchlist.includes(ticker) ? "從自選清單移除" : "加入自選清單"}
-            >
-              {watchlist.includes(ticker) ? "★ 已加入" : "☆ 加入自選"}
-            </button>
-          )}
         </div>
       </div>
 
