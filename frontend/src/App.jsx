@@ -69,7 +69,7 @@ export default function App() {
     <div className="app">
       <header className="header">
         <h1>台股分析工具</h1>
-        <nav>
+        <nav className="top-nav">
           <button
             className={["search", "detail", "industry"].includes(activePage) ? "active" : ""}
             onClick={() => setActivePage("search")}
@@ -135,6 +135,33 @@ export default function App() {
           />
         </div>
       </main>
+
+      {/* 手機底部導覽列 */}
+      <nav className="bottom-nav">
+        <button
+          className={["search", "detail", "industry"].includes(activePage) ? "active" : ""}
+          onClick={() => setActivePage("search")}
+        >
+          <span className="bottom-nav-icon">🔍</span>
+          <span className="bottom-nav-label">個股</span>
+        </button>
+        <button
+          className={activePage === "screener" ? "active" : ""}
+          onClick={() => setActivePage("screener")}
+        >
+          <span className="bottom-nav-icon">📊</span>
+          <span className="bottom-nav-label">篩選</span>
+        </button>
+        <button
+          className={activePage === "watchlist" ? "active" : ""}
+          onClick={() => setActivePage("watchlist")}
+        >
+          <span className="bottom-nav-icon">⭐</span>
+          <span className="bottom-nav-label">
+            自選{watchlist.length > 0 && <span className="watch-count">{watchlist.length}</span>}
+          </span>
+        </button>
+      </nav>
     </div>
   );
 }
