@@ -558,7 +558,7 @@ def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None) -> list
     優先從 DB 直接回傳（昨收價），不打外部 API。
     細分類無資料時退到上層 TWSE 產業，最後才退到 DEFAULT_TICKERS + 即時 API。
     """
-    from app.db import get_industry_stocks_with_price, get_tickers_by_industry, get_parent_industry
+    from app.db import get_industry_stocks_with_price, get_tickers_by_industry, get_parent_industry, _get_parent_from_industry
     _load_tw_stock_names()
 
     # 快速路徑：DB 直接回傳細分類（含昨收價）
@@ -566,13 +566,17 @@ def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None) -> list
     if len(db_results) >= 3:
         return db_results
 
-    # 細分類結果不足（如「記憶體IC」），查該 ticker 的 TWSE 大分類
-    if exclude_ticker:
-        parent = get_parent_industry(exclude_ticker) or _tw_stock_industry.get(exclude_ticker)
-        if parent and parent != industry_zh:
-            db_results = get_industry_stocks_with_price(parent, exclude_ticker, limit=40)
-            if len(db_results) >= 3:
-                return db_results
+    # 細分類結果不足（如「記憶體IC」），從 DB 查這個細分類的 parent_industry
+    parent = (
+        get_parent_industry(exclude_ticker) if exclude_ticker else None
+    ) or _tw_stock_industry.get(exclude_ticker or "")
+    # 若 exclude_ticker 查不到，改從 DB 找同 industry 的任一筆的 parent
+    if not parent:
+        parent = _get_parent_from_industry(industry_zh)
+    if parent and parent != industry_zh:
+        db_results = get_industry_stocks_with_price(parent, exclude_ticker, limit=40)
+        if len(db_results) >= 3:
+            return db_results
 
     # 最後退到 DEFAULT_TICKERS，打即時 API
     candidates = [t for t in DEFAULT_TICKERS if t != exclude_ticker]

@@ -93,6 +93,16 @@ def get_parent_industry(ticker: str) -> str | None:
     return row["parent_industry"] if row else None
 
 
+def _get_parent_from_industry(industry: str) -> str | None:
+    """從同一 industry 的任一筆取得 parent_industry（不需要 ticker）。"""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT parent_industry FROM stock_meta WHERE industry=? AND parent_industry IS NOT NULL LIMIT 1",
+            (industry,)
+        ).fetchone()
+    return row["parent_industry"] if row else None
+
+
 def get_tickers_by_industry(industry: str, exclude_ticker: str | None = None) -> list[str]:
     with _conn() as conn:
         rows = conn.execute(
