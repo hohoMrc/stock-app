@@ -231,12 +231,13 @@
 
 .stock-name-row {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
 
 .stock-name-row .watch-btn {
+  height: 30px;
   display: flex;
   align-items: center;
   padding-top: 0;
