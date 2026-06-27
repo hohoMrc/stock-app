@@ -16,6 +16,7 @@ from app.db import init_db, save_candles, bulk_save_stock_meta, _conn
 from app.services.stock_data import (
     _fugle_candles, _load_tw_stock_names,
     _tw_stock_names, _tw_stock_industry, _tw_stock_exchange,
+    TICKER_INDUSTRY_OVERRIDE,
 )
 from datetime import date, timedelta
 import time
@@ -23,9 +24,17 @@ import time
 init_db()
 _load_tw_stock_names()
 
-# 批次寫入所有股票的 meta（名稱、產業別、交易所），已有新鮮資料的略過
+# 批次寫入所有股票的 meta（名稱、細分產業、大分類、交易所）
+# industry = TICKER_INDUSTRY_OVERRIDE 細分類（優先），否則用 TWSE 大分類
+# parent_industry = 永遠是 TWSE 大分類（供退路查詢用）
 _meta_records = [
-    (t, _tw_stock_names.get(t), _tw_stock_industry.get(t), _tw_stock_exchange.get(t, "TW"))
+    (
+        t,
+        _tw_stock_names.get(t),
+        TICKER_INDUSTRY_OVERRIDE.get(t) or _tw_stock_industry.get(t),
+        _tw_stock_industry.get(t),   # parent_industry
+        _tw_stock_exchange.get(t, "TW"),
+    )
     for t in _tw_stock_names
 ]
 bulk_save_stock_meta(_meta_records)

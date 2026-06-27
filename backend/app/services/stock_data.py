@@ -561,18 +561,15 @@ def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None) -> list
     from app.db import get_industry_stocks_with_price, get_tickers_by_industry
     _load_tw_stock_names()
 
-    # 快速路徑：DB 直接回傳（含昨收價）
+    # 快速路徑：DB 直接回傳細分類（含昨收價）
     db_results = get_industry_stocks_with_price(industry_zh, exclude_ticker, limit=40)
     if len(db_results) >= 3:
         return db_results
 
-    # 細分類（如「記憶體IC」）結果不足，退到上層 TWSE 產業
-    if exclude_ticker:
-        parent = _tw_stock_industry.get(exclude_ticker)
-        if parent and parent != industry_zh:
-            db_results = get_industry_stocks_with_price(parent, exclude_ticker, limit=40)
-            if len(db_results) >= 3:
-                return db_results
+    # 細分類結果不足（如「記憶體IC」），退到同 ticker 的 parent_industry（TWSE 大分類）
+    db_results = get_industry_stocks_with_price(industry_zh, exclude_ticker, limit=40, use_parent=True)
+    if len(db_results) >= 3:
+        return db_results
 
     # 最後退到 DEFAULT_TICKERS，打即時 API
     candidates = [t for t in DEFAULT_TICKERS if t != exclude_ticker]

@@ -16,11 +16,12 @@ def init_db():
     with _conn() as conn:
         conn.executescript("""
         CREATE TABLE IF NOT EXISTS stock_meta (
-            ticker      TEXT PRIMARY KEY,
-            name        TEXT,
-            industry    TEXT,
-            exchange    TEXT,
-            updated_at  REAL
+            ticker          TEXT PRIMARY KEY,
+            name            TEXT,
+            industry        TEXT,
+            parent_industry TEXT,
+            exchange        TEXT,
+            updated_at      REAL
         );
 
         CREATE TABLE IF NOT EXISTS candles (
@@ -37,6 +38,11 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_candles_ticker
             ON candles(ticker, date DESC);
         """)
+        # Migration: 舊版 DB 沒有 parent_industry 欄位
+        try:
+            conn.execute("ALTER TABLE stock_meta ADD COLUMN parent_industry TEXT")
+        except Exception:
+            pass
 
 
 # ── stock_meta ──────────────────────────────────────────
@@ -55,23 +61,26 @@ def get_stock_meta(ticker: str, max_age_hours: float = 168) -> dict | None:
     return {"name": row["name"], "industry": row["industry"], "exchange": row["exchange"]}
 
 
-def save_stock_meta(ticker: str, name: str | None, industry: str | None, exchange: str | None):
+def save_stock_meta(ticker: str, name: str | None, industry: str | None, exchange: str | None,
+                    parent_industry: str | None = None):
     with _conn() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO stock_meta(ticker, name, industry, exchange, updated_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (ticker, name, industry, exchange, time.time())
+            "INSERT OR REPLACE INTO stock_meta"
+            "(ticker, name, industry, parent_industry, exchange, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (ticker, name, industry, parent_industry, exchange, time.time())
         )
 
 
 def bulk_save_stock_meta(records: list[tuple]):
-    """批次寫入 (ticker, name, industry, exchange)，已存在則略過（不覆蓋新鮮資料）。"""
+    """批次寫入 (ticker, name, industry, parent_industry, exchange)，強制更新。"""
     now = time.time()
     with _conn() as conn:
         conn.executemany(
-            "INSERT OR IGNORE INTO stock_meta(ticker, name, industry, exchange, updated_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            [(t, n, i, e, now) for t, n, i, e in records]
+            "INSERT OR REPLACE INTO stock_meta"
+            "(ticker, name, industry, parent_industry, exchange, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            [(t, n, i, p, e, now) for t, n, i, p, e in records]
         )
 
 
@@ -84,10 +93,14 @@ def get_tickers_by_industry(industry: str, exclude_ticker: str | None = None) ->
     return [r["ticker"] for r in rows]
 
 
-def get_industry_stocks_with_price(industry: str, exclude_ticker: str | None = None, limit: int = 40) -> list[dict]:
-    """從 DB 直接回傳同產業股票 + 最新收盤價，不打外部 API。"""
+def get_industry_stocks_with_price(industry: str, exclude_ticker: str | None = None,
+                                   limit: int = 40, use_parent: bool = False) -> list[dict]:
+    """從 DB 直接回傳同產業股票 + 最新收盤價，不打外部 API。
+    use_parent=True 時改查 parent_industry 欄位（大分類）。
+    """
+    col = "parent_industry" if use_parent else "industry"
     with _conn() as conn:
-        rows = conn.execute("""
+        rows = conn.execute(f"""
             SELECT m.ticker, m.name, m.exchange, m.industry,
                    c.close AS price, c.date AS price_date
             FROM stock_meta m
@@ -98,7 +111,7 @@ def get_industry_stocks_with_price(industry: str, exclude_ticker: str | None = N
                     SELECT ticker, MAX(date) FROM candles GROUP BY ticker
                 )
             ) c ON m.ticker = c.ticker
-            WHERE m.industry = ? AND m.ticker != ?
+            WHERE m.{col} = ? AND m.ticker != ?
             ORDER BY c.close DESC
             LIMIT ?
         """, (industry, exclude_ticker or "", limit)).fetchall()
