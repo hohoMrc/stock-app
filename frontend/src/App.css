@@ -236,9 +236,24 @@
   flex-wrap: nowrap;
   overflow: hidden;
 }
-.stock-name-row h2 { margin: 0; font-size: 30px !important; line-height: 1; white-space: nowrap; }
-.stock-name-row .price { line-height: 1; white-space: nowrap; flex-shrink: 0; }
-.stock-name-row .watch-btn { flex-shrink: 0; margin-top: 0; }
+.stock-name-row h2 {
+  margin: 0;
+  font-size: 30px !important;
+  line-height: 30px;
+  white-space: nowrap;
+}
+.stock-name-row .price {
+  line-height: 30px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.stock-name-row .watch-btn {
+  flex-shrink: 0;
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 30px;
+}
 
 .ticker-badge {
   display: inline-block;
