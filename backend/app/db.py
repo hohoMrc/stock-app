@@ -65,9 +65,12 @@ def save_stock_meta(ticker: str, name: str | None, industry: str | None, exchang
                     parent_industry: str | None = None):
     with _conn() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO stock_meta"
-            "(ticker, name, industry, parent_industry, exchange, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO stock_meta(ticker, name, industry, parent_industry, exchange, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(ticker) DO UPDATE SET "
+            "name=excluded.name, industry=excluded.industry, exchange=excluded.exchange, "
+            "updated_at=excluded.updated_at, "
+            "parent_industry=COALESCE(excluded.parent_industry, stock_meta.parent_industry)",
             (ticker, name, industry, parent_industry, exchange, time.time())
         )
 

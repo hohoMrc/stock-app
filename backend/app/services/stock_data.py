@@ -547,7 +547,8 @@ def get_stock_info(ticker: str) -> dict:
     _cache_set(_info_cache, ticker, result)
     # 寫入 SQLite meta 快取（名稱、產業、交易所）
     try:
-        save_stock_meta(ticker, display_name, industry, price_source)
+        parent_ind = TICKER_INDUSTRY_OVERRIDE.get(ticker) and _tw_stock_industry.get(ticker)
+        save_stock_meta(ticker, display_name, industry, exchange, parent_ind)
     except Exception:
         pass
     return result
