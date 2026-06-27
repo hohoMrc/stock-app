@@ -717,14 +717,16 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
     _load_tw_stock_names()
     all_records: list = []
 
-    # 0) SQLite K 線快取（日K 且資料夠新則直接回傳）
+    # 0) SQLite K 線快取（日K 且資料夠新、筆數足夠才回傳）
     if interval == "1d":
         days_needed_pre = _PERIOD_DAYS.get(period, 90)
         from_pre = (date.today() - timedelta(days=days_needed_pre)).strftime("%Y-%m-%d")
         to_pre   = date.today().strftime("%Y-%m-%d")
+        # 預期交易日數：自然天數 × 5/7，至少要有 70% 才算資料足夠
+        expected_bars = max(5, int(days_needed_pre * 5 / 7 * 0.7))
         if is_candles_fresh(ticker, from_pre, to_pre):
             db_records = get_candles(ticker, from_pre, to_pre)
-            if len(db_records) >= 5:
+            if len(db_records) >= expected_bars:
                 _cache_set(_history_cache, cache_key, db_records)
                 return db_records
 
