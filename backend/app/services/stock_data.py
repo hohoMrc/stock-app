@@ -555,33 +555,42 @@ def get_stock_info(ticker: str) -> dict:
 
 def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None) -> list:
     """找出相同產業的其他股票。
-    優先從 DB stock_meta 查，其次 _tw_stock_industry 記憶體，最後 DEFAULT_TICKERS。
+    優先從 DB stock_meta 查，其次 _tw_stock_industry 記憶體。
+    若細分類（如 TICKER_INDUSTRY_OVERRIDE）無候選，自動退到上層 TWSE 產業。
     """
     from app.db import get_tickers_by_industry
     _load_tw_stock_names()
 
-    # 優先從 DB 取（daily_update 已批次寫入）
-    candidates = get_tickers_by_industry(industry_zh, exclude_ticker)
+    def _candidates_for(ind: str) -> list[str]:
+        res = get_tickers_by_industry(ind, exclude_ticker)
+        if not res:
+            res = [t for t, v in _tw_stock_industry.items() if v == ind and t != exclude_ticker]
+        return res
 
-    # DB 沒資料時退回記憶體清單
-    if not candidates:
-        candidates = [
-            t for t, ind in _tw_stock_industry.items()
-            if ind == industry_zh and t != exclude_ticker
-        ]
+    candidates = _candidates_for(industry_zh)
 
-    # 若仍為空就退回預設清單
+    # 細分類（如「記憶體IC」）在 DB/記憶體都找不到時，退到該 ticker 的上層 TWSE 產業
+    if not candidates and exclude_ticker:
+        parent = _tw_stock_industry.get(exclude_ticker)
+        if parent and parent != industry_zh:
+            candidates = _candidates_for(parent)
+
+    # 最後退到預設清單
     if not candidates:
         candidates = [t for t in DEFAULT_TICKERS if t != exclude_ticker]
 
-    results = []
-    for ticker in candidates[:40]:
+    def _fetch(ticker):
         try:
             info = get_stock_info(ticker)
-            if info.get("industry") == industry_zh and info.get("price"):
-                results.append(info)
+            return info if info.get("price") else None
         except Exception:
-            continue
+            return None
+
+    results = []
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        for info in pool.map(_fetch, candidates[:40]):
+            if info:
+                results.append(info)
     return results
 
 
