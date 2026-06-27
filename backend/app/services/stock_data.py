@@ -142,8 +142,8 @@ def _fugle_candles(ticker: str, from_date: str, to_date: str) -> list:
             "to":     to_date,
             "fields": "open,high,low,close,volume",
         })
-        data    = resp.get("data", resp) if isinstance(resp, dict) else {}
-        candles = data.get("candles", []) if isinstance(data, dict) else []
+        raw     = resp.get("data", []) if isinstance(resp, dict) else []
+        candles = raw if isinstance(raw, list) else raw.get("candles", [])
         result  = []
         for c in candles:
             if not c.get("close"):
