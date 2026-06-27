@@ -34,14 +34,24 @@ def get_all_tickers() -> list[str]:
     return tickers
 
 
-def update_ticker(ticker: str, days: int = 7):
+def update_ticker(ticker: str, days: int = 7, retries: int = 3) -> int:
     today   = date.today()
     from_dt = (today - timedelta(days=days)).strftime("%Y-%m-%d")
     to_dt   = today.strftime("%Y-%m-%d")
-    records = _fugle_candles(ticker, from_dt, to_dt)
-    if records:
-        save_candles(ticker, records)
-        return len(records)
+    for attempt in range(retries):
+        try:
+            records = _fugle_candles(ticker, from_dt, to_dt)
+            if records:
+                save_candles(ticker, records)
+                return len(records)
+            return 0
+        except Exception as e:
+            if "429" in str(e) or "Rate limit" in str(e):
+                wait = 30 * (attempt + 1)
+                print(f"  [rate limit] {ticker}，等待 {wait}s...")
+                time.sleep(wait)
+            else:
+                raise
     return 0
 
 
@@ -49,8 +59,9 @@ if __name__ == "__main__":
     tickers = get_all_tickers()
     days    = 90 if FULL_MODE else 7
     mode    = "回填 3 個月" if FULL_MODE else "更新 7 天"
+    delay   = 1.0 if FULL_MODE else 0.5   # full 模式放慢避免 rate limit
 
-    print(f"[daily_update] {mode}，共 {len(tickers)} 支股票...")
+    print(f"[daily_update] {mode}，共 {len(tickers)} 支股票（間隔 {delay}s）...")
     ok = fail = skip = 0
 
     for i, t in enumerate(tickers, 1):
@@ -58,13 +69,13 @@ if __name__ == "__main__":
             n = update_ticker(t, days)
             if n:
                 ok += 1
-                if FULL_MODE and i % 50 == 0:
-                    print(f"  進度 {i}/{len(tickers)} ...")
             else:
                 skip += 1
         except Exception as e:
             print(f"  ✗ {t}: {e}")
             fail += 1
-        time.sleep(0.3)
+        if i % 100 == 0:
+            print(f"  進度 {i}/{len(tickers)}，成功 {ok}，無資料 {skip}，失敗 {fail}")
+        time.sleep(delay)
 
     print(f"[daily_update] 完成：成功 {ok}，無資料 {skip}，失敗 {fail}")
