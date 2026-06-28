@@ -598,10 +598,11 @@ def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None) -> list
 
 
 MA_PERIODS = {
-    "ma5":  {"days": 5,   "label": "週線(MA5)"},
-    "ma20": {"days": 20,  "label": "月線(MA20)"},
-    "ma60": {"days": 60,  "label": "季線(MA60)"},
-    "ma240":{"days": 240, "label": "年線(MA240)"},
+    "ma5":   {"days": 5,   "label": "週線(MA5)"},
+    "ma20":  {"days": 20,  "label": "月線(MA20)"},
+    "ma60":  {"days": 60,  "label": "季線(MA60)"},
+    "ma240": {"days": 240, "label": "年線(MA240)"},
+    "ema60": {"days": 60,  "label": "EMA60", "ema": True},
 }
 
 
@@ -913,7 +914,9 @@ def scan_all_weekly_surge(min_weekly_change: float = 20.0,
 
 def _calc_ma(ticker: str, ma_key: str):
     """計算指定均線，回傳 (目前股價, MA值, 偏離%) 或 None"""
-    days = MA_PERIODS[ma_key]["days"]
+    cfg = MA_PERIODS[ma_key]
+    days = cfg["days"]
+    is_ema = cfg.get("ema", False)
     needed_period = "1y" if days <= 60 else "2y"
     symbol = _get_symbol(ticker)
     hist = yf.Ticker(symbol).history(period=needed_period)
@@ -921,9 +924,12 @@ def _calc_ma(ticker: str, ma_key: str):
     if hist.empty or len(hist) < days:
         return None
 
-    closes = hist["Close"].values
-    ma_value = round(float(closes[-days:].mean()), 2)
-    current_price = round(float(closes[-1]), 2)
+    closes = hist["Close"]
+    if is_ema:
+        ma_value = round(float(closes.ewm(span=days, adjust=False).mean().iloc[-1]), 2)
+    else:
+        ma_value = round(float(closes.values[-days:].mean()), 2)
+    current_price = round(float(closes.values[-1]), 2)
     deviation_pct = round((current_price - ma_value) / ma_value * 100, 2)
 
     return {"price": current_price, "ma": ma_value, "deviation_pct": deviation_pct}

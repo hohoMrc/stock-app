@@ -35,6 +35,7 @@ const MA_OPTIONS = [
   { value: "ma20",  label: "月線 (MA20)" },
   { value: "ma60",  label: "季線 (MA60)" },
   { value: "ma240", label: "年線 (MA240)" },
+  { value: "ema60", label: "EMA60 (指數移動平均)" },
 ];
 
 export default function StockScreener({ onSelect, filters, setFilters, results, setResults, searched, setSearched }) {
