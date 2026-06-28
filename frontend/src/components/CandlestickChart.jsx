@@ -6,6 +6,7 @@ const MA_CONFIG = [
   { key: "ma20",  period: 20,  label: "MA20",  color: "#3b82f6" },
   { key: "ma60",  period: 60,  label: "MA60",  color: "#8b5cf6" },
   { key: "ma120", period: 120, label: "MA120", color: "#ec4899" },
+  { key: "ema60", period: 60,  label: "EMA60", color: "#10b981", ema: true },
 ];
 
 function calcMA(data, period) {
@@ -14,6 +15,23 @@ function calcMA(data, period) {
     const slice = data.slice(i - period + 1, i + 1);
     const avg = slice.reduce((sum, d) => sum + d.close, 0) / period;
     result.push({ time: data[i].date, value: parseFloat(avg.toFixed(2)) });
+  }
+  return result;
+}
+
+function calcEMA(data, period) {
+  const k = 2 / (period + 1);
+  const result = [];
+  let ema = null;
+  for (let i = 0; i < data.length; i++) {
+    if (ema === null) {
+      if (i < period - 1) continue;
+      // 前 period 筆 SMA 作為起始值
+      ema = data.slice(0, period).reduce((s, d) => s + d.close, 0) / period;
+    } else {
+      ema = data[i].close * k + ema * (1 - k);
+    }
+    result.push({ time: data[i].date, value: parseFloat(ema.toFixed(2)) });
   }
   return result;
 }
@@ -62,7 +80,7 @@ export default function CandlestickChart({ data, period = "3mo", height = 320 })
   const dataIndexRef    = useRef(new Map());
   const kdMapRef        = useRef(new Map());
 
-  const [activeMA,   setActiveMA]   = useState({ ma5: true, ma20: true, ma60: false, ma120: false });
+  const [activeMA,   setActiveMA]   = useState({ ma5: true, ma20: true, ma60: false, ma120: false, ema60: true });
   const [hoveredBar, setHoveredBar] = useState(null);
   const [hoveredKD,  setHoveredKD]  = useState(null);
 
@@ -173,8 +191,9 @@ export default function CandlestickChart({ data, period = "3mo", height = 320 })
       data.map((d) => ({ time: d.date, open: d.open, high: d.high, low: d.low, close: d.close }))
     );
 
-    MA_CONFIG.forEach(({ key, period: maPeriod }) => {
-      maSeriesRefs.current[key]?.setData(calcMA(data, maPeriod));
+    MA_CONFIG.forEach(({ key, period: maPeriod, ema }) => {
+      const fn = ema ? calcEMA : calcMA;
+      maSeriesRefs.current[key]?.setData(fn(data, maPeriod));
     });
 
     const { kArr, dArr } = calcKD(data);
