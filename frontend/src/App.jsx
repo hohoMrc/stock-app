@@ -33,7 +33,7 @@ const INIT_FILTERS = {
 };
 
 export default function App() {
-  const [activePage, setActivePage] = useState("search");
+  const [activePage, setActivePage] = useState("ranking");
   const [selectedTicker, setSelectedTicker] = useState(null);
   const [selectedIndustry, setSelectedIndustry] = useState(null);
   const [pageHistory, setPageHistory] = useState([]);
@@ -155,6 +155,12 @@ export default function App() {
         </div>
         <nav className="top-nav desktop-only">
           <button
+            className={activePage === "ranking" ? "active" : ""}
+            onClick={() => setActivePage("ranking")}
+          >
+            成交值排行
+          </button>
+          <button
             className={["search", "detail", "industry"].includes(activePage) ? "active" : ""}
             onClick={() => setActivePage("search")}
           >
@@ -174,12 +180,6 @@ export default function App() {
             {watchlist.length > 0 && (
               <span className="watch-count">{watchlist.length}</span>
             )}
-          </button>
-          <button
-            className={activePage === "ranking" ? "active" : ""}
-            onClick={() => setActivePage("ranking")}
-          >
-            成交值排行
           </button>
         </nav>
 
@@ -292,6 +292,13 @@ export default function App() {
       {/* 手機底部導覽列 */}
       <nav className="bottom-nav">
         <button
+          className={activePage === "ranking" ? "active" : ""}
+          onClick={() => setActivePage("ranking")}
+        >
+          <span className="bottom-nav-icon">🏆</span>
+          <span className="bottom-nav-label">排行</span>
+        </button>
+        <button
           className={["search", "detail", "industry"].includes(activePage) ? "active" : ""}
           onClick={() => setActivePage("search")}
         >
@@ -313,13 +320,6 @@ export default function App() {
           <span className="bottom-nav-label">
             自選{watchlist.length > 0 && <span className="watch-count">{watchlist.length}</span>}
           </span>
-        </button>
-        <button
-          className={activePage === "ranking" ? "active" : ""}
-          onClick={() => setActivePage("ranking")}
-        >
-          <span className="bottom-nav-icon">🏆</span>
-          <span className="bottom-nav-label">排行</span>
         </button>
       </nav>
     </div>
