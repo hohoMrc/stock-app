@@ -744,6 +744,7 @@
   font-size: 13px;
   color: var(--text-secondary);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .check-label input[type="checkbox"] {

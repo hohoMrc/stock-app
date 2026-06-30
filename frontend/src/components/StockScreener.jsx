@@ -310,7 +310,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                 checked={filters.ma20_rising}
                 onChange={(e) => setFilters({ ...filters, ma20_rising: e.target.checked })}
               />
-              MA20 向上（今日 MA20 &gt; 昨日 MA20）
+              MA20 向上（今日 &gt; 昨日）
             </label>
             <label className="check-label">
               <input
@@ -318,7 +318,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                 checked={filters.price_above_ma5_ma60}
                 onChange={(e) => setFilters({ ...filters, price_above_ma5_ma60: e.target.checked })}
               />
-              收盤 &gt; MA5 且 MA60
+              收盤價 &gt; MA5 且 MA60
             </label>
           </div>
         </div>
