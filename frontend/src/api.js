@@ -17,6 +17,7 @@ export const screenStocks = (filters) => api.post("/api/stocks/screen", filters)
 export const scanWeeklySurge = (params) => api.get("/api/stocks/scan/weekly-surge", { params });
 export const getIndustryStocks = (industry, exclude) =>
   api.get(`/api/stocks/industry/${encodeURIComponent(industry)}`, { params: { exclude } });
+export const getTradeValueRanking = (limit = 50) => api.get("/api/stocks/ranking/trade-value", { params: { limit } });
 
 // Auth
 export const register = (username, password) => api.post("/api/auth/register", { username, password });

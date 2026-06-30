@@ -1126,6 +1126,104 @@ def _passes_basic_filters(info: dict, filters: dict) -> bool:
     return True
 
 
+_ranking_cache: dict = {}
+RANKING_TTL = 900  # 15 分鐘
+
+
+def _parse_num(s) -> float | None:
+    if not s:
+        return None
+    s = str(s).replace(",", "").strip()
+    if s in ("+", "-", "--", ""):
+        return None
+    try:
+        return float(s)
+    except Exception:
+        return None
+
+
+def get_trade_value_ranking(limit: int = 50) -> list:
+    """取得成交值排行（合併上市 + 上櫃）"""
+    cached = _cache_get(_ranking_cache, "trade_value", RANKING_TTL)
+    if cached is not None:
+        return cached[:limit]
+
+    results = []
+
+    # 上市 (TWSE)
+    try:
+        resp = requests.get(
+            "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            timeout=15, headers=_TWSE_HEADERS,
+        )
+        for row in resp.json():
+            code = row.get("Code", "").strip()
+            if not code.isdigit() or not (4 <= len(code) <= 5):
+                continue
+            tv    = _parse_num(row.get("TradeValue"))
+            close = _parse_num(row.get("ClosingPrice"))
+            chg   = _parse_num(row.get("Change"))
+            vol   = _parse_num(row.get("TradeVolume"))
+            if not tv or tv <= 0:
+                continue
+            chg_pct = None
+            if chg is not None and close is not None and (close - chg) != 0:
+                chg_pct = round(chg / (close - chg) * 100, 2)
+            results.append({
+                "ticker":             code,
+                "name":               row.get("Name", "").strip(),
+                "close":              round(close, 2) if close else None,
+                "change":             chg,
+                "change_pct":         chg_pct,
+                "trade_value_yi":     round(tv / 1e8, 2),
+                "trade_volume_zhang": round(vol / 1000) if vol else None,
+                "exchange":           "上市",
+            })
+    except Exception as e:
+        print(f"[TWSE] STOCK_DAY_ALL 失敗: {e}")
+
+    # 上櫃 (TPEx)
+    try:
+        resp = requests.get(
+            "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
+            timeout=15, headers=_TWSE_HEADERS,
+        )
+        rows = resp.json()
+        if rows:
+            print(f"[TPEx] ranking sample keys: {list(rows[0].keys())[:12]}")
+        for row in rows:
+            code = row.get("SecuritiesCompanyCode", "").strip()
+            if not code.isdigit() or not (4 <= len(code) <= 5):
+                continue
+            tv    = _parse_num(row.get("TradingMoney"))
+            close = _parse_num(row.get("Close"))
+            chg   = _parse_num(row.get("Change"))
+            vol   = _parse_num(row.get("TradingShares"))
+            if not tv or tv <= 0:
+                continue
+            chg_pct = None
+            if chg is not None and close is not None and (close - chg) != 0:
+                chg_pct = round(chg / (close - chg) * 100, 2)
+            results.append({
+                "ticker":             code,
+                "name":               row.get("CompanyAbbreviation", "").strip(),
+                "close":              round(close, 2) if close else None,
+                "change":             chg,
+                "change_pct":         chg_pct,
+                "trade_value_yi":     round(tv / 1e8, 2),
+                "trade_volume_zhang": round(vol / 1000) if vol else None,
+                "exchange":           "上櫃",
+            })
+    except Exception as e:
+        print(f"[TPEx] daily quotes 失敗: {e}")
+
+    results = [r for r in results if r.get("trade_value_yi", 0) > 0]
+    results.sort(key=lambda x: x["trade_value_yi"], reverse=True)
+
+    _cache_set(_ranking_cache, "trade_value", results)
+    return results[:limit]
+
+
 def search_stocks(q: str, limit: int = 10) -> list[dict]:
     """模糊搜尋股票代號或名稱，優先使用完整清單，備援靜態表"""
     _load_tw_stock_names()

@@ -6,6 +6,7 @@ import IndustryStocks from "./components/IndustryStocks";
 import WatchList from "./components/WatchList";
 import AuthModal from "./components/AuthModal";
 import WatchNoteModal from "./components/WatchNoteModal";
+import TradeValueRanking from "./components/TradeValueRanking";
 import { fetchWatchlist, addWatch, removeWatch, updateWatchNote } from "./api";
 import "./App.css";
 
@@ -174,6 +175,12 @@ export default function App() {
               <span className="watch-count">{watchlist.length}</span>
             )}
           </button>
+          <button
+            className={activePage === "ranking" ? "active" : ""}
+            onClick={() => setActivePage("ranking")}
+          >
+            成交值排行
+          </button>
         </nav>
 
         {/* 手機版：漢堡按鈕 */}
@@ -202,6 +209,10 @@ export default function App() {
             >
               自選清單{watchlist.length > 0 && <span className="watch-count">{watchlist.length}</span>}
             </button>
+            <button
+              className={activePage === "ranking" ? "active" : ""}
+              onClick={() => setActivePage("ranking")}
+            >成交值排行</button>
             <div className="mobile-menu-divider" />
             {username ? (
               <>
@@ -245,6 +256,10 @@ export default function App() {
             onUpdateNote={handleUpdateNote}
           />
         )}
+        {activePage === "ranking" && (
+          <TradeValueRanking onSelect={(t) => handleSelectStock(t)} />
+        )}
+
         {/* 保持 DOM 存在（display:none 效果），避免切頁時狀態消失 */}
         <div style={{ display: activePage === "screener" ? "block" : "none" }}>
           <StockScreener
@@ -298,6 +313,13 @@ export default function App() {
           <span className="bottom-nav-label">
             自選{watchlist.length > 0 && <span className="watch-count">{watchlist.length}</span>}
           </span>
+        </button>
+        <button
+          className={activePage === "ranking" ? "active" : ""}
+          onClick={() => setActivePage("ranking")}
+        >
+          <span className="bottom-nav-icon">🏆</span>
+          <span className="bottom-nav-label">排行</span>
         </button>
       </nav>
     </div>

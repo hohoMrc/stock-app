@@ -849,6 +849,65 @@
 
 .pattern-tag { font-weight: 600; color: #a5b4fc; }
 
+/* ── 成交值排行 ── */
+.ranking-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.ranking-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ranking-time {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.refresh-btn {
+  padding: 5px 12px;
+  font-size: 13px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+.refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.ranking-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.ranking-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+.rank-num { color: var(--text-muted); font-size: 13px; }
+
+.trade-value-cell { font-weight: 700; color: var(--accent); }
+
+.exchange-badge-cell { text-align: center; }
+
+.exchange-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.exchange-badge.listed { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+.exchange-badge.otc    { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+
 /* ── Misc ── */
 .error {
   color: #f87171;
