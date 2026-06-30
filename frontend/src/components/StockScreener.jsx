@@ -342,9 +342,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
       </div>
 
       {loading && (
-        <p className="loading-hint">
-          正在掃描中，請稍候...（週漲幅全市場約 2 分鐘，型態分析約 40 秒）
-        </p>
+        <p className="loading-hint">正在掃描中，請稍候...</p>
       )}
 
       {searched && !loading && error && (
