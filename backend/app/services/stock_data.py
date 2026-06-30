@@ -1127,7 +1127,7 @@ def _passes_basic_filters(info: dict, filters: dict) -> bool:
 
 
 _ranking_cache: dict = {}
-RANKING_TTL = 900  # 15 分鐘
+RANKING_TTL = 300  # 5 分鐘（Fugle 即時資料不用快取太久）
 
 
 def _parse_num(s) -> float | None:
@@ -1142,80 +1142,122 @@ def _parse_num(s) -> float | None:
         return None
 
 
+def _fugle_snapshot_actives(market: str) -> list:
+    """用 Fugle snapshot/actives 取得即時成交值排行（盤中/收盤皆可）"""
+    client = _get_fugle()
+    if not client:
+        return []
+    try:
+        resp = client.stock.snapshot.actives(
+            market=market, trade="value", type="ALLBUT099"
+        )
+        data = resp.get("data", []) if isinstance(resp, dict) else []
+        label = "上市" if market == "TSE" else "上櫃"
+        results = []
+        for item in data:
+            tv  = item.get("tradeValue", 0) or 0
+            vol = item.get("tradeVolume", 0) or 0
+            close = item.get("closePrice")
+            chg   = item.get("change")
+            chg_pct = item.get("changePercent")
+            results.append({
+                "ticker":             item.get("symbol", ""),
+                "name":               item.get("name", ""),
+                "close":              round(float(close), 2) if close is not None else None,
+                "change":             round(float(chg), 2) if chg is not None else None,
+                "change_pct":         round(float(chg_pct), 2) if chg_pct is not None else None,
+                "trade_value_yi":     round(float(tv) / 1e8, 2),
+                "trade_volume_zhang": round(int(vol) / 1000) if vol else None,
+                "exchange":           label,
+            })
+        return results
+    except Exception as e:
+        print(f"[Fugle] snapshot actives {market} 失敗: {e}")
+        return []
+
+
 def get_trade_value_ranking(limit: int = 50) -> list:
-    """取得成交值排行（合併上市 + 上櫃）"""
+    """取得成交值排行（合併上市 + 上櫃）
+    優先 Fugle snapshot/actives（盤中即時），退回 TWSE/TPEx 收盤資料。
+    """
     cached = _cache_get(_ranking_cache, "trade_value", RANKING_TTL)
     if cached is not None:
         return cached[:limit]
 
     results = []
 
-    # 上市 (TWSE)
-    try:
-        resp = requests.get(
-            "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
-            timeout=15, headers=_TWSE_HEADERS,
-        )
-        for row in resp.json():
-            code = row.get("Code", "").strip()
-            if not code.isdigit() or not (4 <= len(code) <= 5):
-                continue
-            tv    = _parse_num(row.get("TradeValue"))
-            close = _parse_num(row.get("ClosingPrice"))
-            chg   = _parse_num(row.get("Change"))
-            vol   = _parse_num(row.get("TradeVolume"))
-            if not tv or tv <= 0:
-                continue
-            chg_pct = None
-            if chg is not None and close is not None and (close - chg) != 0:
-                chg_pct = round(chg / (close - chg) * 100, 2)
-            results.append({
-                "ticker":             code,
-                "name":               row.get("Name", "").strip(),
-                "close":              round(close, 2) if close else None,
-                "change":             chg,
-                "change_pct":         chg_pct,
-                "trade_value_yi":     round(tv / 1e8, 2),
-                "trade_volume_zhang": round(vol / 1000) if vol else None,
-                "exchange":           "上市",
-            })
-    except Exception as e:
-        print(f"[TWSE] STOCK_DAY_ALL 失敗: {e}")
+    # 1) Fugle snapshot/actives（盤中即時 + 收盤皆可用）
+    for market in ("TSE", "OTC"):
+        results.extend(_fugle_snapshot_actives(market))
 
-    # 上櫃 (TPEx)
-    try:
-        resp = requests.get(
-            "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
-            timeout=15, headers=_TWSE_HEADERS,
-        )
-        rows = resp.json()
-        if rows:
-            print(f"[TPEx] ranking sample keys: {list(rows[0].keys())[:12]}")
-        for row in rows:
-            code = row.get("SecuritiesCompanyCode", "").strip()
-            if not code.isdigit() or not (4 <= len(code) <= 5):
-                continue
-            tv    = _parse_num(row.get("TradingMoney"))
-            close = _parse_num(row.get("Close"))
-            chg   = _parse_num(row.get("Change"))
-            vol   = _parse_num(row.get("TradingShares"))
-            if not tv or tv <= 0:
-                continue
-            chg_pct = None
-            if chg is not None and close is not None and (close - chg) != 0:
-                chg_pct = round(chg / (close - chg) * 100, 2)
-            results.append({
-                "ticker":             code,
-                "name":               row.get("CompanyAbbreviation", "").strip(),
-                "close":              round(close, 2) if close else None,
-                "change":             chg,
-                "change_pct":         chg_pct,
-                "trade_value_yi":     round(tv / 1e8, 2),
-                "trade_volume_zhang": round(vol / 1000) if vol else None,
-                "exchange":           "上櫃",
-            })
-    except Exception as e:
-        print(f"[TPEx] daily quotes 失敗: {e}")
+    # 2) 退回 TWSE 收盤資料
+    if not results:
+        try:
+            resp = requests.get(
+                "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+                timeout=15, headers=_TWSE_HEADERS,
+            )
+            for row in resp.json():
+                code = row.get("Code", "").strip()
+                if not code.isdigit() or not (4 <= len(code) <= 5):
+                    continue
+                tv    = _parse_num(row.get("TradeValue"))
+                close = _parse_num(row.get("ClosingPrice"))
+                chg   = _parse_num(row.get("Change"))
+                vol   = _parse_num(row.get("TradeVolume"))
+                if not tv or tv <= 0:
+                    continue
+                chg_pct = None
+                if chg is not None and close is not None and (close - chg) != 0:
+                    chg_pct = round(chg / (close - chg) * 100, 2)
+                results.append({
+                    "ticker":             code,
+                    "name":               row.get("Name", "").strip(),
+                    "close":              round(close, 2) if close else None,
+                    "change":             chg,
+                    "change_pct":         chg_pct,
+                    "trade_value_yi":     round(tv / 1e8, 2),
+                    "trade_volume_zhang": round(vol / 1000) if vol else None,
+                    "exchange":           "上市",
+                })
+        except Exception as e:
+            print(f"[TWSE] STOCK_DAY_ALL 失敗: {e}")
+
+    # 3) 退回 TPEx 收盤資料
+    if not results:
+        try:
+            resp = requests.get(
+                "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
+                timeout=15, headers=_TWSE_HEADERS,
+            )
+            rows = resp.json()
+            if rows:
+                print(f"[TPEx] ranking sample keys: {list(rows[0].keys())[:12]}")
+            for row in rows:
+                code = row.get("SecuritiesCompanyCode", "").strip()
+                if not code.isdigit() or not (4 <= len(code) <= 5):
+                    continue
+                tv    = _parse_num(row.get("TradingMoney"))
+                close = _parse_num(row.get("Close"))
+                chg   = _parse_num(row.get("Change"))
+                vol   = _parse_num(row.get("TradingShares"))
+                if not tv or tv <= 0:
+                    continue
+                chg_pct = None
+                if chg is not None and close is not None and (close - chg) != 0:
+                    chg_pct = round(chg / (close - chg) * 100, 2)
+                results.append({
+                    "ticker":             code,
+                    "name":               row.get("CompanyAbbreviation", "").strip(),
+                    "close":              round(close, 2) if close else None,
+                    "change":             chg,
+                    "change_pct":         chg_pct,
+                    "trade_value_yi":     round(tv / 1e8, 2),
+                    "trade_volume_zhang": round(vol / 1000) if vol else None,
+                    "exchange":           "上櫃",
+                })
+        except Exception as e:
+            print(f"[TPEx] daily quotes 失敗: {e}")
 
     results = [r for r in results if r.get("trade_value_yi", 0) > 0]
     results.sort(key=lambda x: x["trade_value_yi"], reverse=True)

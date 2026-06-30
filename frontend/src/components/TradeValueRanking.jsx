@@ -34,7 +34,7 @@ export default function TradeValueRanking({ onSelect }) {
           </button>
         </div>
       </div>
-      <p className="ranking-hint">資料來源：TWSE／TPEx 當日收盤後統計（快取 15 分鐘）</p>
+      <p className="ranking-hint">盤中即時排行（Fugle）；非交易時段自動退回 TWSE／TPEx 收盤資料。快取 5 分鐘。</p>
 
       {error && <p className="error">❌ {error}</p>}
 
