@@ -999,6 +999,33 @@ def _detect_ma_pattern(ticker: str) -> dict:
     return {"bird_beak": bird_beak, "divergence": divergence}
 
 
+def _check_technical_signals(ticker: str) -> dict | None:
+    """計算技術訊號（前日漲幅、MA20方向、收盤與MA5/MA60相對位置）"""
+    symbol = _get_symbol(ticker)
+    try:
+        hist = yf.Ticker(symbol).history(period="1y")
+    except Exception:
+        return None
+    if hist.empty or len(hist) < 65:
+        return None
+
+    closes = hist["Close"]
+    prev_close  = float(closes.iloc[-1])
+    prev2_close = float(closes.iloc[-2])
+    prev_day_change_pct = round((prev_close - prev2_close) / prev2_close * 100, 2)
+
+    ma5  = closes.rolling(5).mean()
+    ma20 = closes.rolling(20).mean()
+    ma60 = closes.rolling(60).mean()
+
+    return {
+        "prev_day_change_pct": prev_day_change_pct,
+        "ma20_rising":         float(ma20.iloc[-1]) > float(ma20.iloc[-2]),
+        "price_above_ma5":     prev_close > float(ma5.iloc[-1]),
+        "price_above_ma60":    prev_close > float(ma60.iloc[-1]),
+    }
+
+
 def screen_stocks(tickers: list, filters: dict) -> list:
     """根據條件篩選股票"""
     near_ma         = filters.get("near_ma")
@@ -1030,6 +1057,25 @@ def screen_stocks(tickers: list, filters: dict) -> list:
                 info["ma_value"] = ma_data["ma"]
                 info["ma_deviation_pct"] = ma_data["deviation_pct"]
                 info["ma_label"] = MA_PERIODS[near_ma]["label"]
+
+            # 技術面訊號篩選（前日漲幅、MA20方向、收盤位置）
+            needs_tech = (
+                filters.get("min_prev_day_change") is not None
+                or filters.get("ma20_rising")
+                or filters.get("price_above_ma5_ma60")
+            )
+            if needs_tech:
+                tech = _check_technical_signals(ticker)
+                if tech is None:
+                    continue
+                if filters.get("min_prev_day_change") is not None:
+                    if tech["prev_day_change_pct"] < filters["min_prev_day_change"]:
+                        continue
+                if filters.get("ma20_rising") and not tech["ma20_rising"]:
+                    continue
+                if filters.get("price_above_ma5_ma60"):
+                    if not (tech["price_above_ma5"] and tech["price_above_ma60"]):
+                        continue
 
             # 型態篩選
             if pattern in ("bird_beak", "divergence"):

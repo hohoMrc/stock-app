@@ -31,6 +31,10 @@ class ScreenFilter(BaseModel):
     near_ma: Optional[str] = None
     near_ma_pct: float = 3.0
     pattern: Optional[str] = None
+    # 技術面條件
+    min_prev_day_change: Optional[float] = None  # 前日漲幅 ≥ %
+    ma20_rising: bool = False                    # MA20 向上
+    price_above_ma5_ma60: bool = False           # 收盤 > MA5 且 MA60
 
 
 @router.get("/search")

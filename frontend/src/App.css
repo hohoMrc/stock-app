@@ -729,6 +729,31 @@
   font-weight: 600;
 }
 
+/* 技術訊號 checkbox 群組 */
+.tech-signal-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.check-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.check-label input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .screen-btn { width: 100%; margin-top: 18px; padding: 13px; font-size: 15px; }
 
 .loading-hint {

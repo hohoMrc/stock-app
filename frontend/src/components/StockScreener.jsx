@@ -26,6 +26,9 @@ const EMPTY_FILTERS = {
   min_weekly_change: "",
   near_ma: "", near_ma_pct: "3",
   pattern: "",
+  min_prev_day_change: "",
+  ma20_rising: false,
+  price_above_ma5_ma60: false,
   custom_tickers: "",
 };
 
@@ -97,6 +100,9 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
         near_ma: f.near_ma || null,
         near_ma_pct: parseFloat(f.near_ma_pct) || 3,
         pattern: f.pattern || null,
+        min_prev_day_change: n(f.min_prev_day_change),
+        ma20_rising: f.ma20_rising || false,
+        price_above_ma5_ma60: f.price_above_ma5_ma60 || false,
       };
 
       const res = await screenStocks(payload);
@@ -279,6 +285,41 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                 {o.label}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div className="filter-divider" />
+        <div className="filter-section-title">價量技術條件</div>
+
+        <div className="filter-row">
+          <label>前日漲幅 ≥ (%)</label>
+          <input
+            type="number"
+            placeholder="例：9"
+            value={filters.min_prev_day_change}
+            onChange={(e) => setFilters({ ...filters, min_prev_day_change: e.target.value })}
+          />
+        </div>
+
+        <div className="filter-row">
+          <label>技術訊號</label>
+          <div className="tech-signal-checks">
+            <label className="check-label">
+              <input
+                type="checkbox"
+                checked={filters.ma20_rising}
+                onChange={(e) => setFilters({ ...filters, ma20_rising: e.target.checked })}
+              />
+              MA20 向上（今日 MA20 &gt; 昨日 MA20）
+            </label>
+            <label className="check-label">
+              <input
+                type="checkbox"
+                checked={filters.price_above_ma5_ma60}
+                onChange={(e) => setFilters({ ...filters, price_above_ma5_ma60: e.target.checked })}
+              />
+              收盤 &gt; MA5 且 MA60
+            </label>
           </div>
         </div>
 
