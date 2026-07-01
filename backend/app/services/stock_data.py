@@ -646,6 +646,36 @@ def _get_symbol(ticker: str) -> str:
     return _symbol_cache[ticker]
 
 
+def _yf_recent_bars(ticker: str, last_date: str) -> list:
+    """用 yfinance 抓最近 5 天日K，回傳 last_date 之後的新 K 棒。"""
+    try:
+        sym  = _get_symbol(ticker)
+        hist = yf.Ticker(sym).history(period="5d", interval="1d")
+        if hist.empty:
+            return []
+        # 安全移除時區（tz-aware 用 tz_convert，tz-naive 用 tz_localize）
+        if hist.index.tz is not None:
+            hist.index = hist.index.tz_convert(None)
+        else:
+            hist.index = hist.index.tz_localize(None)
+        bars = []
+        for d, r in hist.iterrows():
+            d_str = d.strftime("%Y-%m-%d")
+            if d_str > last_date:
+                bars.append({
+                    "date":   d_str,
+                    "open":   round(float(r["Open"]),  2),
+                    "high":   round(float(r["High"]),  2),
+                    "low":    round(float(r["Low"]),   2),
+                    "close":  round(float(r["Close"]), 2),
+                    "volume": int(r["Volume"]),
+                })
+        return bars
+    except Exception as e:
+        print(f"[yfinance] recent bars {ticker} 失敗: {e}")
+        return []
+
+
 _PERIOD_MONTHS = {
     "1mo": 1, "3mo": 3, "6mo": 6, "1y": 12, "2y": 24, "5y": 60,
 }
@@ -784,26 +814,11 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
                 today_str = date.today().strftime("%Y-%m-%d")
                 # 若最後一根不是今天，用 yfinance 補近期缺口（最可靠的近期來源）
                 if db_records[-1]["date"] < today_str:
-                    try:
-                        _sym = _get_symbol(ticker)
-                        _hr  = yf.Ticker(_sym).history(period="5d", interval="1d")
-                        if not _hr.empty:
-                            _hr.index = _hr.index.tz_localize(None)
-                            _last = db_records[-1]["date"]
-                            _new  = []
-                            for _d, _r in _hr.iterrows():
-                                _ds = _d.strftime("%Y-%m-%d")
-                                if _ds > _last:
-                                    _new.append({"date": _ds,
-                                        "open": round(float(_r["Open"]), 2), "high": round(float(_r["High"]), 2),
-                                        "low":  round(float(_r["Low"]),  2), "close": round(float(_r["Close"]), 2),
-                                        "volume": int(_r["Volume"])})
-                            if _new:
-                                db_records.extend(_new)
-                                db_records.sort(key=lambda x: x["date"])
-                                save_candles(ticker, _new)
-                    except Exception as _e:
-                        print(f"[yfinance] recent gap fill {ticker} 失敗: {_e}")
+                    _new = _yf_recent_bars(ticker, db_records[-1]["date"])
+                    if _new:
+                        db_records.extend(_new)
+                        db_records.sort(key=lambda x: x["date"])
+                        save_candles(ticker, _new)
                 # 盤中即時 K 棒
                 if date.today().weekday() < 5 and db_records[-1]["date"] != today_str:
                     q = _fugle_quote(ticker)
@@ -887,26 +902,10 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
     if interval == "1d" and all_records:
         today_str = date.today().strftime("%Y-%m-%d")
         if all_records[-1]["date"] < today_str:
-            try:
-                symbol = _get_symbol(ticker)
-                hist_r = yf.Ticker(symbol).history(period="5d", interval="1d")
-                if not hist_r.empty:
-                    hist_r.index = hist_r.index.tz_localize(None)
-                    last_known = all_records[-1]["date"]
-                    for d, r in hist_r.iterrows():
-                        d_str = d.strftime("%Y-%m-%d")
-                        if d_str > last_known:
-                            all_records.append({
-                                "date":   d_str,
-                                "open":   round(float(r["Open"]),  2),
-                                "high":   round(float(r["High"]),  2),
-                                "low":    round(float(r["Low"]),   2),
-                                "close":  round(float(r["Close"]), 2),
-                                "volume": int(r["Volume"]),
-                            })
-                    all_records.sort(key=lambda x: x["date"])
-            except Exception as e:
-                print(f"[yfinance] recent gap fill {ticker} 失敗: {e}")
+            new_bars = _yf_recent_bars(ticker, all_records[-1]["date"])
+            if new_bars:
+                all_records.extend(new_bars)
+                all_records.sort(key=lambda x: x["date"])
     # 盤中即時 K 棒（yfinance 無當日未收盤資料，改用 Fugle intraday quote）
     if interval == "1d" and all_records and date.today().weekday() < 5:
         today_str = date.today().strftime("%Y-%m-%d")
