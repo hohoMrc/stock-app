@@ -266,11 +266,12 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
 function OrderBook({ data, loading }) {
   const bids = (data.best_bids || []).slice(0, 5);
   const asks = (data.best_asks || []).slice(0, 5);
+  const isRealtime = data.is_realtime;
 
   if (!loading && bids.length === 0 && asks.length === 0) {
     return (
       <div className="ob-empty">
-        委買委賣五檔資料需盤中交易時段方可查詢（Fugle 即時）
+        盤中交易時段將自動顯示即時五檔，收盤後顯示最後快照
       </div>
     );
   }
@@ -285,6 +286,11 @@ function OrderBook({ data, loading }) {
     <div className="ob-wrap">
       <div className="ob-header-row">
         <span className="ob-title">委買委賣五檔</span>
+        {!loading && bids.length > 0 && (
+          <span className={`ob-data-tag ${isRealtime ? "ob-tag-live" : "ob-tag-snapshot"}`}>
+            {isRealtime ? "即時" : "收盤快照"}
+          </span>
+        )}
         {loading && <span className="ob-refreshing">刷新中</span>}
       </div>
 

@@ -1398,10 +1398,14 @@ def get_turnover_ranking(limit: int = 50) -> list:
     return results[:limit]
 
 
+# 委買委賣快照快取（盤中更新，盤後繼續顯示最後快照，保留 24 小時）
+_orderbook_snapshot: dict = {}  # ticker → (ts, bids, asks)
+
+
 def get_stock_orderbook(ticker: str) -> dict:
-    """從 Fugle intraday quote 取得即時委買委賣五檔。"""
+    """取得委買委賣五檔：盤中即時，盤後顯示最後快照（標記 is_realtime=False）。"""
     empty = {"ticker": ticker, "close": None, "change": None, "change_pct": None,
-             "best_bids": [], "best_asks": []}
+             "best_bids": [], "best_asks": [], "is_realtime": False}
     client = _get_fugle()
     if not client:
         return empty
@@ -1409,7 +1413,7 @@ def get_stock_orderbook(ticker: str) -> dict:
         resp = client.stock.intraday.quote(symbol=ticker)
         data = resp.get("data", resp) if isinstance(resp, dict) else {}
         if not isinstance(data, dict):
-            return empty
+            data = {}
 
         price = data.get("closePrice") or data.get("lastPrice") or data.get("referencePrice")
         ref   = data.get("referencePrice")
@@ -1426,13 +1430,27 @@ def get_stock_orderbook(ticker: str) -> dict:
 
         bids_raw = data.get("bestBids") or []
         asks_raw = data.get("bestAsks") or []
+        bids = [norm(b) for b in bids_raw[:5]]
+        asks = [norm(a) for a in asks_raw[:5]]
+        is_realtime = bool(bids and asks)
+
+        if is_realtime:
+            # 盤中有即時資料 → 更新快照快取
+            _orderbook_snapshot[ticker] = (time.time(), bids, asks)
+        else:
+            # 盤後無資料 → 嘗試使用今日（24 小時內）的最後快照
+            cached = _orderbook_snapshot.get(ticker)
+            if cached and (time.time() - cached[0]) < 86400:
+                _, bids, asks = cached
+
         return {
-            "ticker":     ticker,
-            "close":      round(float(price), 2) if price else None,
-            "change":     change,
-            "change_pct": change_pct,
-            "best_bids":  [norm(b) for b in bids_raw[:5]],
-            "best_asks":  [norm(a) for a in asks_raw[:5]],
+            "ticker":      ticker,
+            "close":       round(float(price), 2) if price else None,
+            "change":      change,
+            "change_pct":  change_pct,
+            "best_bids":   bids,
+            "best_asks":   asks,
+            "is_realtime": is_realtime,
         }
     except Exception as e:
         print(f"[Fugle] orderbook {ticker} 失敗: {e}")
