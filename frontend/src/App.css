@@ -1218,8 +1218,8 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 }
 
 .terminal-left {
-  width: 560px;
-  min-width: 560px;
+  flex: 1;
+  min-width: 0;
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -1374,11 +1374,11 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 
 /* ── Terminal 右側 ── */
 .terminal-right {
-  flex: 1;
+  width: 560px;
+  min-width: 560px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  min-width: 0;
 }
 
 .terminal-empty {
@@ -1782,7 +1782,7 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   .terminal-hide-mobile { display: none !important; }
   .terminal-left { width: 100% !important; min-width: 0 !important; border-right: none; border-bottom: 1px solid var(--border); }
   .terminal-wrap { flex-direction: column; height: auto; }
-  .terminal-right { min-height: 0; }
+  .terminal-right { width: 100% !important; min-width: 0 !important; min-height: 0; }
   .terminal-chart-area { min-height: 200px; }
   .ob-grid { flex-direction: column; gap: 0; }
   .ob-col { border-right: none; }
