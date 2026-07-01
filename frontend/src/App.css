@@ -480,7 +480,7 @@
   color: var(--accent);
 }
 
-/* OHLC 懸浮列 */
+/* OHLC 懸浮列（舊版，保留向下相容） */
 .ohlc-bar {
   display: flex;
   align-items: center;
@@ -492,16 +492,32 @@
   transition: opacity 0.1s;
   font-variant-numeric: tabular-nums;
 }
+.ohlc-item   { display: flex; align-items: center; gap: 3px; }
+.ohlc-label  { color: var(--text-secondary); font-size: 11px; }
 
-.ohlc-item {
+/* 新版多行資訊列（CandlestickChart） */
+.chart-info-bars {
   display: flex;
-  align-items: center;
-  gap: 3px;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 4px;
 }
 
-.ohlc-label {
-  color: var(--text-secondary);
+.chart-info-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  min-height: 18px;
+  padding: 0 2px;
+}
+
+.ci-label {
+  color: var(--text-muted);
+  font-size: 10px;
 }
 
 .warn-badge {

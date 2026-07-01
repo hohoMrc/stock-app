@@ -734,11 +734,11 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
     if cached is not None:
         return cached
 
-    # 60m 小時線：直接用 yfinance，回傳 unix timestamp（以 CST 本地時間偽裝 UTC）
-    if interval == "60m":
+    # 分鐘線（1m/5m/15m/60m）：yfinance 回傳 unix timestamp（以 CST 本地時間偽裝 UTC）
+    if interval in ("1m", "5m", "15m", "60m"):
         try:
             symbol = _get_symbol(ticker)
-            hist = yf.Ticker(symbol).history(period=period, interval="60m")
+            hist = yf.Ticker(symbol).history(period=period, interval=interval)
             if not hist.empty:
                 try:
                     hist.index = hist.index.tz_convert("Asia/Taipei").tz_localize(None)
@@ -757,7 +757,7 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
                     for d, r in hist.iterrows()
                 ]
         except Exception as e:
-            print(f"[yfinance] 60m history {ticker} 失敗: {e}")
+            print(f"[yfinance] {interval} history {ticker} 失敗: {e}")
         _cache_set(_history_cache, cache_key, all_records)
         return all_records
 

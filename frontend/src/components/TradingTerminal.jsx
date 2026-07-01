@@ -3,6 +3,9 @@ import CandlestickChart from "./CandlestickChart";
 import { getTradeValueRanking, getTurnoverRanking, getHistory, getOrderbook, getTrades } from "../api";
 
 const INTERVAL_CONFIG = {
+  "1m":  { fetchPeriod: "5d",  defaultPeriod: "1d",  periods: ["1d", "3d", "5d"] },
+  "5m":  { fetchPeriod: "1mo", defaultPeriod: "5d",  periods: ["3d", "5d", "1mo"] },
+  "15m": { fetchPeriod: "1mo", defaultPeriod: "5d",  periods: ["3d", "5d", "1mo"] },
   "60m": { fetchPeriod: "3mo", defaultPeriod: "5d",  periods: ["5d", "1mo", "3mo"] },
   "1d":  { fetchPeriod: "1y",  defaultPeriod: "3mo", periods: ["1mo", "3mo", "6mo", "1y"] },
   "1wk": { fetchPeriod: "2y",  defaultPeriod: "1y",  periods: ["3mo", "6mo", "1y", "2y"] },
@@ -10,12 +13,14 @@ const INTERVAL_CONFIG = {
 };
 
 const PERIOD_LABELS = {
-  "5d": "5天", "1mo": "1月", "3mo": "3月",
-  "6mo": "6月", "1y": "1年", "2y": "2年", "5y": "5年",
+  "1d": "1日", "3d": "3日", "5d": "5天",
+  "1mo": "1月", "3mo": "3月", "6mo": "6月",
+  "1y": "1年", "2y": "2年", "5y": "5年",
 };
 
 const INTERVAL_LABELS = {
-  "60m": "60m", "1d": "日K", "1wk": "週K", "1mo": "月K",
+  "1m": "1分", "5m": "5分", "15m": "15分",
+  "60m": "60分", "1d": "日K", "1wk": "週K", "1mo": "月K",
 };
 
 export default function TradingTerminal({ watchlist = [], onToggleWatch }) {

@@ -111,8 +111,8 @@ async def get_trades(ticker: str, limit: int = Query(default=30, le=100)):
 @router.get("/{ticker}/history")
 async def get_history(
     ticker: str,
-    period: str = Query(default="3mo", pattern="^(5d|1mo|3mo|6mo|1y|2y|5y)$"),
-    interval: str = Query(default="1d", pattern="^(1d|1wk|1mo|60m)$"),
+    period: str = Query(default="3mo", pattern="^(1d|3d|5d|1mo|3mo|6mo|1y|2y|5y)$"),
+    interval: str = Query(default="1d", pattern="^(1m|5m|15m|60m|1d|1wk|1mo)$"),
 ):
     try:
         history = get_stock_history(ticker, period, interval)
