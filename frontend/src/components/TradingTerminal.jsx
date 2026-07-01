@@ -1,0 +1,346 @@
+import { useState, useEffect, useRef } from "react";
+import CandlestickChart from "./CandlestickChart";
+import { getTradeValueRanking, getTurnoverRanking, getHistory, getOrderbook } from "../api";
+
+const INTERVAL_CONFIG = {
+  "60m": { fetchPeriod: "3mo", defaultPeriod: "5d",  periods: ["5d", "1mo", "3mo"] },
+  "1d":  { fetchPeriod: "1y",  defaultPeriod: "3mo", periods: ["1mo", "3mo", "6mo", "1y"] },
+  "1wk": { fetchPeriod: "2y",  defaultPeriod: "1y",  periods: ["3mo", "6mo", "1y", "2y"] },
+  "1mo": { fetchPeriod: "5y",  defaultPeriod: "2y",  periods: ["1y", "2y", "5y"] },
+};
+
+const PERIOD_LABELS = {
+  "5d": "5天", "1mo": "1月", "3mo": "3月",
+  "6mo": "6月", "1y": "1年", "2y": "2年", "5y": "5年",
+};
+
+const INTERVAL_LABELS = {
+  "60m": "60m", "1d": "日K", "1wk": "週K", "1mo": "月K",
+};
+
+export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
+  const [activeTab, setActiveTab]       = useState("value");
+  const [listData, setListData]         = useState({ value: [], turnover: [] });
+  const [listLoading, setListLoading]   = useState({ value: false, turnover: false });
+  const [listUpdatedAt, setListUpdatedAt] = useState({ value: null, turnover: null });
+  const loaded = useRef({ value: false, turnover: false });
+
+  const [selected, setSelected]         = useState(null); // { ticker, name, close, change, change_pct }
+  const [chartData, setChartData]       = useState([]);
+  const [chartInterval, setChartInterval] = useState("1d");
+  const [chartPeriod, setChartPeriod]   = useState("3mo");
+  const [chartLoading, setChartLoading] = useState(false);
+  const [orderbook, setOrderbook]       = useState({ best_bids: [], best_asks: [] });
+  const [obLoading, setObLoading]       = useState(false);
+
+  // 手機版：顯示哪個面板 ("list" | "chart")
+  const [mobileView, setMobileView] = useState("list");
+
+  // ── 排行清單 ──────────────────────────────────────────────────────────
+  const loadList = async (tab) => {
+    setListLoading((p) => ({ ...p, [tab]: true }));
+    try {
+      const res = tab === "value"
+        ? await getTradeValueRanking(50)
+        : await getTurnoverRanking(50);
+      setListData((p) => ({ ...p, [tab]: res.data.stocks }));
+      setListUpdatedAt((p) => ({
+        ...p,
+        [tab]: new Date().toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" }),
+      }));
+      loaded.current[tab] = true;
+    } catch { /* ignore */ }
+    finally { setListLoading((p) => ({ ...p, [tab]: false })); }
+  };
+
+  useEffect(() => { loadList("value"); }, []);
+  useEffect(() => {
+    if (!loaded.current[activeTab] && activeTab !== "watch") loadList(activeTab);
+  }, [activeTab]);
+
+  // ── K 線資料 ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!selected) return;
+    const cfg = INTERVAL_CONFIG[chartInterval];
+    setChartPeriod(cfg.defaultPeriod);
+    setChartLoading(true);
+    setChartData([]);
+    getHistory(selected.ticker, cfg.fetchPeriod, chartInterval)
+      .then((res) => setChartData(res.data.data))
+      .catch(() => {})
+      .finally(() => setChartLoading(false));
+  }, [selected?.ticker, chartInterval]);
+
+  // ── 委買委賣（10 秒自動刷新）─────────────────────────────────────────
+  useEffect(() => {
+    if (!selected) return;
+    let alive = true;
+    const fetch = () => {
+      setObLoading(true);
+      getOrderbook(selected.ticker)
+        .then((res) => { if (alive) setOrderbook(res.data); })
+        .catch(() => {})
+        .finally(() => { if (alive) setObLoading(false); });
+    };
+    fetch();
+    const timer = setInterval(fetch, 10000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [selected?.ticker]);
+
+  const handleSelect = (s) => {
+    setSelected(s);
+    setMobileView("chart");
+  };
+
+  const stocks = activeTab === "watch"
+    ? watchlist.map((t) => ({ ticker: t, name: "" }))
+    : listData[activeTab];
+
+  return (
+    <div className="terminal-wrap">
+      {/* ── 手機：頂部切換列 ── */}
+      <div className="terminal-mobile-switcher">
+        <button
+          className={mobileView === "list" ? "active" : ""}
+          onClick={() => setMobileView("list")}
+        >
+          名單
+        </button>
+        <button
+          className={mobileView === "chart" ? "active" : ""}
+          onClick={() => setMobileView("chart")}
+          disabled={!selected}
+        >
+          {selected ? `${selected.ticker} 圖表` : "圖表"}
+        </button>
+      </div>
+
+      {/* ── 左側：股票清單 ── */}
+      <div className={`terminal-left ${mobileView !== "list" ? "terminal-hide-mobile" : ""}`}>
+        <div className="terminal-list-tabs">
+          {[
+            { key: "value",    label: "成交值" },
+            { key: "turnover", label: "週轉率" },
+            { key: "watch",    label: "自選" },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              className={activeTab === key ? "active" : ""}
+              onClick={() => setActiveTab(key)}
+            >
+              {label}
+            </button>
+          ))}
+          <button
+            className="tl-refresh"
+            onClick={() => { if (activeTab !== "watch") loadList(activeTab); }}
+            title="重新整理"
+          >
+            ↻
+          </button>
+        </div>
+        {listUpdatedAt[activeTab] && (
+          <div className="tl-updated">更新 {listUpdatedAt[activeTab]}</div>
+        )}
+        <div className="terminal-list-scroll">
+          {listLoading[activeTab] && (
+            <div className="tl-loading">載入中...</div>
+          )}
+          {stocks.map((s) => {
+            const up   = s.change > 0;
+            const down = s.change < 0;
+            const sign = up ? "+" : "";
+            return (
+              <div
+                key={s.ticker}
+                className={`tl-row ${selected?.ticker === s.ticker ? "tl-selected" : ""}`}
+                onClick={() => handleSelect(s)}
+              >
+                <div className="tl-info">
+                  <span className="tl-ticker">{s.ticker}</span>
+                  <span className="tl-name">{s.name}</span>
+                </div>
+                <div className="tl-nums">
+                  <span className="tl-price">{s.close ?? "—"}</span>
+                  <span className={`tl-pct ${up ? "up" : down ? "down" : ""}`}>
+                    {s.change_pct != null ? `${sign}${s.change_pct}%` : "—"}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+          {!listLoading[activeTab] && stocks.length === 0 && (
+            <div className="tl-empty">暫無資料</div>
+          )}
+        </div>
+      </div>
+
+      {/* ── 右側：圖表 + 委買委賣 ── */}
+      <div className={`terminal-right ${mobileView !== "chart" ? "terminal-hide-mobile" : ""}`}>
+        {selected ? (
+          <>
+            {/* 股票標頭 */}
+            <div className="terminal-stock-header">
+              <div className="tsh-title">
+                <span className="tsh-ticker">{selected.ticker}</span>
+                <span className="tsh-name">{selected.name}</span>
+              </div>
+              <div className="tsh-price-wrap">
+                {(() => {
+                  const close  = orderbook.close  ?? selected.close;
+                  const change = orderbook.change  ?? selected.change;
+                  const pct    = orderbook.change_pct ?? selected.change_pct;
+                  const up   = change > 0;
+                  const down = change < 0;
+                  const sign = up ? "+" : "";
+                  return (
+                    <>
+                      <span className={`tsh-price ${up ? "up" : down ? "down" : ""}`}>{close ?? "—"}</span>
+                      <span className={`tsh-change ${up ? "up" : down ? "down" : ""}`}>
+                        {change != null ? `${sign}${change}` : ""}
+                      </span>
+                      <span className={`tsh-pct ${up ? "up" : down ? "down" : ""}`}>
+                        {pct != null ? `(${sign}${pct}%)` : ""}
+                      </span>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* 圖表控制列 */}
+            <div className="terminal-chart-controls">
+              <div className="tcc-intervals">
+                {Object.entries(INTERVAL_LABELS).map(([iv, label]) => (
+                  <button
+                    key={iv}
+                    className={chartInterval === iv ? "active" : ""}
+                    onClick={() => setChartInterval(iv)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="tcc-periods">
+                {INTERVAL_CONFIG[chartInterval].periods.map((p) => (
+                  <button
+                    key={p}
+                    className={chartPeriod === p ? "active" : ""}
+                    onClick={() => setChartPeriod(p)}
+                  >
+                    {PERIOD_LABELS[p]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* K 線圖 */}
+            <div className="terminal-chart-area">
+              {chartLoading ? (
+                <div className="terminal-loading">載入圖表...</div>
+              ) : chartData.length > 0 ? (
+                <CandlestickChart
+                  data={chartData}
+                  period={chartPeriod}
+                  interval={chartInterval}
+                  height={240}
+                />
+              ) : (
+                <div className="terminal-loading">無圖表資料</div>
+              )}
+            </div>
+
+            {/* 委買委賣 */}
+            <div className="terminal-orderbook">
+              <OrderBook data={orderbook} loading={obLoading} />
+            </div>
+          </>
+        ) : (
+          <div className="terminal-empty">← 從左側點選股票查看圖表</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function OrderBook({ data, loading }) {
+  const bids = (data.best_bids || []).slice(0, 5);
+  const asks = (data.best_asks || []).slice(0, 5);
+
+  if (!loading && bids.length === 0 && asks.length === 0) {
+    return (
+      <div className="ob-empty">
+        委買委賣五檔資料需盤中交易時段方可查詢（Fugle 即時）
+      </div>
+    );
+  }
+
+  const totalBid = bids.reduce((s, b) => s + (b.size || 0), 0);
+  const totalAsk = asks.reduce((s, a) => s + (a.size || 0), 0);
+  const total    = totalBid + totalAsk;
+  const bidPct   = total > 0 ? Math.round((totalBid / total) * 100) : 0;
+  const askPct   = 100 - bidPct;
+
+  return (
+    <div className="ob-wrap">
+      <div className="ob-header-row">
+        <span className="ob-title">委買委賣五檔</span>
+        {loading && <span className="ob-refreshing">刷新中</span>}
+      </div>
+
+      <div className="ob-grid">
+        {/* 委賣（紅）：由高到低排列 */}
+        <div className="ob-col ob-ask-col">
+          <div className="ob-col-header">
+            <span>委賣價</span>
+            <span>張數</span>
+          </div>
+          {[...asks].reverse().map((a, i) => (
+            <div key={i} className="ob-row">
+              <span className="ob-price down">{a.price}</span>
+              <span className="ob-qty">{Math.round(a.size / 1000)}</span>
+              <div className="ob-bar-wrap">
+                <div
+                  className="ob-bar ob-bar-ask"
+                  style={{ width: totalAsk > 0 ? `${((a.size / totalAsk) * 100).toFixed(0)}%` : "0%" }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 委買（綠）：由高到低排列 */}
+        <div className="ob-col ob-bid-col">
+          <div className="ob-col-header">
+            <span>委買價</span>
+            <span>張數</span>
+          </div>
+          {bids.map((b, i) => (
+            <div key={i} className="ob-row">
+              <span className="ob-price up">{b.price}</span>
+              <span className="ob-qty">{Math.round(b.size / 1000)}</span>
+              <div className="ob-bar-wrap">
+                <div
+                  className="ob-bar ob-bar-bid"
+                  style={{ width: totalBid > 0 ? `${((b.size / totalBid) * 100).toFixed(0)}%` : "0%" }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 買賣壓力比 */}
+      {total > 0 && (
+        <div className="ob-pressure">
+          <span className="ob-pct down">{askPct}% 賣</span>
+          <div className="ob-pressure-bar">
+            <div className="ob-pressure-ask" style={{ width: `${askPct}%` }} />
+            <div className="ob-pressure-bid" style={{ width: `${bidPct}%` }} />
+          </div>
+          <span className="ob-pct up">{bidPct}% 買</span>
+        </div>
+      )}
+    </div>
+  );
+}

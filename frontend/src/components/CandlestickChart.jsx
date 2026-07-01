@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createChart, CandlestickSeries, LineSeries } from "lightweight-charts";
+import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from "lightweight-charts";
 
 const MA_CONFIG = [
   { key: "ma5",   period: 5,   label: "MA5",   color: "#f59e0b" },
@@ -26,7 +26,6 @@ function calcEMA(data, period) {
   for (let i = 0; i < data.length; i++) {
     if (ema === null) {
       if (i < period - 1) continue;
-      // 前 period 筆 SMA 作為起始值
       ema = data.slice(0, period).reduce((s, d) => s + d.close, 0) / period;
     } else {
       ema = data[i].close * k + ema * (1 - k);
@@ -36,7 +35,6 @@ function calcEMA(data, period) {
   return result;
 }
 
-// KD 隨機指標（9日）：K = 2/3 × 前K + 1/3 × RSV，D = 2/3 × 前D + 1/3 × K
 function calcKD(data, period = 9) {
   const kArr = [];
   const dArr = [];
@@ -56,6 +54,80 @@ function calcKD(data, period = 9) {
   return { kArr, dArr };
 }
 
+function calcBOLL(data, period = 20, mult = 2) {
+  const upper = [], mid = [], lower = [];
+  for (let i = period - 1; i < data.length; i++) {
+    const slice = data.slice(i - period + 1, i + 1);
+    const mean = slice.reduce((s, d) => s + d.close, 0) / period;
+    const std = Math.sqrt(slice.reduce((s, d) => s + (d.close - mean) ** 2, 0) / period);
+    upper.push({ time: data[i].date, value: parseFloat((mean + mult * std).toFixed(2)) });
+    mid.push({ time: data[i].date, value: parseFloat(mean.toFixed(2)) });
+    lower.push({ time: data[i].date, value: parseFloat((mean - mult * std).toFixed(2)) });
+  }
+  return { upper, mid, lower };
+}
+
+function calcEMAArray(closes, period) {
+  const k = 2 / (period + 1);
+  const result = new Array(closes.length).fill(null);
+  let ema = null;
+  for (let i = 0; i < closes.length; i++) {
+    if (ema === null) {
+      if (i < period - 1) continue;
+      ema = closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
+    } else {
+      ema = closes[i] * k + ema * (1 - k);
+    }
+    result[i] = ema;
+  }
+  return result;
+}
+
+function calcMACD(data, fast = 12, slow = 26, signal = 9) {
+  const closes = data.map((d) => d.close);
+  const ema12 = calcEMAArray(closes, fast);
+  const ema26 = calcEMAArray(closes, slow);
+
+  const dif = new Array(data.length).fill(null);
+  for (let i = 0; i < data.length; i++) {
+    if (ema12[i] !== null && ema26[i] !== null) dif[i] = ema12[i] - ema26[i];
+  }
+
+  const dea = new Array(data.length).fill(null);
+  const sk = 2 / (signal + 1);
+  let deaEma = null;
+  let cnt = 0;
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) {
+    if (dif[i] === null) continue;
+    cnt++;
+    sum += dif[i];
+    if (deaEma === null) {
+      if (cnt < signal) continue;
+      deaEma = sum / signal;
+    } else {
+      deaEma = dif[i] * sk + deaEma * (1 - sk);
+    }
+    dea[i] = deaEma;
+  }
+
+  const difArr = [], deaArr = [], histArr = [];
+  for (let i = 0; i < data.length; i++) {
+    if (dif[i] === null) continue;
+    difArr.push({ time: data[i].date, value: parseFloat(dif[i].toFixed(4)) });
+    if (dea[i] !== null) {
+      deaArr.push({ time: data[i].date, value: parseFloat(dea[i].toFixed(4)) });
+      const h = (dif[i] - dea[i]) * 2;
+      histArr.push({
+        time: data[i].date,
+        value: parseFloat(h.toFixed(4)),
+        color: h >= 0 ? "rgba(220,38,38,0.65)" : "rgba(22,163,74,0.65)",
+      });
+    }
+  }
+  return { difArr, deaArr, histArr };
+}
+
 const PERIOD_DAYS = {
   "5d": 5, "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825,
 };
@@ -68,7 +140,8 @@ function getFromDate(period, asUnix = false) {
   return d.toISOString().slice(0, 10);
 }
 
-const KD_PANE_HEIGHT = 100;
+const KD_PANE_HEIGHT   = 80;
+const MACD_PANE_HEIGHT = 80;
 
 export default function CandlestickChart({ data, period = "3mo", interval = "1d", height = 320 }) {
   const containerRef    = useRef(null);
@@ -77,19 +150,27 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const kSeriesRef      = useRef(null);
   const dSeriesRef      = useRef(null);
   const maSeriesRefs    = useRef({});
+  const bollUpperRef    = useRef(null);
+  const bollMidRef      = useRef(null);
+  const bollLowerRef    = useRef(null);
+  const difSeriesRef    = useRef(null);
+  const deaSeriesRef    = useRef(null);
+  const macdHistRef     = useRef(null);
   const dataRef         = useRef([]);
   const dataIndexRef    = useRef(new Map());
   const kdMapRef        = useRef(new Map());
+  const macdMapRef      = useRef(new Map());
 
-  const [activeMA,   setActiveMA]   = useState({ ma5: true, ma20: true, ma60: false, ma120: false, ema60: true });
-  const [hoveredBar, setHoveredBar] = useState(null);
-  const [hoveredKD,  setHoveredKD]  = useState(null);
+  const [activeMA,    setActiveMA]    = useState({ ma5: true, ma20: true, ma60: false, ma120: false, ema60: true });
+  const [showBOLL,    setShowBOLL]    = useState(false);
+  const [hoveredBar,  setHoveredBar]  = useState(null);
+  const [hoveredKD,   setHoveredKD]   = useState(null);
+  const [hoveredMACD, setHoveredMACD] = useState(null);
 
-  // 初始化單一 chart，含兩個 pane（K線 + KD副圖）
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const totalHeight = height + KD_PANE_HEIGHT;
+    const totalHeight = height + KD_PANE_HEIGHT + MACD_PANE_HEIGHT;
 
     const chart = createChart(containerRef.current, {
       width: containerRef.current.clientWidth,
@@ -106,7 +187,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     });
     chartRef.current = chart;
 
-    // pane 0 ← K 線與均線（預設 pane）
+    // pane 0: K 線 + MA + BOLL
     candleSeriesRef.current = chart.addSeries(CandlestickSeries, {
       upColor: "#dc2626", downColor: "#16a34a",
       borderUpColor: "#dc2626", borderDownColor: "#16a34a",
@@ -120,7 +201,16 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       });
     });
 
-    // pane 1 ← KD 副圖
+    const bollOpts = {
+      lineWidth: 1, lineStyle: 2,
+      priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+      visible: false,
+    };
+    bollUpperRef.current = chart.addSeries(LineSeries, { ...bollOpts, color: "#7c3aed" });
+    bollMidRef.current   = chart.addSeries(LineSeries, { ...bollOpts, color: "#a78bfa", lineStyle: 0 });
+    bollLowerRef.current = chart.addSeries(LineSeries, { ...bollOpts, color: "#7c3aed" });
+
+    // pane 1: KD
     const kdPane = chart.addPane();
     kSeriesRef.current = kdPane.addSeries(LineSeries, {
       color: "#f59e0b", lineWidth: 1.5,
@@ -131,28 +221,42 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
     });
 
-    // 設定兩個 pane 的高度比例
+    // pane 2: MACD
+    const macdPane = chart.addPane();
+    macdHistRef.current = macdPane.addSeries(HistogramSeries, {
+      priceLineVisible: false, lastValueVisible: false,
+    });
+    difSeriesRef.current = macdPane.addSeries(LineSeries, {
+      color: "#fbbf24", lineWidth: 1.5,
+      priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+    });
+    deaSeriesRef.current = macdPane.addSeries(LineSeries, {
+      color: "#60a5fa", lineWidth: 1.5,
+      priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+    });
+
     const panes = chart.panes();
     panes[0].setStretchFactor(height);
     panes[1].setStretchFactor(KD_PANE_HEIGHT);
+    panes[2].setStretchFactor(MACD_PANE_HEIGHT);
 
-    // crosshair → OHLC + KD 懸浮資訊
     chart.subscribeCrosshairMove((param) => {
       if (!param.time || param.point === undefined ||
           param.point.x < 0 || param.point.y < 0) {
-        setHoveredBar(null);
-        setHoveredKD(null);
+        setHoveredBar(null); setHoveredKD(null); setHoveredMACD(null);
         return;
       }
       const candle = param.seriesData.get(candleSeriesRef.current);
-      if (!candle) { setHoveredBar(null); setHoveredKD(null); return; }
+      if (!candle) { setHoveredBar(null); setHoveredKD(null); setHoveredMACD(null); return; }
 
-      const idx = dataIndexRef.current.get(String(param.time)) ?? -1;  // key 統一用 String
+      const key = String(param.time);
+      const idx = dataIndexRef.current.get(key) ?? -1;
       const prevClose = idx > 0 ? dataRef.current[idx - 1].close : candle.open;
       const change    = +(candle.close - prevClose).toFixed(2);
       const changePct = +((change / prevClose) * 100).toFixed(2);
       setHoveredBar({ ...candle, change, changePct });
-      setHoveredKD(kdMapRef.current.get(String(param.time)) ?? null);
+      setHoveredKD(kdMapRef.current.get(key) ?? null);
+      setHoveredMACD(macdMapRef.current.get(key) ?? null);
     });
 
     const handleResize = () => {
@@ -168,6 +272,12 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       candleSeriesRef.current = null;
       kSeriesRef.current = null;
       dSeriesRef.current = null;
+      bollUpperRef.current = null;
+      bollMidRef.current = null;
+      bollLowerRef.current = null;
+      difSeriesRef.current = null;
+      deaSeriesRef.current = null;
+      macdHistRef.current = null;
       maSeriesRefs.current = {};
     };
   }, [height]);
@@ -180,7 +290,6 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     if (from && to) chartRef.current.timeScale().setVisibleRange({ from, to });
   }
 
-  // 資料更新
   useEffect(() => {
     if (!candleSeriesRef.current || !data?.length) return;
 
@@ -189,7 +298,6 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     data.forEach((d, i) => indexMap.set(String(d.date), i));
     dataIndexRef.current = indexMap;
 
-    // 60m 為 unix timestamp（數字），其他為日期字串
     const isUnix = typeof data[0]?.date === "number";
     if (chartRef.current) {
       chartRef.current.applyOptions({
@@ -206,13 +314,34 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       maSeriesRefs.current[key]?.setData(fn(data, maPeriod));
     });
 
+    // BOLL
+    const { upper, mid, lower } = calcBOLL(data);
+    bollUpperRef.current?.setData(upper);
+    bollMidRef.current?.setData(mid);
+    bollLowerRef.current?.setData(lower);
+
+    // KD
     const { kArr, dArr } = calcKD(data);
     kSeriesRef.current?.setData(kArr);
     dSeriesRef.current?.setData(dArr);
-
     const kdMap = new Map();
-    kArr.forEach((item, i) => kdMap.set(item.time, { k: item.value, d: dArr[i].value }));
+    kArr.forEach((item, i) => kdMap.set(String(item.time), { k: item.value, d: dArr[i]?.value }));
     kdMapRef.current = kdMap;
+
+    // MACD
+    const { difArr, deaArr, histArr } = calcMACD(data);
+    difSeriesRef.current?.setData(difArr);
+    deaSeriesRef.current?.setData(deaArr);
+    macdHistRef.current?.setData(histArr);
+    const macdMap = new Map();
+    histArr.forEach((item, i) => {
+      macdMap.set(String(item.time), {
+        dif: difArr.find((d) => String(d.time) === String(item.time))?.value,
+        dea: deaArr[i]?.value,
+        hist: item.value,
+      });
+    });
+    macdMapRef.current = macdMap;
 
     applyVisibleRange(period);
   }, [data]);
@@ -224,6 +353,13 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       maSeriesRefs.current[key]?.applyOptions({ visible: activeMA[key] });
     });
   }, [activeMA]);
+
+  useEffect(() => {
+    const v = showBOLL;
+    bollUpperRef.current?.applyOptions({ visible: v });
+    bollMidRef.current?.applyOptions({ visible: v });
+    bollLowerRef.current?.applyOptions({ visible: v });
+  }, [showBOLL]);
 
   const toggleMA = (key) => setActiveMA((prev) => ({ ...prev, [key]: !prev[key] }));
 
@@ -246,6 +382,14 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
             {label}
           </button>
         ))}
+        <button
+          className={`ma-toggle-btn ${showBOLL ? "active" : ""}`}
+          style={{ "--ma-color": "#7c3aed" }}
+          onClick={() => setShowBOLL((v) => !v)}
+        >
+          <span className="ma-dot" />
+          BOLL
+        </button>
       </div>
 
       <div className="ohlc-bar" style={{ opacity: hoveredBar ? 1 : 0 }}>
@@ -266,11 +410,20 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       </div>
 
       <div ref={containerRef} style={{ width: "100%", position: "relative" }}>
-        {/* KD 標籤浮在副圖左上角 */}
-        <div className="kd-label-bar" style={{ bottom: KD_PANE_HEIGHT - 2 }}>
+        {/* KD 標籤 */}
+        <div className="kd-label-bar" style={{ bottom: KD_PANE_HEIGHT + MACD_PANE_HEIGHT - 2 }}>
           <span className="kd-label-title">KD(9)</span>
           <span className="kd-k-val">K: {hoveredKD ? hoveredKD.k.toFixed(2) : "—"}</span>
-          <span className="kd-d-val">D: {hoveredKD ? hoveredKD.d.toFixed(2) : "—"}</span>
+          <span className="kd-d-val">D: {hoveredKD ? hoveredKD.d?.toFixed(2) : "—"}</span>
+        </div>
+        {/* MACD 標籤 */}
+        <div className="kd-label-bar" style={{ bottom: MACD_PANE_HEIGHT - 2 }}>
+          <span className="kd-label-title">MACD(12,26,9)</span>
+          <span style={{ color: "#fbbf24" }}>DIF: {hoveredMACD ? hoveredMACD.dif?.toFixed(2) : "—"}</span>
+          <span style={{ color: "#60a5fa" }}>DEA: {hoveredMACD ? hoveredMACD.dea?.toFixed(2) : "—"}</span>
+          <span style={{ color: hoveredMACD?.hist >= 0 ? "#dc2626" : "#16a34a" }}>
+            MACD: {hoveredMACD ? hoveredMACD.hist?.toFixed(2) : "—"}
+          </span>
         </div>
       </div>
     </div>

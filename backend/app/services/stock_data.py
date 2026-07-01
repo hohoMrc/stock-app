@@ -1398,6 +1398,47 @@ def get_turnover_ranking(limit: int = 50) -> list:
     return results[:limit]
 
 
+def get_stock_orderbook(ticker: str) -> dict:
+    """從 Fugle intraday quote 取得即時委買委賣五檔。"""
+    empty = {"ticker": ticker, "close": None, "change": None, "change_pct": None,
+             "best_bids": [], "best_asks": []}
+    client = _get_fugle()
+    if not client:
+        return empty
+    try:
+        resp = client.stock.intraday.quote(symbol=ticker)
+        data = resp.get("data", resp) if isinstance(resp, dict) else {}
+        if not isinstance(data, dict):
+            return empty
+
+        price = data.get("closePrice") or data.get("lastPrice") or data.get("referencePrice")
+        ref   = data.get("referencePrice")
+        change = change_pct = None
+        if price and ref:
+            change     = round(float(price) - float(ref), 2)
+            change_pct = round(change / float(ref) * 100, 2)
+
+        def norm(item):
+            return {
+                "price": round(float(item.get("price", 0)), 2),
+                "size":  int(item.get("size", 0)),
+            }
+
+        bids_raw = data.get("bestBids") or []
+        asks_raw = data.get("bestAsks") or []
+        return {
+            "ticker":     ticker,
+            "close":      round(float(price), 2) if price else None,
+            "change":     change,
+            "change_pct": change_pct,
+            "best_bids":  [norm(b) for b in bids_raw[:5]],
+            "best_asks":  [norm(a) for a in asks_raw[:5]],
+        }
+    except Exception as e:
+        print(f"[Fugle] orderbook {ticker} 失敗: {e}")
+        return empty
+
+
 def search_stocks(q: str, limit: int = 10) -> list[dict]:
     """模糊搜尋股票代號或名稱，優先使用完整清單，備援靜態表"""
     _load_tw_stock_names()

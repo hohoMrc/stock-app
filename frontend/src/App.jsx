@@ -7,6 +7,7 @@ import WatchList from "./components/WatchList";
 import AuthModal from "./components/AuthModal";
 import WatchNoteModal from "./components/WatchNoteModal";
 import TradeValueRanking from "./components/TradeValueRanking";
+import TradingTerminal from "./components/TradingTerminal";
 import { fetchWatchlist, addWatch, removeWatch, updateWatchNote } from "./api";
 import "./App.css";
 
@@ -155,6 +156,12 @@ export default function App() {
         </div>
         <nav className="top-nav desktop-only">
           <button
+            className={activePage === "terminal" ? "active" : ""}
+            onClick={() => setActivePage("terminal")}
+          >
+            看盤
+          </button>
+          <button
             className={activePage === "ranking" ? "active" : ""}
             onClick={() => setActivePage("ranking")}
           >
@@ -226,7 +233,7 @@ export default function App() {
         )}
       </header>
 
-      <main className="main">
+      <main className={`main${activePage === "terminal" ? " main-terminal" : ""}`}>
         {activePage === "search" && (
           <StockSearch onSelect={(t) => handleSelectStock(t)} />
         )}
@@ -258,6 +265,9 @@ export default function App() {
         )}
         {activePage === "ranking" && (
           <TradeValueRanking onSelect={(t) => handleSelectStock(t)} />
+        )}
+        {activePage === "terminal" && (
+          <TradingTerminal watchlist={watchlist} onToggleWatch={toggleWatch} />
         )}
 
         {/* 保持 DOM 存在（display:none 效果），避免切頁時狀態消失 */}
@@ -291,6 +301,13 @@ export default function App() {
 
       {/* 手機底部導覽列 */}
       <nav className="bottom-nav">
+        <button
+          className={activePage === "terminal" ? "active" : ""}
+          onClick={() => setActivePage("terminal")}
+        >
+          <span className="bottom-nav-icon">📺</span>
+          <span className="bottom-nav-label">看盤</span>
+        </button>
         <button
           className={activePage === "ranking" ? "active" : ""}
           onClick={() => setActivePage("ranking")}
