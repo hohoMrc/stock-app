@@ -150,20 +150,44 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
             const up   = s.change > 0;
             const down = s.change < 0;
             const sign = up ? "+" : "";
+            const limitUp   = s.is_limit_up;
+            const limitDown = s.is_limit_down;
+            const vol = s.trade_volume_zhang;
             return (
               <div
                 key={s.ticker}
                 className={`tl-row ${selected?.ticker === s.ticker ? "tl-selected" : ""}`}
                 onClick={() => handleSelect(s)}
               >
-                <div className="tl-info">
-                  <span className="tl-ticker">{s.ticker}</span>
-                  <span className="tl-name">{s.name}</span>
+                {/* 第一行：股名 + 成交價 + 漲跌幅 */}
+                <div className="tl-row-top">
+                  <span className="tl-name">{s.name || s.ticker}</span>
+                  <div className="tl-price-group">
+                    <span className={`tl-price ${limitUp ? "limit-up" : limitDown ? "limit-down" : up ? "up" : down ? "down" : ""}`}>
+                      {s.close ?? "—"}
+                    </span>
+                    <span className={`tl-pct ${up ? "up" : down ? "down" : ""}`}>
+                      {s.change_pct != null ? `${sign}${s.change_pct}%` : "—"}
+                    </span>
+                  </div>
                 </div>
-                <div className="tl-nums">
-                  <span className="tl-price">{s.close ?? "—"}</span>
-                  <span className={`tl-pct ${up ? "up" : down ? "down" : ""}`}>
-                    {s.change_pct != null ? `${sign}${s.change_pct}%` : "—"}
+                {/* 第二行：代號 + 漲跌 + 成交量 + 委買 + 委賣 + 單量 */}
+                <div className="tl-row-bot">
+                  <span className="tl-code">{s.ticker}</span>
+                  <span className={`tl-change ${up ? "up" : down ? "down" : ""}`}>
+                    {s.change != null ? `${sign}${s.change}` : "—"}
+                  </span>
+                  <span className="tl-meta">
+                    量{vol != null ? (vol >= 10000 ? `${(vol / 10000).toFixed(1)}萬` : vol.toLocaleString()) : "—"}
+                  </span>
+                  <span className="tl-meta">
+                    買<span className="tl-bid">{s.best_bid ?? "—"}</span>
+                  </span>
+                  <span className="tl-meta">
+                    賣<span className="tl-ask">{s.best_ask ?? "—"}</span>
+                  </span>
+                  <span className="tl-meta">
+                    單{s.last_size_zhang != null ? s.last_size_zhang : "—"}
                   </span>
                 </div>
               </div>

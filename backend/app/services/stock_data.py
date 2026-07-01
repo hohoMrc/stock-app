@@ -1222,6 +1222,49 @@ def _fugle_snapshot_actives(market: str) -> list:
         return []
 
 
+def _enrich_with_intraday(stocks: list) -> list:
+    """並行為 stocks 補充 intraday 資料：委買、委賣、單量、成交量、漲停跌停旗標。
+    結果不影響快取 key，失敗就保留原欄位（留 None）。
+    """
+    client = _get_fugle()
+    if not client or not stocks:
+        return stocks
+
+    def _fetch(ticker: str):
+        try:
+            resp = client.stock.intraday.quote(symbol=ticker)
+            data = resp.get("data", resp) if isinstance(resp, dict) else {}
+            if not isinstance(data, dict):
+                return ticker, {}
+            bids = data.get("bids") or []
+            asks = data.get("asks") or []
+            total = data.get("total") or {}
+            last_size = data.get("lastSize")
+            ref   = data.get("referencePrice") or 0
+            close = data.get("closePrice") or data.get("lastPrice") or 0
+            # 漲跌停：台股一般 ±10%，用 ±9.5% 作門檻避免浮點誤差
+            chg_pct = round((close - ref) / ref * 100, 2) if ref else 0
+            return ticker, {
+                "best_bid":          bids[0]["price"] if bids else None,
+                "best_ask":          asks[0]["price"] if asks else None,
+                "last_size_zhang":   round(last_size / 1000) if last_size else None,
+                "trade_volume_zhang": int(total.get("tradeVolume") or 0) or None,
+                "is_limit_up":       chg_pct >= 9.5,
+                "is_limit_down":     chg_pct <= -9.5,
+            }
+        except Exception:
+            return ticker, {}
+
+    with ThreadPoolExecutor(max_workers=20) as pool:
+        quote_map = dict(pool.map(_fetch, [s["ticker"] for s in stocks]))
+
+    merged = []
+    for s in stocks:
+        q = quote_map.get(s["ticker"], {})
+        merged.append({**s, **{k: v for k, v in q.items() if v is not None}})
+    return merged
+
+
 def get_trade_value_ranking(limit: int = 50) -> list:
     """取得成交值排行（合併上市 + 上櫃）
     優先 Fugle snapshot/actives（盤中即時），退回 TWSE/TPEx 收盤資料。
@@ -1305,6 +1348,7 @@ def get_trade_value_ranking(limit: int = 50) -> list:
 
     results = [r for r in results if r.get("trade_value_yi", 0) > 0]
     results.sort(key=lambda x: x["trade_value_yi"], reverse=True)
+    results = _enrich_with_intraday(results[:limit])
 
     _cache_set(_ranking_cache, "trade_value", results)
     return results[:limit]
@@ -1394,6 +1438,8 @@ def get_turnover_ranking(limit: int = 50) -> list:
         print(f"[TPEx] turnover 失敗: {e}")
 
     results.sort(key=lambda x: x["turnover_pct"], reverse=True)
+    results = _enrich_with_intraday(results[:limit])
+
     _cache_set(_turnover_cache, "turnover", results)
     return results[:limit]
 
@@ -1428,8 +1474,8 @@ def get_stock_orderbook(ticker: str) -> dict:
                 "size":  int(item.get("size", 0)),
             }
 
-        bids_raw = data.get("bestBids") or []
-        asks_raw = data.get("bestAsks") or []
+        bids_raw = data.get("bids") or []
+        asks_raw = data.get("asks") or []
         bids = [norm(b) for b in bids_raw[:5]]
         asks = [norm(a) for a in asks_raw[:5]]
         is_realtime = bool(bids and asks)
