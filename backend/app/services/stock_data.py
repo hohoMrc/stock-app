@@ -647,33 +647,48 @@ def _get_symbol(ticker: str) -> str:
 
 
 def _yf_recent_bars(ticker: str, last_date: str) -> list:
-    """用 yfinance 抓最近 5 天日K，回傳 last_date 之後的新 K 棒。"""
+    """補 last_date 之後的缺口 K 棒：先試 yfinance，再試 TWSE 月報。"""
+    bars = []
+
+    # 1) yfinance
     try:
         sym  = _get_symbol(ticker)
         hist = yf.Ticker(sym).history(period="5d", interval="1d")
-        if hist.empty:
-            return []
-        # 安全移除時區（tz-aware 用 tz_convert，tz-naive 用 tz_localize）
-        if hist.index.tz is not None:
-            hist.index = hist.index.tz_convert(None)
-        else:
-            hist.index = hist.index.tz_localize(None)
-        bars = []
-        for d, r in hist.iterrows():
-            d_str = d.strftime("%Y-%m-%d")
-            if d_str > last_date:
-                bars.append({
-                    "date":   d_str,
-                    "open":   round(float(r["Open"]),  2),
-                    "high":   round(float(r["High"]),  2),
-                    "low":    round(float(r["Low"]),   2),
-                    "close":  round(float(r["Close"]), 2),
-                    "volume": int(r["Volume"]),
-                })
-        return bars
+        if not hist.empty:
+            if hist.index.tz is not None:
+                hist.index = hist.index.tz_convert(None)
+            else:
+                hist.index = hist.index.tz_localize(None)
+            for d, r in hist.iterrows():
+                d_str = d.strftime("%Y-%m-%d")
+                if d_str > last_date:
+                    bars.append({
+                        "date":   d_str,
+                        "open":   round(float(r["Open"]),  2),
+                        "high":   round(float(r["High"]),  2),
+                        "low":    round(float(r["Low"]),   2),
+                        "close":  round(float(r["Close"]), 2),
+                        "volume": int(r["Volume"]),
+                    })
     except Exception as e:
         print(f"[yfinance] recent bars {ticker} 失敗: {e}")
-        return []
+
+    # 2) yfinance 補不到時，用 TWSE/TPEx 月報作備援
+    if not bars:
+        try:
+            today = date.today()
+            exchange = _tw_stock_exchange.get(ticker, "TW")
+            month_bars = _fetch_twse_month(ticker, today.year, today.month, exchange)
+            if not month_bars:
+                alt = "TWO" if exchange == "TW" else "TW"
+                month_bars = _fetch_twse_month(ticker, today.year, today.month, alt)
+            for r in month_bars:
+                if r["date"] > last_date:
+                    bars.append(r)
+        except Exception as e:
+            print(f"[TWSE] recent bars {ticker} 失敗: {e}")
+
+    return bars
 
 
 _PERIOD_MONTHS = {
