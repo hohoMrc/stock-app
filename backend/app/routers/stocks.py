@@ -95,8 +95,8 @@ async def get_by_industry(industry: str, exclude: str = ""):
 @router.get("/{ticker}/history")
 async def get_history(
     ticker: str,
-    period: str = Query(default="3mo", pattern="^(1mo|3mo|6mo|1y|2y|5y)$"),
-    interval: str = Query(default="1d", pattern="^(1d|1wk|1mo)$"),
+    period: str = Query(default="3mo", pattern="^(5d|1mo|3mo|6mo|1y|2y|5y)$"),
+    interval: str = Query(default="1d", pattern="^(1d|1wk|1mo|60m)$"),
 ):
     try:
         history = get_stock_history(ticker, period, interval)

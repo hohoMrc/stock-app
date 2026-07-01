@@ -4,9 +4,10 @@ import CandlestickChart from "./CandlestickChart";
 import { getStock, getHistory, analyzeStock } from "../api";
 
 const INTERVAL_CONFIG = {
-  "1d":  { fetchPeriod: "1y", defaultPeriod: "3mo", periods: ["1mo","3mo","6mo","1y"] },
-  "1wk": { fetchPeriod: "2y", defaultPeriod: "1y",  periods: ["3mo","6mo","1y","2y"] },
-  "1mo": { fetchPeriod: "5y", defaultPeriod: "2y",  periods: ["1y","2y","5y"] },
+  "60m": { fetchPeriod: "3mo", defaultPeriod: "5d",  periods: ["5d","1mo","3mo"] },
+  "1d":  { fetchPeriod: "1y",  defaultPeriod: "3mo", periods: ["1mo","3mo","6mo","1y"] },
+  "1wk": { fetchPeriod: "2y",  defaultPeriod: "1y",  periods: ["3mo","6mo","1y","2y"] },
+  "1mo": { fetchPeriod: "5y",  defaultPeriod: "2y",  periods: ["1y","2y","5y"] },
 };
 
 export default function StockDetail({ ticker, onBack, onIndustry, watchlist = [], onToggleWatch }) {
@@ -108,10 +109,11 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
             <h3>股價走勢</h3>
             <div className="chart-type-btns">
               {[
-                { label: "日K",  type: "candle", iv: "1d" },
-                { label: "週K",  type: "candle", iv: "1wk" },
-                { label: "月K",  type: "candle", iv: "1mo" },
-                { label: "折線", type: "line",   iv: "1d" },
+                { label: "60分K", type: "candle", iv: "60m" },
+                { label: "日K",   type: "candle", iv: "1d" },
+                { label: "週K",   type: "candle", iv: "1wk" },
+                { label: "月K",   type: "candle", iv: "1mo" },
+                { label: "折線",  type: "line",   iv: "1d" },
               ].map(({ label, type, iv }) => (
                 <button
                   key={label}
@@ -130,7 +132,7 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
                 className={period === p ? "active" : ""}
                 onClick={() => setPeriod(p)}
               >
-                {{ "1mo":"1個月","3mo":"3個月","6mo":"6個月","1y":"1年","2y":"2年","5y":"5年" }[p]}
+                {{ "5d":"5天","1mo":"1個月","3mo":"3個月","6mo":"6個月","1y":"1年","2y":"2年","5y":"5年" }[p]}
               </button>
             ))}
           </div>
@@ -138,7 +140,7 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
 
         {history.length > 0 ? (
           chartType === "candle" ? (
-            <CandlestickChart data={history} period={period} height={320} />
+            <CandlestickChart data={history} period={period} interval={interval} height={320} />
           ) : (
             <ResponsiveContainer width="100%" height={320}>
               <LineChart data={history}>

@@ -6,7 +6,7 @@ import time
 import requests
 import yfinance as yf
 import pandas as pd
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta, datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.db import get_candles, save_candles, is_candles_fresh, get_stock_meta, save_stock_meta
 
@@ -16,7 +16,7 @@ _fugle_sdk    = None
 _fugle_available = None  # None=尚未嘗試, True=可用, False=不可用
 _fugle_lock   = threading.Lock()
 
-_PERIOD_DAYS = {"1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825}
+_PERIOD_DAYS = {"5d": 5, "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825}
 
 
 def _init_fugle():
@@ -733,6 +733,33 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
     cached = _cache_get(_history_cache, cache_key, HISTORY_TTL)
     if cached is not None:
         return cached
+
+    # 60m 小時線：直接用 yfinance，回傳 unix timestamp（以 CST 本地時間偽裝 UTC）
+    if interval == "60m":
+        try:
+            symbol = _get_symbol(ticker)
+            hist = yf.Ticker(symbol).history(period=period, interval="60m")
+            if not hist.empty:
+                try:
+                    hist.index = hist.index.tz_convert("Asia/Taipei").tz_localize(None)
+                except Exception:
+                    hist.index = hist.index.tz_localize(None)
+                all_records = [
+                    {
+                        # 以 CST 時間偽裝 UTC，讓圖表顯示台灣交易時段
+                        "date":   int(d.replace(tzinfo=timezone.utc).timestamp()),
+                        "open":   round(float(r["Open"]),  2),
+                        "high":   round(float(r["High"]),  2),
+                        "low":    round(float(r["Low"]),   2),
+                        "close":  round(float(r["Close"]), 2),
+                        "volume": int(r["Volume"]),
+                    }
+                    for d, r in hist.iterrows()
+                ]
+        except Exception as e:
+            print(f"[yfinance] 60m history {ticker} 失敗: {e}")
+        _cache_set(_history_cache, cache_key, all_records)
+        return all_records
 
     _load_tw_stock_names()
     all_records: list = []

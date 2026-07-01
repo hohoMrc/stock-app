@@ -57,19 +57,20 @@ function calcKD(data, period = 9) {
 }
 
 const PERIOD_DAYS = {
-  "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825,
+  "5d": 5, "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825,
 };
 
-function getFromDate(period) {
+function getFromDate(period, asUnix = false) {
   const days = PERIOD_DAYS[period] ?? 90;
   const d = new Date();
   d.setDate(d.getDate() - days);
+  if (asUnix) return Math.floor(d.getTime() / 1000);
   return d.toISOString().slice(0, 10);
 }
 
 const KD_PANE_HEIGHT = 100;
 
-export default function CandlestickChart({ data, period = "3mo", height = 320 }) {
+export default function CandlestickChart({ data, period = "3mo", interval = "1d", height = 320 }) {
   const containerRef    = useRef(null);
   const chartRef        = useRef(null);
   const candleSeriesRef = useRef(null);
@@ -146,7 +147,7 @@ export default function CandlestickChart({ data, period = "3mo", height = 320 })
       const candle = param.seriesData.get(candleSeriesRef.current);
       if (!candle) { setHoveredBar(null); setHoveredKD(null); return; }
 
-      const idx = dataIndexRef.current.get(String(param.time)) ?? -1;
+      const idx = dataIndexRef.current.get(String(param.time)) ?? -1;  // key 統一用 String
       const prevClose = idx > 0 ? dataRef.current[idx - 1].close : candle.open;
       const change    = +(candle.close - prevClose).toFixed(2);
       const changePct = +((change / prevClose) * 100).toFixed(2);
@@ -173,7 +174,8 @@ export default function CandlestickChart({ data, period = "3mo", height = 320 })
 
   function applyVisibleRange(p) {
     if (!chartRef.current || !data?.length) return;
-    const from = getFromDate(p);
+    const isUnix = typeof data[0]?.date === "number";
+    const from = getFromDate(p, isUnix);
     const to   = data[data.length - 1]?.date;
     if (from && to) chartRef.current.timeScale().setVisibleRange({ from, to });
   }
@@ -184,8 +186,16 @@ export default function CandlestickChart({ data, period = "3mo", height = 320 })
 
     dataRef.current = data;
     const indexMap = new Map();
-    data.forEach((d, i) => indexMap.set(d.date, i));
+    data.forEach((d, i) => indexMap.set(String(d.date), i));
     dataIndexRef.current = indexMap;
+
+    // 60m 為 unix timestamp（數字），其他為日期字串
+    const isUnix = typeof data[0]?.date === "number";
+    if (chartRef.current) {
+      chartRef.current.applyOptions({
+        timeScale: { borderColor: "#1e3a5f", timeVisible: isUnix },
+      });
+    }
 
     candleSeriesRef.current.setData(
       data.map((d) => ({ time: d.date, open: d.open, high: d.high, low: d.low, close: d.close }))
