@@ -780,20 +780,29 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
         if is_candles_fresh(ticker, from_pre, to_pre):
             db_records = get_candles(ticker, from_pre, to_pre)
             if len(db_records) >= expected_bars:
-                # 補今日 K 棒（SQLite 只存到昨天）
+                db_records = list(db_records)
+                # 若最後一根比昨天更舊（e.g. Fugle T+0 延遲導致 daily_update 漏抓），補抓近期缺口
+                yesterday = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+                if db_records[-1]["date"] < yesterday:
+                    gap = _fugle_candles(ticker, db_records[-1]["date"], date.today().strftime("%Y-%m-%d"))
+                    new_bars = [r for r in gap if r["date"] > db_records[-1]["date"]]
+                    if new_bars:
+                        db_records.extend(new_bars)
+                        save_candles(ticker, new_bars)
+                # 補今日 K 棒（盤中用即時報價）
                 if date.today().weekday() < 5:
                     today_str = date.today().strftime("%Y-%m-%d")
-                    if not db_records or db_records[-1]["date"] != today_str:
+                    if db_records[-1]["date"] != today_str:
                         q = _fugle_quote(ticker)
                         if q.get("open") and q.get("price"):
-                            db_records = list(db_records) + [{
+                            db_records.append({
                                 "date":   today_str,
                                 "open":   q["open"],
                                 "high":   q.get("high") or q["price"],
                                 "low":    q.get("low")  or q["price"],
                                 "close":  q["price"],
                                 "volume": q.get("volume") or 0,
-                            }]
+                            })
                 _cache_set(_history_cache, cache_key, db_records)
                 return db_records
 
