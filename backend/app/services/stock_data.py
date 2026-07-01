@@ -182,6 +182,7 @@ def _cache_set(store: dict, key, value):
 _tw_stock_names: dict = {}
 _tw_stock_industry: dict = {}   # ticker → 中文產業別
 _tw_stock_exchange: dict = {}   # ticker → "TW" 或 "TWO"
+_tw_stock_capital: dict = {}    # ticker → 實收資本額（千元）
 _tw_stock_names_attempted = False  # 避免每次請求都重試失敗的 TWSE 連線
 
 # TWSE 產業別代碼對照
@@ -300,38 +301,56 @@ DEFAULT_TICKERS = [
 
 
 def _load_tw_stock_names():
-    """從證交所與櫃買中心抓股票中文名稱與產業別（每次程序生命週期只嘗試一次）"""
-    global _tw_stock_names, _tw_stock_industry, _tw_stock_exchange, _tw_stock_names_attempted
+    """從證交所與櫃買中心抓股票中文名稱、產業別、實收資本額（每次程序生命週期只嘗試一次）"""
+    global _tw_stock_names, _tw_stock_industry, _tw_stock_exchange, _tw_stock_capital, _tw_stock_names_attempted
     if _tw_stock_names or _tw_stock_names_attempted:
         return
     _tw_stock_names_attempted = True
     # 上市（TWSE）
     try:
         rows = requests.get("https://openapi.twse.com.tw/v1/opendata/t187ap03_L", timeout=10).json()
+        if rows:
+            print(f"[TWSE] t187ap03_L sample keys: {list(rows[0].keys())}")
         for row in rows:
             code = row.get("公司代號", "").strip()
             name = row.get("公司簡稱", "").strip()
             industry_code = row.get("產業別", "").strip()
+            capital_str = row.get("實收資本額", "").replace(",", "").strip()
             if code and name:
                 _tw_stock_names[code] = name
                 _tw_stock_exchange[code] = "TW"
             if code and industry_code:
                 _tw_stock_industry[code] = TWSE_INDUSTRY_CODE_MAP.get(industry_code, industry_code)
-        print(f"[TWSE] 上市股票清單載入 {len(_tw_stock_names)} 筆")
+            if code and capital_str:
+                try:
+                    _tw_stock_capital[code] = float(capital_str)
+                except ValueError:
+                    pass
+        print(f"[TWSE] 上市股票清單載入 {len(_tw_stock_names)} 筆，資本額 {len(_tw_stock_capital)} 筆")
     except Exception as e:
         print(f"[TWSE] 上市股票清單載入失敗: {e}")
     # 上櫃（TPEx）
     try:
         rows = requests.get("https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O", timeout=10).json()
+        if rows:
+            print(f"[TPEx] t187ap03_O sample keys: {list(rows[0].keys())}")
         for row in rows:
             code = row.get("SecuritiesCompanyCode", "").strip()
             name = row.get("CompanyAbbreviation", "").strip()
             industry_code = row.get("SecuritiesIndustryCode", "").strip()
+            # TPEx 資本額欄位嘗試多個可能名稱
+            capital_raw = (row.get("PaidInCapitalNTD") or row.get("實收資本額") or row.get("Capital") or "")
+            capital_str = str(capital_raw).replace(",", "").strip()
             if code and name and code not in _tw_stock_names:
                 _tw_stock_names[code] = name
                 _tw_stock_exchange[code] = "TWO"
             if code and industry_code and code not in _tw_stock_industry:
                 _tw_stock_industry[code] = TWSE_INDUSTRY_CODE_MAP.get(industry_code, industry_code)
+            if code and capital_str and code not in _tw_stock_capital:
+                try:
+                    _tw_stock_capital[code] = float(capital_str)
+                except ValueError:
+                    pass
     except Exception:
         pass
 
@@ -1261,6 +1280,94 @@ def get_trade_value_ranking(limit: int = 50) -> list:
     results.sort(key=lambda x: x["trade_value_yi"], reverse=True)
 
     _cache_set(_ranking_cache, "trade_value", results)
+    return results[:limit]
+
+
+_turnover_cache: dict = {}
+TURNOVER_TTL = 300  # 5 分鐘
+
+
+def get_turnover_ranking(limit: int = 50) -> list:
+    """取得週轉率排行（成交量 ÷ 在外流通股數）
+    在外流通股數 ≈ 實收資本額(千元) × 100（面額 10 元估算）
+    """
+    cached = _cache_get(_turnover_cache, "turnover", TURNOVER_TTL)
+    if cached is not None:
+        return cached[:limit]
+
+    _load_tw_stock_names()
+    results = []
+
+    def _to_turnover(code, name, vol, close, chg, chg_pct, exchange):
+        capital = _tw_stock_capital.get(code)
+        if not capital or capital <= 0 or not vol or vol <= 0:
+            return None
+        # 實收資本額(千元) × 100 = 在外流通股數（面額 10 元）
+        outstanding = capital * 100
+        turnover_pct = round(float(vol) / outstanding * 100, 4)
+        if turnover_pct <= 0:
+            return None
+        return {
+            "ticker":             code,
+            "name":               name,
+            "close":              round(float(close), 2) if close is not None else None,
+            "change":             round(float(chg), 2) if chg is not None else None,
+            "change_pct":         round(float(chg_pct), 2) if chg_pct is not None else None,
+            "turnover_pct":       turnover_pct,
+            "trade_volume_zhang": round(float(vol) / 1000),
+            "exchange":           exchange,
+        }
+
+    # 上市 (TWSE)
+    try:
+        resp = requests.get(
+            "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            timeout=15, headers=_TWSE_HEADERS,
+        )
+        for row in resp.json():
+            code = row.get("Code", "").strip()
+            if not code.isdigit() or not (4 <= len(code) <= 5):
+                continue
+            vol   = _parse_num(row.get("TradeVolume"))
+            close = _parse_num(row.get("ClosingPrice"))
+            chg   = _parse_num(row.get("Change"))
+            if not vol:
+                continue
+            chg_pct = None
+            if chg is not None and close is not None and (close - chg) != 0:
+                chg_pct = round(chg / (close - chg) * 100, 2)
+            r = _to_turnover(code, row.get("Name", "").strip(), vol, close, chg, chg_pct, "上市")
+            if r:
+                results.append(r)
+    except Exception as e:
+        print(f"[TWSE] STOCK_DAY_ALL turnover 失敗: {e}")
+
+    # 上櫃 (TPEx)
+    try:
+        resp = requests.get(
+            "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
+            timeout=15, headers=_TWSE_HEADERS,
+        )
+        for row in resp.json():
+            code = row.get("SecuritiesCompanyCode", "").strip()
+            if not code.isdigit() or not (4 <= len(code) <= 5):
+                continue
+            vol   = _parse_num(row.get("TradingShares"))
+            close = _parse_num(row.get("Close"))
+            chg   = _parse_num(row.get("Change"))
+            if not vol:
+                continue
+            chg_pct = None
+            if chg is not None and close is not None and (close - chg) != 0:
+                chg_pct = round(chg / (close - chg) * 100, 2)
+            r = _to_turnover(code, row.get("CompanyAbbreviation", "").strip(), vol, close, chg, chg_pct, "上櫃")
+            if r:
+                results.append(r)
+    except Exception as e:
+        print(f"[TPEx] turnover 失敗: {e}")
+
+    results.sort(key=lambda x: x["turnover_pct"], reverse=True)
+    _cache_set(_turnover_cache, "turnover", results)
     return results[:limit]
 
 

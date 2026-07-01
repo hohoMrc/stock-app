@@ -18,6 +18,7 @@ export const scanWeeklySurge = (params) => api.get("/api/stocks/scan/weekly-surg
 export const getIndustryStocks = (industry, exclude) =>
   api.get(`/api/stocks/industry/${encodeURIComponent(industry)}`, { params: { exclude } });
 export const getTradeValueRanking = (limit = 50) => api.get("/api/stocks/ranking/trade-value", { params: { limit } });
+export const getTurnoverRanking   = (limit = 50) => api.get("/api/stocks/ranking/turnover",     { params: { limit } });
 
 // Auth
 export const register = (username, password) => api.post("/api/auth/register", { username, password });
