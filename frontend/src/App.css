@@ -1569,6 +1569,7 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .tradelist-scroll {
   overflow-y: auto;
   flex: 1;
+  max-height: 150px;
 }
 
 .tradelist-row {
