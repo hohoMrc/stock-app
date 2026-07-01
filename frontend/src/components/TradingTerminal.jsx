@@ -150,57 +150,67 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
         {listUpdatedAt[activeTab] && (
           <div className="tl-updated">更新 {listUpdatedAt[activeTab]}</div>
         )}
-        <div className="terminal-list-scroll">
-          {listLoading[activeTab] && (
-            <div className="tl-loading">載入中...</div>
-          )}
-          {stocks.map((s) => {
-            const up   = s.change > 0;
-            const down = s.change < 0;
-            const sign = up ? "+" : "";
-            const limitUp   = s.is_limit_up;
-            const limitDown = s.is_limit_down;
-            const vol = s.trade_volume_zhang;
-            return (
-              <div
-                key={s.ticker}
-                className={`tl-row ${selected?.ticker === s.ticker ? "tl-selected" : ""}`}
-                onClick={() => handleSelect(s)}
-              >
-                {/* 第一行：股名 + 成交價 + 漲跌幅 */}
-                <div className="tl-row-top">
-                  <span className="tl-name">{s.name || s.ticker}</span>
-                  <div className="tl-price-group">
-                    <span className={`tl-price ${limitUp ? "limit-up" : limitDown ? "limit-down" : up ? "up" : down ? "down" : ""}`}>
-                      {s.close ?? "—"}
-                    </span>
-                    <span className={`tl-pct ${up ? "up" : down ? "down" : ""}`}>
+        <div className="tl-table-wrap">
+          {listLoading[activeTab] && <div className="tl-loading">載入中...</div>}
+          <table className="tl-table">
+            <thead>
+              <tr>
+                <th className="th-left">代號</th>
+                <th className="th-left">名稱</th>
+                <th>成交價</th>
+                <th>漲跌幅</th>
+                <th>漲跌</th>
+                <th>成交量▼</th>
+                <th>委買</th>
+                <th>委賣</th>
+                <th>單量</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stocks.map((s) => {
+                const up      = s.change > 0;
+                const down    = s.change < 0;
+                const sign    = up ? "+" : "";
+                const limitUp = s.is_limit_up;
+                const limitDown = s.is_limit_down;
+                const vol     = s.trade_volume_zhang;
+                const isBuy   = s.last_trade_dir === "buy";
+                const isSell  = s.last_trade_dir === "sell";
+                const dir     = up ? "up" : down ? "down" : "";
+                return (
+                  <tr
+                    key={s.ticker}
+                    className={selected?.ticker === s.ticker ? "tl-selected" : ""}
+                    onClick={() => handleSelect(s)}
+                  >
+                    <td className="tl-col-code">☆ {s.ticker}</td>
+                    <td className="tl-col-name">{s.name || s.ticker}</td>
+                    <td className="tl-col-price">
+                      <span className={`tl-price ${limitUp ? "limit-up" : limitDown ? "limit-down" : dir}`}>
+                        {s.close ?? "—"}
+                      </span>
+                    </td>
+                    <td className={`tl-num ${dir}`}>
                       {s.change_pct != null ? `${sign}${s.change_pct}%` : "—"}
-                    </span>
-                  </div>
-                </div>
-                {/* 第二行：代號 + 漲跌 + 成交量 + 委買 + 委賣 + 單量 */}
-                <div className="tl-row-bot">
-                  <span className="tl-code">{s.ticker}</span>
-                  <span className={`tl-change ${up ? "up" : down ? "down" : ""}`}>
-                    {s.change != null ? `${sign}${s.change}` : "—"}
-                  </span>
-                  <span className="tl-meta">
-                    量{vol != null ? (vol >= 10000 ? `${(vol / 10000).toFixed(1)}萬` : vol.toLocaleString()) : "—"}
-                  </span>
-                  <span className="tl-meta">
-                    買<span className="tl-bid">{s.best_bid ?? "—"}</span>
-                  </span>
-                  <span className="tl-meta">
-                    賣<span className="tl-ask">{s.best_ask ?? "—"}</span>
-                  </span>
-                  <span className="tl-meta">
-                    單{s.last_size_zhang != null ? s.last_size_zhang : "—"}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+                    </td>
+                    <td className={`tl-num ${dir}`}>
+                      {s.change != null ? `${sign}${s.change}` : "—"}
+                    </td>
+                    <td className="tl-num">{vol != null ? vol.toLocaleString() : "—"}</td>
+                    <td className={`tl-num ${dir}`}>{s.best_bid ?? "—"}</td>
+                    <td className={`tl-num ${dir}`}>{s.best_ask ?? "—"}</td>
+                    <td className="tl-col-last">
+                      {s.last_size_zhang != null ? (
+                        <span className={`tl-last-size ${isBuy ? "buy" : isSell ? "sell" : ""}`}>
+                          {s.last_size_zhang.toLocaleString()}
+                        </span>
+                      ) : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
           {!listLoading[activeTab] && stocks.length === 0 && (
             <div className="tl-empty">暫無資料</div>
           )}

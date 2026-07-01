@@ -1242,10 +1242,22 @@ def _enrich_with_intraday(stocks: list) -> list:
             last_size = data.get("lastSize")
             ref   = data.get("referencePrice") or 0
             close = data.get("closePrice") or data.get("lastPrice") or 0
+            lt       = data.get("lastTrade") or {}
+            lt_price = lt.get("price")
+            lt_ask   = lt.get("ask")
+            lt_bid   = lt.get("bid")
+            if lt_price and lt_ask and lt_price >= lt_ask:
+                last_dir = "buy"
+            elif lt_price and lt_bid and lt_price <= lt_bid:
+                last_dir = "sell"
+            else:
+                last_dir = None
+
             return ticker, {
                 "best_bid":           bids[0]["price"] if bids else None,
                 "best_ask":           asks[0]["price"] if asks else None,
                 "last_size_zhang":    round(last_size / 1000) if last_size else None,
+                "last_trade_dir":     last_dir,
                 "trade_volume_zhang": int(total.get("tradeVolume") or 0) or None,
                 "is_limit_up":        bool(data.get("isLimitUpPrice")),
                 "is_limit_down":      bool(data.get("isLimitDownPrice")),

@@ -1202,8 +1202,8 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 }
 
 .terminal-left {
-  width: 320px;
-  min-width: 320px;
+  width: 560px;
+  min-width: 560px;
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -1251,10 +1251,11 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   flex-shrink: 0;
 }
 
-.terminal-list-scroll {
+.tl-table-wrap {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .tl-loading, .tl-empty {
@@ -1264,78 +1265,95 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   text-align: center;
 }
 
-.tl-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
+/* ── 左側股票清單 table ── */
+.tl-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.tl-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: right;
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.tl-table thead th.th-left { text-align: left; }
+
+.tl-table tbody tr {
+  border-bottom: 1px solid rgba(30, 58, 95, 0.35);
   cursor: pointer;
-  border-bottom: 1px solid rgba(30,58,95,0.4);
   transition: background 0.1s;
 }
 
-.tl-row:hover   { background: var(--bg-hover); }
-.tl-selected    { background: var(--bg-elevated) !important; }
+.tl-table tbody tr:hover { background: var(--bg-hover); }
+.tl-table tbody tr.tl-selected td { background: var(--bg-elevated); }
 
-/* 第一行：股名 + 成交價 + 漲跌幅 */
-.tl-row-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
+.tl-table td {
+  padding: 5px 6px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
-.tl-name {
-  font-size: 12px;
-  font-weight: 600;
+.tl-col-code {
+  text-align: left !important;
+  color: var(--text-muted);
+  font-size: 11px;
+  min-width: 60px;
+}
+
+.tl-col-name {
+  text-align: left !important;
+  font-weight: 700;
   color: var(--text-primary);
-  white-space: nowrap;
+  min-width: 64px;
+  max-width: 80px;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: 1;
-  min-width: 0;
 }
 
-.tl-price-group { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.tl-col-price { min-width: 52px; }
 
 .tl-price {
-  font-size: 13px;
+  display: inline-block;
+  font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  padding: 1px 5px;
+  padding: 1px 4px;
   border-radius: 3px;
 }
-.tl-price.up          { color: var(--up); }
-.tl-price.down        { color: var(--down); }
-.tl-price.limit-up    { background: #dc2626; color: #fff !important; }
-.tl-price.limit-down  { background: #16a34a; color: #fff !important; }
+.tl-price.up         { color: var(--up); }
+.tl-price.down       { color: var(--down); }
+.tl-price.limit-up   { background: #dc2626; color: #fff !important; }
+.tl-price.limit-down { background: #16a34a; color: #fff !important; }
 
-.tl-pct { font-size: 11px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
-.tl-pct.up   { color: var(--up); }
-.tl-pct.down { color: var(--down); }
+.tl-num { font-size: 11px; color: var(--text-secondary); }
+.tl-num.up   { color: var(--up); }
+.tl-num.down { color: var(--down); }
 
-/* 第二行：代號 + 漲跌 + 量 + 委買/賣 + 單量 */
-.tl-row-bot {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: nowrap;
-  overflow: hidden;
+.tl-col-last { min-width: 48px; }
+
+.tl-last-size {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
 }
-
-.tl-code   { font-size: 10px; color: var(--text-muted); flex-shrink: 0; min-width: 28px; }
-.tl-change { font-size: 10px; font-variant-numeric: tabular-nums; flex-shrink: 0; min-width: 30px; }
-.tl-change.up   { color: var(--up); }
-.tl-change.down { color: var(--down); }
-
-.tl-meta {
-  font-size: 10px;
-  color: var(--text-muted);
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-.tl-bid  { color: var(--up); }
-.tl-ask  { color: var(--down); }
+.tl-last-size.buy  { background: rgba(220, 38, 38, 0.75); color: #fff; }
+.tl-last-size.sell { background: rgba(22, 163, 74, 0.75);  color: #fff; }
 
 /* ── Terminal 右側 ── */
 .terminal-right {
@@ -1742,7 +1760,7 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   .main-terminal { padding: 0 0 calc(64px + env(safe-area-inset-bottom)) 0 !important; }
   .terminal-mobile-switcher { display: flex; }
   .terminal-hide-mobile { display: none !important; }
-  .terminal-left { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid var(--border); }
+  .terminal-left { width: 100% !important; min-width: 0 !important; border-right: none; border-bottom: 1px solid var(--border); }
   .terminal-wrap { flex-direction: column; height: auto; }
   .terminal-right { min-height: 0; }
   .terminal-chart-area { min-height: 200px; }
