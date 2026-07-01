@@ -1149,7 +1149,7 @@ def _fugle_snapshot_actives(market: str) -> list:
         return []
     try:
         resp = client.stock.snapshot.actives(
-            market=market, trade="value", type="ALLBUT099"
+            market=market, trade="value", type="ALLBUT0999"
         )
         data = resp.get("data", []) if isinstance(resp, dict) else []
         label = "上市" if market == "TSE" else "上櫃"
@@ -1190,7 +1190,7 @@ def get_trade_value_ranking(limit: int = 50) -> list:
     for market in ("TSE", "OTC"):
         results.extend(_fugle_snapshot_actives(market))
 
-    # 2) 退回 TWSE 收盤資料
+    # 2) 退回收盤資料（TWSE + TPEx 各自獨立抓，不互相依賴）
     if not results:
         try:
             resp = requests.get(
@@ -1223,8 +1223,6 @@ def get_trade_value_ranking(limit: int = 50) -> list:
         except Exception as e:
             print(f"[TWSE] STOCK_DAY_ALL 失敗: {e}")
 
-    # 3) 退回 TPEx 收盤資料
-    if not results:
         try:
             resp = requests.get(
                 "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
