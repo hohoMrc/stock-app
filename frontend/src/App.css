@@ -1548,7 +1548,8 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 }
 
 .tradelist-wrap {
-  flex: 0 0 160px;
+  flex: 1;
+  min-width: 0;
   padding: 10px 10px 12px;
   overflow: hidden;
   display: flex;
@@ -1557,9 +1558,9 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 
 .tradelist-header {
   display: grid;
-  grid-template-columns: 60px 44px 32px 24px;
+  grid-template-columns: 72px 56px 44px 30px;
   gap: 0;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-muted);
   margin-bottom: 4px;
   padding: 0 2px;
@@ -1568,22 +1569,21 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .tradelist-scroll {
   overflow-y: auto;
   flex: 1;
-  max-height: 120px;
 }
 
 .tradelist-row {
   display: grid;
-  grid-template-columns: 60px 44px 32px 24px;
-  font-size: 11px;
+  grid-template-columns: 72px 56px 44px 30px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
-  padding: 2px 2px;
+  padding: 3px 2px;
   border-radius: 2px;
 }
 
 .tradelist-row.buy  { background: rgba(220,38,38,0.06); }
 .tradelist-row.sell { background: rgba(22,163,74,0.06); }
 
-.tl-time { color: var(--text-muted); font-size: 10px; }
+.tl-time { color: var(--text-muted); font-size: 11px; }
 .tl-tp   { font-weight: 600; }
 .tl-tp.up   { color: var(--up); }
 .tl-tp.down { color: var(--down); }
