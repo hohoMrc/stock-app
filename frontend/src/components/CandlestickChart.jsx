@@ -90,7 +90,7 @@ function calcVolMA(data, period) {
   const result = [];
   for (let i = period - 1; i < data.length; i++) {
     const slice = data.slice(i - period + 1, i + 1);
-    const avg   = slice.reduce((s, d) => s + (d.volume || 0), 0) / period;
+    const avg   = slice.reduce((s, d) => s + Math.round((d.volume || 0) / 1000), 0) / period;
     result.push({ time: data[i].date, value: Math.round(avg) });
   }
   return result;
@@ -336,7 +336,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     // 量能 + volMap
     const volData = data.map((d) => ({
       time:  d.date,
-      value: d.volume ?? 0,
+      value: d.volume != null ? Math.round(d.volume / 1000) : 0,
       color: (d.close >= d.open) ? "rgba(220,38,38,0.55)" : "rgba(22,163,74,0.55)",
     }));
     volSeriesRef.current?.setData(volData);
@@ -349,7 +349,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     volMa20Ref.current?.setData(vm20);
 
     const volMap = new Map();
-    data.forEach((d) => volMap.set(String(d.date), { vol: d.volume ?? 0 }));
+    data.forEach((d) => volMap.set(String(d.date), { vol: d.volume != null ? Math.round(d.volume / 1000) : 0 }));
     vm5.forEach((item)  => { const v = volMap.get(String(item.time)); if (v) v.ma5  = item.value; });
     vm10.forEach((item) => { const v = volMap.get(String(item.time)); if (v) v.ma10 = item.value; });
     vm20.forEach((item) => { const v = volMap.get(String(item.time)); if (v) v.ma20 = item.value; });
