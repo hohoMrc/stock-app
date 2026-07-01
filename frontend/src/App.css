@@ -908,6 +908,11 @@
 .exchange-badge.listed { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
 .exchange-badge.otc    { background: rgba(16, 185, 129, 0.15); color: #34d399; }
 
+/* 排行表列漲跌配色：代號(.col-ticker)、名稱(.col-name) 維持白色 */
+tr.row-up   td:not(.col-ticker):not(.col-name) { color: var(--up)   !important; }
+tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; }
+.col-ticker, .col-name { color: var(--text-primary) !important; }
+
 /* ── Misc ── */
 .error {
   color: #f87171;

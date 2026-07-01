@@ -60,18 +60,18 @@ export default function TradeValueRanking({ onSelect }) {
             </thead>
             <tbody>
               {stocks.map((s, i) => {
-                const up   = s.change > 0;
-                const down = s.change < 0;
-                const cls  = up ? "deviation-up" : down ? "deviation-down" : "";
-                const sign = up ? "+" : "";
+                const up     = s.change > 0;
+                const down   = s.change < 0;
+                const rowCls = up ? "row-up" : down ? "row-down" : "";
+                const sign   = up ? "+" : "";
                 return (
-                  <tr key={s.ticker}>
+                  <tr key={s.ticker} className={rowCls}>
                     <td className="rank-num">{i + 1}</td>
-                    <td>{s.ticker}</td>
-                    <td>{s.name}</td>
+                    <td className="col-ticker">{s.ticker}</td>
+                    <td className="col-name">{s.name}</td>
                     <td>{s.close ?? "—"}</td>
-                    <td className={cls}>{s.change != null ? `${sign}${s.change}` : "—"}</td>
-                    <td className={cls}>{s.change_pct != null ? `${sign}${s.change_pct}%` : "—"}</td>
+                    <td>{s.change != null ? `${sign}${s.change}` : "—"}</td>
+                    <td>{s.change_pct != null ? `${sign}${s.change_pct}%` : "—"}</td>
                     <td className="trade-value-cell">{s.trade_value_yi ?? "—"}</td>
                     <td className="exchange-badge-cell">
                       <span className={`exchange-badge ${s.exchange === "上市" ? "listed" : "otc"}`}>
