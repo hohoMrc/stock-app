@@ -158,7 +158,7 @@ export default function App() {
             className={activePage === "ranking" ? "active" : ""}
             onClick={() => setActivePage("ranking")}
           >
-            成交值排行
+            排行榜
           </button>
           <button
             className={["search", "detail", "industry"].includes(activePage) ? "active" : ""}
