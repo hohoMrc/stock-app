@@ -1446,6 +1446,8 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   min-height: 0;
   overflow: hidden;
   padding: 4px 0 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ── 委買委賣 ── */

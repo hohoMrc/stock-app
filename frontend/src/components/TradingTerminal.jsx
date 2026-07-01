@@ -215,9 +215,19 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
             <div className="tl-empty">暫無資料</div>
           )}
         </div>
+
+        {/* ── 委買委賣 + 成交明細（選股後顯示）── */}
+        {selected && (
+          <div className="terminal-orderbook">
+            <div className="ob-panels">
+              <OrderBook data={orderbook} loading={obLoading} />
+              <TradeList trades={trades} />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* ── 右側：圖表 + 委買委賣 ── */}
+      {/* ── 右側：圖表 ── */}
       <div className={`terminal-right ${mobileView !== "chart" ? "terminal-hide-mobile" : ""}`}>
         {selected ? (
           <>
@@ -292,14 +302,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
               )}
             </div>
 
-            {/* 委買委賣 + 成交明細 */}
-            <div className="terminal-orderbook">
-              <div className="ob-panels">
-                <OrderBook data={orderbook} loading={obLoading} />
-                <TradeList trades={trades} />
-              </div>
-            </div>
-          </>
+</>
         ) : (
           <div className="terminal-empty">← 從左側點選股票查看圖表</div>
         )}
