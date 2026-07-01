@@ -20,6 +20,7 @@ export const getIndustryStocks = (industry, exclude) =>
 export const getTradeValueRanking = (limit = 50) => api.get("/api/stocks/ranking/trade-value", { params: { limit } });
 export const getTurnoverRanking   = (limit = 50) => api.get("/api/stocks/ranking/turnover",     { params: { limit } });
 export const getOrderbook         = (ticker)     => api.get(`/api/stocks/${ticker}/orderbook`);
+export const getTrades            = (ticker, limit = 30) => api.get(`/api/stocks/${ticker}/trades`, { params: { limit } });
 
 // Auth
 export const register = (username, password) => api.post("/api/auth/register", { username, password });

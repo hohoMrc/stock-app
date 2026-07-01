@@ -1517,6 +1517,62 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .ob-pressure-ask { background: rgba(220,38,38,0.55); }
 .ob-pressure-bid { background: rgba(22,163,74,0.55); }
 
+/* ── 成交明細 ── */
+.ob-panels {
+  display: flex;
+  gap: 0;
+}
+
+.ob-panels .ob-wrap {
+  flex: 1;
+  border-right: 1px solid var(--border);
+}
+
+.tradelist-wrap {
+  flex: 0 0 160px;
+  padding: 10px 10px 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.tradelist-header {
+  display: grid;
+  grid-template-columns: 60px 44px 32px 24px;
+  gap: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  padding: 0 2px;
+}
+
+.tradelist-scroll {
+  overflow-y: auto;
+  flex: 1;
+  max-height: 120px;
+}
+
+.tradelist-row {
+  display: grid;
+  grid-template-columns: 60px 44px 32px 24px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 2px;
+  border-radius: 2px;
+}
+
+.tradelist-row.buy  { background: rgba(220,38,38,0.06); }
+.tradelist-row.sell { background: rgba(22,163,74,0.06); }
+
+.tl-time { color: var(--text-muted); font-size: 10px; }
+.tl-tp   { font-weight: 600; }
+.tl-tp.up   { color: var(--up); }
+.tl-tp.down { color: var(--down); }
+.tl-sz   { color: var(--text-secondary); text-align: right; }
+.tl-dir  { text-align: right; font-weight: 600; }
+.tl-dir.up   { color: var(--up); }
+.tl-dir.down { color: var(--down); }
+
 /* ── 手機版 RWD ── */
 @media (max-width: 640px) {
   /* Header */

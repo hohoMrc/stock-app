@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import CandlestickChart from "./CandlestickChart";
-import { getTradeValueRanking, getTurnoverRanking, getHistory, getOrderbook } from "../api";
+import { getTradeValueRanking, getTurnoverRanking, getHistory, getOrderbook, getTrades } from "../api";
 
 const INTERVAL_CONFIG = {
   "60m": { fetchPeriod: "3mo", defaultPeriod: "5d",  periods: ["5d", "1mo", "3mo"] },
@@ -31,6 +31,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
   const [chartPeriod, setChartPeriod]   = useState("3mo");
   const [chartLoading, setChartLoading] = useState(false);
   const [orderbook, setOrderbook]       = useState({ best_bids: [], best_asks: [] });
+  const [trades, setTrades]             = useState([]);
   const [obLoading, setObLoading]       = useState(false);
 
   // 手機版：顯示哪個面板 ("list" | "chart")
@@ -71,19 +72,26 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
       .finally(() => setChartLoading(false));
   }, [selected?.ticker, chartInterval]);
 
-  // ── 委買委賣（10 秒自動刷新）─────────────────────────────────────────
+  // ── 委買委賣 + 成交明細（10 秒自動刷新）────────────────────────────
   useEffect(() => {
     if (!selected) return;
     let alive = true;
-    const fetch = () => {
+    const fetchAll = () => {
       setObLoading(true);
-      getOrderbook(selected.ticker)
-        .then((res) => { if (alive) setOrderbook(res.data); })
+      Promise.all([
+        getOrderbook(selected.ticker),
+        getTrades(selected.ticker, 20),
+      ])
+        .then(([obRes, trRes]) => {
+          if (!alive) return;
+          setOrderbook(obRes.data);
+          setTrades(trRes.data.trades || []);
+        })
         .catch(() => {})
         .finally(() => { if (alive) setObLoading(false); });
     };
-    fetch();
-    const timer = setInterval(fetch, 10000);
+    fetchAll();
+    const timer = setInterval(fetchAll, 10000);
     return () => { alive = false; clearInterval(timer); };
   }, [selected?.ticker]);
 
@@ -274,9 +282,12 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
               )}
             </div>
 
-            {/* 委買委賣 */}
+            {/* 委買委賣 + 成交明細 */}
             <div className="terminal-orderbook">
-              <OrderBook data={orderbook} loading={obLoading} />
+              <div className="ob-panels">
+                <OrderBook data={orderbook} loading={obLoading} />
+                <TradeList trades={trades} />
+              </div>
             </div>
           </>
         ) : (
@@ -371,6 +382,38 @@ function OrderBook({ data, loading }) {
           <span className="ob-pct up">{bidPct}% 買</span>
         </div>
       )}
+    </div>
+  );
+}
+
+function TradeList({ trades }) {
+  if (!trades || trades.length === 0) return null;
+
+  return (
+    <div className="tradelist-wrap">
+      <div className="ob-title" style={{ marginBottom: 6 }}>成交明細</div>
+      <div className="tradelist-header">
+        <span>時間</span>
+        <span>成交價</span>
+        <span>張數</span>
+        <span>方向</span>
+      </div>
+      <div className="tradelist-scroll">
+        {trades.map((t, i) => {
+          const isBuy  = t.price != null && t.ask != null && t.price >= t.ask;
+          const isSell = t.price != null && t.bid != null && t.price <= t.bid;
+          return (
+            <div key={i} className={`tradelist-row ${isBuy ? "buy" : isSell ? "sell" : ""}`}>
+              <span className="tl-time">{t.time ?? "—"}</span>
+              <span className={`tl-tp ${isBuy ? "up" : isSell ? "down" : ""}`}>{t.price ?? "—"}</span>
+              <span className="tl-sz">{t.size ?? "—"}</span>
+              <span className={`tl-dir ${isBuy ? "up" : isSell ? "down" : ""}`}>
+                {isBuy ? "買" : isSell ? "賣" : "—"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

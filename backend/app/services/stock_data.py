@@ -1242,15 +1242,13 @@ def _enrich_with_intraday(stocks: list) -> list:
             last_size = data.get("lastSize")
             ref   = data.get("referencePrice") or 0
             close = data.get("closePrice") or data.get("lastPrice") or 0
-            # 漲跌停：台股一般 ±10%，用 ±9.5% 作門檻避免浮點誤差
-            chg_pct = round((close - ref) / ref * 100, 2) if ref else 0
             return ticker, {
-                "best_bid":          bids[0]["price"] if bids else None,
-                "best_ask":          asks[0]["price"] if asks else None,
-                "last_size_zhang":   round(last_size / 1000) if last_size else None,
+                "best_bid":           bids[0]["price"] if bids else None,
+                "best_ask":           asks[0]["price"] if asks else None,
+                "last_size_zhang":    round(last_size / 1000) if last_size else None,
                 "trade_volume_zhang": int(total.get("tradeVolume") or 0) or None,
-                "is_limit_up":       chg_pct >= 9.5,
-                "is_limit_down":     chg_pct <= -9.5,
+                "is_limit_up":        bool(data.get("isLimitUpPrice")),
+                "is_limit_down":      bool(data.get("isLimitDownPrice")),
             }
         except Exception:
             return ticker, {}
@@ -1501,6 +1499,38 @@ def get_stock_orderbook(ticker: str) -> dict:
     except Exception as e:
         print(f"[Fugle] orderbook {ticker} 失敗: {e}")
         return empty
+
+
+def get_stock_trades(ticker: str, limit: int = 30) -> list:
+    """取得個股成交明細（intraday/trades），收盤後仍保留當日資料。"""
+    client = _get_fugle()
+    if not client:
+        return []
+    try:
+        resp = client.stock.intraday.trades(symbol=ticker, limit=limit)
+        data = resp.get("data", []) if isinstance(resp, dict) else []
+        result = []
+        for t in (data if isinstance(data, list) else []):
+            ts = t.get("time")
+            # time 為 microseconds Unix timestamp，轉為 HH:MM:SS
+            if ts:
+                dt = datetime.fromtimestamp(ts / 1_000_000, tz=timezone.utc).astimezone(
+                    __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Asia/Taipei")
+                )
+                time_str = dt.strftime("%H:%M:%S")
+            else:
+                time_str = None
+            result.append({
+                "time":   time_str,
+                "price":  t.get("price"),
+                "size":   t.get("size"),   # 單筆張數
+                "bid":    t.get("bid"),
+                "ask":    t.get("ask"),
+            })
+        return result
+    except Exception as e:
+        print(f"[Fugle] trades {ticker} 失敗: {e}")
+        return []
 
 
 def search_stocks(q: str, limit: int = 10) -> list[dict]:

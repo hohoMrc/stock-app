@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
-from app.services.stock_data import get_stock_info, get_stock_history, screen_stocks, get_stocks_by_industry, scan_all_weekly_surge, search_stocks, get_trade_value_ranking, get_turnover_ranking, get_stock_orderbook
+from app.services.stock_data import get_stock_info, get_stock_history, screen_stocks, get_stocks_by_industry, scan_all_weekly_surge, search_stocks, get_trade_value_ranking, get_turnover_ranking, get_stock_orderbook, get_stock_trades
 from app.services.ai_analysis import analyze_stock
 
 router = APIRouter(prefix="/api/stocks", tags=["stocks"])
@@ -96,6 +96,14 @@ async def get_by_industry(industry: str, exclude: str = ""):
 async def get_orderbook(ticker: str):
     try:
         return get_stock_orderbook(ticker)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{ticker}/trades")
+async def get_trades(ticker: str, limit: int = Query(default=30, le=100)):
+    try:
+        return {"ticker": ticker, "trades": get_stock_trades(ticker, limit)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
