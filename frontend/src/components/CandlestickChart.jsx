@@ -257,14 +257,14 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       setHoveredMACD(macdMapRef.current.get(key) ?? null);
     });
 
-    const handleResize = () => {
+    const ro = new ResizeObserver(() => {
       if (chartRef.current && containerRef.current)
         chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
-    };
-    window.addEventListener("resize", handleResize);
+    });
+    ro.observe(containerRef.current);
 
     return () => {
-      window.removeEventListener("resize", handleResize);
+      ro.disconnect();
       chartRef.current?.remove();
       chartRef.current        = null;
       candleSeriesRef.current = null;
