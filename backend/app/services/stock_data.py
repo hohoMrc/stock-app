@@ -782,14 +782,29 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
             if len(db_records) >= expected_bars:
                 db_records = list(db_records)
                 today_str = date.today().strftime("%Y-%m-%d")
-                # 若最後一根不是今天，補抓近期缺口（處理 Fugle T+0 延遲 / daily_update 漏抓）
+                # 若最後一根不是今天，用 yfinance 補近期缺口（最可靠的近期來源）
                 if db_records[-1]["date"] < today_str:
-                    gap = _fugle_candles(ticker, db_records[-1]["date"], today_str)
-                    new_bars = [r for r in gap if r["date"] > db_records[-1]["date"]]
-                    if new_bars:
-                        db_records.extend(new_bars)
-                        save_candles(ticker, new_bars)
-                # 補今日 K 棒（盤中用即時報價，historical API 無當日資料）
+                    try:
+                        _sym = _get_symbol(ticker)
+                        _hr  = yf.Ticker(_sym).history(period="5d", interval="1d")
+                        if not _hr.empty:
+                            _hr.index = _hr.index.tz_localize(None)
+                            _last = db_records[-1]["date"]
+                            _new  = []
+                            for _d, _r in _hr.iterrows():
+                                _ds = _d.strftime("%Y-%m-%d")
+                                if _ds > _last:
+                                    _new.append({"date": _ds,
+                                        "open": round(float(_r["Open"]), 2), "high": round(float(_r["High"]), 2),
+                                        "low":  round(float(_r["Low"]),  2), "close": round(float(_r["Close"]), 2),
+                                        "volume": int(_r["Volume"])})
+                            if _new:
+                                db_records.extend(_new)
+                                db_records.sort(key=lambda x: x["date"])
+                                save_candles(ticker, _new)
+                    except Exception as _e:
+                        print(f"[yfinance] recent gap fill {ticker} 失敗: {_e}")
+                # 盤中即時 K 棒
                 if date.today().weekday() < 5 and db_records[-1]["date"] != today_str:
                     q = _fugle_quote(ticker)
                     if q.get("open") and q.get("price"):
@@ -868,7 +883,31 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
         except Exception:
             pass
 
-    # 補今日 K 棒（Fugle historical 只到昨天，用即時報價補今天）
+    # 補近期缺口：若最後一根不是今天，用 yfinance 補最近 5 天（最可靠的近期資料來源）
+    if interval == "1d" and all_records:
+        today_str = date.today().strftime("%Y-%m-%d")
+        if all_records[-1]["date"] < today_str:
+            try:
+                symbol = _get_symbol(ticker)
+                hist_r = yf.Ticker(symbol).history(period="5d", interval="1d")
+                if not hist_r.empty:
+                    hist_r.index = hist_r.index.tz_localize(None)
+                    last_known = all_records[-1]["date"]
+                    for d, r in hist_r.iterrows():
+                        d_str = d.strftime("%Y-%m-%d")
+                        if d_str > last_known:
+                            all_records.append({
+                                "date":   d_str,
+                                "open":   round(float(r["Open"]),  2),
+                                "high":   round(float(r["High"]),  2),
+                                "low":    round(float(r["Low"]),   2),
+                                "close":  round(float(r["Close"]), 2),
+                                "volume": int(r["Volume"]),
+                            })
+                    all_records.sort(key=lambda x: x["date"])
+            except Exception as e:
+                print(f"[yfinance] recent gap fill {ticker} 失敗: {e}")
+    # 盤中即時 K 棒（yfinance 無當日未收盤資料，改用 Fugle intraday quote）
     if interval == "1d" and all_records and date.today().weekday() < 5:
         today_str = date.today().strftime("%Y-%m-%d")
         if all_records[-1]["date"] != today_str:
