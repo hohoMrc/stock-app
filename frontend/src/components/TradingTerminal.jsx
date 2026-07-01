@@ -42,6 +42,45 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
   // 手機版：顯示哪個面板 ("list" | "chart")
   const [mobileView, setMobileView] = useState("list");
 
+  // ── 可拖曳分隔線 ────────────────────────────────────────────────────────
+  const [leftWidth, setLeftWidth] = useState(null); // null = CSS default
+  const wrapRef     = useRef(null);
+  const leftRef     = useRef(null);
+  const isDragging  = useRef(false);
+  const dragStartX  = useRef(0);
+  const dragStartW  = useRef(0);
+
+  const onDividerDown = (e) => {
+    isDragging.current  = true;
+    dragStartX.current  = e.clientX;
+    dragStartW.current  = leftRef.current?.getBoundingClientRect().width ?? 600;
+    document.body.style.cursor     = "col-resize";
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!isDragging.current || !wrapRef.current) return;
+      const dx    = e.clientX - dragStartX.current;
+      const total = wrapRef.current.getBoundingClientRect().width;
+      const newW  = Math.max(260, Math.min(total - 300, dragStartW.current + dx));
+      setLeftWidth(newW);
+    };
+    const onUp = () => {
+      if (!isDragging.current) return;
+      isDragging.current             = false;
+      document.body.style.cursor     = "";
+      document.body.style.userSelect = "";
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup",   onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup",   onUp);
+    };
+  }, []);
+
   // ── 排行清單 ──────────────────────────────────────────────────────────
   const loadList = async (tab) => {
     setListLoading((p) => ({ ...p, [tab]: true }));
@@ -109,8 +148,11 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
     ? watchlist.map((t) => ({ ticker: t, name: "" }))
     : listData[activeTab];
 
+  const leftStyle  = leftWidth != null ? { width: leftWidth, flex: "none", minWidth: 0 } : undefined;
+  const rightStyle = leftWidth != null ? { flex: 1, width: "auto", minWidth: 0 }        : undefined;
+
   return (
-    <div className="terminal-wrap">
+    <div className="terminal-wrap" ref={wrapRef}>
       {/* ── 手機：頂部切換列 ── */}
       <div className="terminal-mobile-switcher">
         <button
@@ -129,7 +171,11 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
       </div>
 
       {/* ── 左側：股票清單 ── */}
-      <div className={`terminal-left ${mobileView !== "list" ? "terminal-hide-mobile" : ""}`}>
+      <div
+        ref={leftRef}
+        className={`terminal-left ${mobileView !== "list" ? "terminal-hide-mobile" : ""}`}
+        style={leftStyle}
+      >
         <div className="terminal-list-tabs">
           {[
             { key: "value",    label: "成交值" },
@@ -232,8 +278,14 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
         )}
       </div>
 
+      {/* ── 可拖曳分隔線 ── */}
+      <div className="terminal-divider terminal-hide-mobile" onMouseDown={onDividerDown} />
+
       {/* ── 右側：圖表 ── */}
-      <div className={`terminal-right ${mobileView !== "chart" ? "terminal-hide-mobile" : ""}`}>
+      <div
+        className={`terminal-right ${mobileView !== "chart" ? "terminal-hide-mobile" : ""}`}
+        style={rightStyle}
+      >
         {selected ? (
           <>
             {/* 股票標頭 */}

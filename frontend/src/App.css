@@ -1220,11 +1220,34 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .terminal-left {
   flex: 1;
   min-width: 0;
-  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: var(--bg-card);
+}
+
+.terminal-divider {
+  width: 5px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: var(--border);
+  position: relative;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+.terminal-divider:hover { background: var(--accent); }
+
+.terminal-divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 1px;
+  height: 32px;
+  background: var(--text-muted);
+  border-radius: 1px;
 }
 
 .terminal-list-tabs {
