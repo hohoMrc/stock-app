@@ -42,18 +42,18 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
   // 手機版：顯示哪個面板 ("list" | "chart")
   const [mobileView, setMobileView] = useState("list");
 
-  // ── 可拖曳分隔線 ────────────────────────────────────────────────────────
-  const [leftWidth, setLeftWidth] = useState(null); // null = CSS default
-  const wrapRef     = useRef(null);
-  const leftRef     = useRef(null);
-  const isDragging  = useRef(false);
-  const dragStartX  = useRef(0);
-  const dragStartW  = useRef(0);
+  // ── 可拖曳分隔線（控制右側寬度，左側 flex:1 自然伸縮）────────────────
+  const [rightWidth, setRightWidth] = useState(560);
+  const wrapRef      = useRef(null);
+  const rightRef     = useRef(null);
+  const isDragging   = useRef(false);
+  const dragStartX   = useRef(0);
+  const dragStartRW  = useRef(560);
 
   const onDividerDown = (e) => {
     isDragging.current  = true;
     dragStartX.current  = e.clientX;
-    dragStartW.current  = leftRef.current?.getBoundingClientRect().width ?? 600;
+    dragStartRW.current = rightRef.current?.getBoundingClientRect().width ?? 560;
     document.body.style.cursor     = "col-resize";
     document.body.style.userSelect = "none";
     e.preventDefault();
@@ -64,8 +64,9 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
       if (!isDragging.current || !wrapRef.current) return;
       const dx    = e.clientX - dragStartX.current;
       const total = wrapRef.current.getBoundingClientRect().width;
-      const newW  = Math.max(260, Math.min(total - 300, dragStartW.current + dx));
-      setLeftWidth(newW);
+      // 向右拖 → 右側縮小；向左拖 → 右側增大
+      const newRW = Math.max(300, Math.min(total - 260, dragStartRW.current - dx));
+      setRightWidth(newRW);
     };
     const onUp = () => {
       if (!isDragging.current) return;
@@ -148,9 +149,6 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
     ? watchlist.map((t) => ({ ticker: t, name: "" }))
     : listData[activeTab];
 
-  const leftStyle  = leftWidth != null ? { width: leftWidth, flex: "none", minWidth: 0 } : undefined;
-  const rightStyle = leftWidth != null ? { flex: 1, width: "auto", minWidth: 0 }        : undefined;
-
   return (
     <div className="terminal-wrap" ref={wrapRef}>
       {/* ── 手機：頂部切換列 ── */}
@@ -171,11 +169,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
       </div>
 
       {/* ── 左側：股票清單 ── */}
-      <div
-        ref={leftRef}
-        className={`terminal-left ${mobileView !== "list" ? "terminal-hide-mobile" : ""}`}
-        style={leftStyle}
-      >
+      <div className={`terminal-left ${mobileView !== "list" ? "terminal-hide-mobile" : ""}`}>
         <div className="terminal-list-tabs">
           {[
             { key: "value",    label: "成交值" },
@@ -283,8 +277,9 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
 
       {/* ── 右側：圖表 ── */}
       <div
+        ref={rightRef}
         className={`terminal-right ${mobileView !== "chart" ? "terminal-hide-mobile" : ""}`}
-        style={rightStyle}
+        style={{ width: rightWidth, minWidth: 0 }}
       >
         {selected ? (
           <>

@@ -1395,13 +1395,12 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .tl-last-size.buy  { background: rgba(220, 38, 38, 0.75); color: #fff; }
 .tl-last-size.sell { background: rgba(22, 163, 74, 0.75);  color: #fff; }
 
-/* ── Terminal 右側 ── */
+/* ── Terminal 右側（寬度由 TradingTerminal inline style 控制）── */
 .terminal-right {
-  width: 560px;
-  min-width: 560px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .terminal-empty {
