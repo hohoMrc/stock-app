@@ -1278,11 +1278,11 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   z-index: 1;
   background: var(--bg);
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-align: right;
-  padding: 5px 6px;
+  padding: 6px 7px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
@@ -1299,7 +1299,7 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .tl-table tbody tr.tl-selected td { background: var(--bg-elevated); }
 
 .tl-table td {
-  padding: 5px 6px;
+  padding: 6px 7px;
   font-variant-numeric: tabular-nums;
   text-align: right;
   vertical-align: middle;
@@ -1309,25 +1309,26 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .tl-col-code {
   text-align: left !important;
   color: var(--text-muted);
-  font-size: 11px;
-  min-width: 60px;
+  font-size: 13px;
+  min-width: 64px;
 }
 
 .tl-col-name {
   text-align: left !important;
   font-weight: 700;
+  font-size: 14px;
   color: var(--text-primary);
-  min-width: 64px;
-  max-width: 80px;
+  min-width: 68px;
+  max-width: 90px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.tl-col-price { min-width: 52px; }
+.tl-col-price { min-width: 56px; }
 
 .tl-price {
   display: inline-block;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   padding: 1px 4px;
@@ -1338,17 +1339,17 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .tl-price.limit-up   { background: #dc2626; color: #fff !important; }
 .tl-price.limit-down { background: #16a34a; color: #fff !important; }
 
-.tl-num { font-size: 11px; color: var(--text-secondary); }
+.tl-num { font-size: 13px; color: var(--text-secondary); }
 .tl-num.up   { color: var(--up); }
 .tl-num.down { color: var(--down); }
 
-.tl-col-last { min-width: 48px; }
+.tl-col-last { min-width: 52px; }
 
 .tl-last-size {
   display: inline-block;
-  padding: 1px 5px;
+  padding: 1px 6px;
   border-radius: 3px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
 }
