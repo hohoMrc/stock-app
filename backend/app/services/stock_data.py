@@ -88,16 +88,22 @@ def _fugle_quote(ticker: str) -> dict:
         if not isinstance(data, dict):
             data = {}
         price  = data.get("closePrice") or data.get("lastPrice") or data.get("referencePrice")
-        volume = data.get("tradeVolume")
+        total  = data.get("total") or {}
+        # total.tradeVolume 單位為張，×1000 轉股數
+        vol_zhang = total.get("tradeVolume")
+        volume_int = int(vol_zhang) * 1000 if vol_zhang is not None else None
         name   = data.get("name")
         # volume 可能為 0（收盤後重置），用 is not None 判斷
-        volume_int = int(volume) if volume is not None else None
         return {
             "price":        round(float(price), 2) if price else None,
             "volume":       volume_int,
-            "volume_zhang": round(volume_int / 1000) if volume_int else None,
+            "volume_zhang": int(vol_zhang) if vol_zhang is not None else None,
             "name":         name,
             "exchange":     data.get("exchange"),
+            # 今日 OHLC（供補今日 K 棒用）
+            "open":   round(float(data["openPrice"]),  2) if data.get("openPrice")  else None,
+            "high":   round(float(data["highPrice"]),  2) if data.get("highPrice")  else None,
+            "low":    round(float(data["lowPrice"]),   2) if data.get("lowPrice")   else None,
         }
     except Exception as e:
         print(f"[Fugle] quote {ticker} 失敗: {e}")
@@ -774,6 +780,20 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
         if is_candles_fresh(ticker, from_pre, to_pre):
             db_records = get_candles(ticker, from_pre, to_pre)
             if len(db_records) >= expected_bars:
+                # 補今日 K 棒（SQLite 只存到昨天）
+                if date.today().weekday() < 5:
+                    today_str = date.today().strftime("%Y-%m-%d")
+                    if not db_records or db_records[-1]["date"] != today_str:
+                        q = _fugle_quote(ticker)
+                        if q.get("open") and q.get("price"):
+                            db_records = list(db_records) + [{
+                                "date":   today_str,
+                                "open":   q["open"],
+                                "high":   q.get("high") or q["price"],
+                                "low":    q.get("low")  or q["price"],
+                                "close":  q["price"],
+                                "volume": q.get("volume") or 0,
+                            }]
                 _cache_set(_history_cache, cache_key, db_records)
                 return db_records
 
@@ -834,12 +854,27 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
 
     all_records = _resample_candles(all_records, interval)
 
-    # 寫入 SQLite K 線快取（僅日K）
+    # 寫入 SQLite K 線快取（僅日K，不含今日未收盤資料）
     if interval == "1d" and all_records:
         try:
             save_candles(ticker, all_records)
         except Exception:
             pass
+
+    # 補今日 K 棒（Fugle historical 只到昨天，用即時報價補今天）
+    if interval == "1d" and all_records and date.today().weekday() < 5:
+        today_str = date.today().strftime("%Y-%m-%d")
+        if all_records[-1]["date"] != today_str:
+            q = _fugle_quote(ticker)
+            if q.get("open") and q.get("price"):
+                all_records.append({
+                    "date":   today_str,
+                    "open":   q["open"],
+                    "high":   q.get("high") or q["price"],
+                    "low":    q.get("low")  or q["price"],
+                    "close":  q["price"],
+                    "volume": q.get("volume") or 0,
+                })
 
     _cache_set(_history_cache, cache_key, all_records)
     return all_records
