@@ -646,47 +646,41 @@ def _get_symbol(ticker: str) -> str:
     return _symbol_cache[ticker]
 
 
-def _yf_recent_bars(ticker: str, last_date: str) -> list:
-    """補 last_date 之後的缺口 K 棒：先試 yfinance，再試 TWSE 月報。"""
+def _fill_recent_gap(ticker: str, last_date: str) -> list:
+    """補 last_date 之後的缺口 K 棒：先用 Fugle historical，再用 yfinance。"""
+    today_str = date.today().strftime("%Y-%m-%d")
     bars = []
 
-    # 1) yfinance
+    # 1) Fugle historical（有 API Key，不受 IP 限制）
     try:
-        sym  = _get_symbol(ticker)
-        hist = yf.Ticker(sym).history(period="5d", interval="1d")
-        if not hist.empty:
-            if hist.index.tz is not None:
-                hist.index = hist.index.tz_convert(None)
-            else:
-                hist.index = hist.index.tz_localize(None)
-            for d, r in hist.iterrows():
-                d_str = d.strftime("%Y-%m-%d")
-                if d_str > last_date:
-                    bars.append({
-                        "date":   d_str,
-                        "open":   round(float(r["Open"]),  2),
-                        "high":   round(float(r["High"]),  2),
-                        "low":    round(float(r["Low"]),   2),
-                        "close":  round(float(r["Close"]), 2),
-                        "volume": int(r["Volume"]),
-                    })
+        gap = _fugle_candles(ticker, last_date, today_str)
+        bars = [r for r in gap if r["date"] > last_date]
     except Exception as e:
-        print(f"[yfinance] recent bars {ticker} 失敗: {e}")
+        print(f"[Fugle] gap fill {ticker} 失敗: {e}")
 
-    # 2) yfinance 補不到時，用 TWSE/TPEx 月報作備援
+    # 2) Fugle 補不到，改用 yfinance
     if not bars:
         try:
-            today = date.today()
-            exchange = _tw_stock_exchange.get(ticker, "TW")
-            month_bars = _fetch_twse_month(ticker, today.year, today.month, exchange)
-            if not month_bars:
-                alt = "TWO" if exchange == "TW" else "TW"
-                month_bars = _fetch_twse_month(ticker, today.year, today.month, alt)
-            for r in month_bars:
-                if r["date"] > last_date:
-                    bars.append(r)
+            sym  = _get_symbol(ticker)
+            hist = yf.Ticker(sym).history(period="5d", interval="1d")
+            if not hist.empty:
+                if hist.index.tz is not None:
+                    hist.index = hist.index.tz_convert(None)
+                else:
+                    hist.index = hist.index.tz_localize(None)
+                for d, r in hist.iterrows():
+                    d_str = d.strftime("%Y-%m-%d")
+                    if d_str > last_date:
+                        bars.append({
+                            "date":   d_str,
+                            "open":   round(float(r["Open"]),  2),
+                            "high":   round(float(r["High"]),  2),
+                            "low":    round(float(r["Low"]),   2),
+                            "close":  round(float(r["Close"]), 2),
+                            "volume": int(r["Volume"]),
+                        })
         except Exception as e:
-            print(f"[TWSE] recent bars {ticker} 失敗: {e}")
+            print(f"[yfinance] gap fill {ticker} 失敗: {e}")
 
     return bars
 
@@ -829,7 +823,7 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
                 today_str = date.today().strftime("%Y-%m-%d")
                 # 若最後一根不是今天，用 yfinance 補近期缺口（最可靠的近期來源）
                 if db_records[-1]["date"] < today_str:
-                    _new = _yf_recent_bars(ticker, db_records[-1]["date"])
+                    _new = _fill_recent_gap(ticker, db_records[-1]["date"])
                     if _new:
                         db_records.extend(_new)
                         db_records.sort(key=lambda x: x["date"])
@@ -917,7 +911,7 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
     if interval == "1d" and all_records:
         today_str = date.today().strftime("%Y-%m-%d")
         if all_records[-1]["date"] < today_str:
-            new_bars = _yf_recent_bars(ticker, all_records[-1]["date"])
+            new_bars = _fill_recent_gap(ticker, all_records[-1]["date"])
             if new_bars:
                 all_records.extend(new_bars)
                 all_records.sort(key=lambda x: x["date"])
