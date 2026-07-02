@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from "lightweight-charts";
 
 const MA_CONFIG = [
-  { key: "ma5",  period: 5,  label: "MA5",  color: "#f59e0b" },
-  { key: "ma10", period: 10, label: "MA10", color: "#38bdf8" },
-  { key: "ma30", period: 30, label: "MA30", color: "#a78bfa" },
-  { key: "ma60", period: 60, label: "MA60", color: "#34d399" },
+  { key: "ma5",   period: 5,  label: "MA5",   color: "#f59e0b" },
+  { key: "ma10",  period: 10, label: "MA10",  color: "#38bdf8" },
+  { key: "ma30",  period: 30, label: "MA30",  color: "#a78bfa" },
+  { key: "ma60",  period: 60, label: "MA60",  color: "#34d399" },
+  { key: "ema60", period: 60, label: "EMA60", color: "#10b981", ema: true },
 ];
 
 function calcMA(data, period) {
@@ -14,6 +15,22 @@ function calcMA(data, period) {
     const slice = data.slice(i - period + 1, i + 1);
     const avg = slice.reduce((s, d) => s + d.close, 0) / period;
     result.push({ time: data[i].date, value: parseFloat(avg.toFixed(2)) });
+  }
+  return result;
+}
+
+function calcEMA(data, period) {
+  const k = 2 / (period + 1);
+  const result = [];
+  let ema = null;
+  for (let i = 0; i < data.length; i++) {
+    if (ema === null) {
+      if (i < period - 1) continue;
+      ema = data.slice(0, period).reduce((s, d) => s + d.close, 0) / period;
+    } else {
+      ema = data[i].close * k + ema * (1 - k);
+    }
+    result.push({ time: data[i].date, value: parseFloat(ema.toFixed(2)) });
   }
   return result;
 }
@@ -150,7 +167,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const volMapRef       = useRef(new Map());
   const macdMapRef      = useRef(new Map());
 
-  const [activeMA,    setActiveMA]    = useState({ ma5: true, ma10: true, ma30: true, ma60: true });
+  const [activeMA,    setActiveMA]    = useState({ ma5: true, ma10: true, ma30: true, ma60: true, ema60: true });
   const [showBOLL,    setShowBOLL]    = useState(false);
   const [hoveredBar,  setHoveredBar]  = useState(null);
   const [hoveredMACD, setHoveredMACD] = useState(null);
@@ -311,8 +328,8 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
 
     // MA + maMap
     const maMap = new Map();
-    MA_CONFIG.forEach(({ key, period: mp }) => {
-      const arr = calcMA(data, mp);
+    MA_CONFIG.forEach(({ key, period: mp, ema }) => {
+      const arr = ema ? calcEMA(data, mp) : calcMA(data, mp);
       maSeriesRefs.current[key]?.setData(arr);
       arr.forEach((item) => {
         const k = String(item.time);
