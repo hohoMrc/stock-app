@@ -647,8 +647,9 @@ def _get_symbol(ticker: str) -> str:
 
 
 def _fill_recent_gap(ticker: str, last_date: str) -> list:
-    """補 last_date 之後的缺口 K 棒：先用 Fugle historical，再用 yfinance。"""
-    today_str = date.today().strftime("%Y-%m-%d")
+    """補 last_date 之後的缺口 K 棒：Fugle historical → TWSE 月報 → yfinance。"""
+    today = date.today()
+    today_str = today.strftime("%Y-%m-%d")
     bars = []
     print(f"[gap fill] {ticker}: last={last_date} today={today_str}")
 
@@ -661,7 +662,30 @@ def _fill_recent_gap(ticker: str, last_date: str) -> list:
     except Exception as e:
         print(f"[gap fill] Fugle 失敗: {e}")
 
-    # 2) Fugle 補不到，改用 yfinance
+    # 2) TWSE/TPEx 月報（涵蓋當月最新資料，Fugle T+0 延遲時特別有用）
+    if not bars:
+        _load_tw_stock_names()
+        exchange = _tw_stock_exchange.get(ticker, "TW")
+        # 抓最近兩個月（跨月情境：last_date 在上月，今天在本月）
+        months_to_try = set()
+        last_dt = date.fromisoformat(last_date)
+        cur = last_dt.replace(day=1)
+        while cur <= today:
+            months_to_try.add((cur.year, cur.month))
+            next_month = cur.month % 12 + 1
+            next_year = cur.year + (1 if cur.month == 12 else 0)
+            cur = cur.replace(year=next_year, month=next_month)
+        twse_rows: list = []
+        for y, m in sorted(months_to_try):
+            twse_rows.extend(_fetch_twse_month(ticker, y, m, exchange))
+        twse_new = [r for r in twse_rows if r["date"] > last_date]
+        if twse_new:
+            print(f"[gap fill] TWSE dates={[r['date'] for r in twse_new]}")
+            bars = twse_new
+        else:
+            print(f"[gap fill] TWSE 無新資料（exchange={exchange}）")
+
+    # 3) yfinance fallback
     if not bars:
         try:
             sym  = _get_symbol(ticker)
