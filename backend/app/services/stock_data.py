@@ -650,13 +650,16 @@ def _fill_recent_gap(ticker: str, last_date: str) -> list:
     """補 last_date 之後的缺口 K 棒：先用 Fugle historical，再用 yfinance。"""
     today_str = date.today().strftime("%Y-%m-%d")
     bars = []
+    print(f"[gap fill] {ticker}: last={last_date} today={today_str}")
 
     # 1) Fugle historical（有 API Key，不受 IP 限制）
     try:
         gap = _fugle_candles(ticker, last_date, today_str)
+        fugle_dates = [r["date"] for r in gap]
+        print(f"[gap fill] Fugle dates={fugle_dates}")
         bars = [r for r in gap if r["date"] > last_date]
     except Exception as e:
-        print(f"[Fugle] gap fill {ticker} 失敗: {e}")
+        print(f"[gap fill] Fugle 失敗: {e}")
 
     # 2) Fugle 補不到，改用 yfinance
     if not bars:
@@ -668,6 +671,8 @@ def _fill_recent_gap(ticker: str, last_date: str) -> list:
                     hist.index = hist.index.tz_convert(None)
                 else:
                     hist.index = hist.index.tz_localize(None)
+                yf_dates = [d.strftime("%Y-%m-%d") for d in hist.index]
+                print(f"[gap fill] yfinance dates={yf_dates}")
                 for d, r in hist.iterrows():
                     d_str = d.strftime("%Y-%m-%d")
                     if d_str > last_date:
@@ -680,8 +685,9 @@ def _fill_recent_gap(ticker: str, last_date: str) -> list:
                             "volume": int(r["Volume"]),
                         })
         except Exception as e:
-            print(f"[yfinance] gap fill {ticker} 失敗: {e}")
+            print(f"[gap fill] yfinance 失敗: {e}")
 
+    print(f"[gap fill] {ticker}: result={[r['date'] for r in bars]}")
     return bars
 
 
