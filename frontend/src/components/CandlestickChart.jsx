@@ -98,8 +98,8 @@ function calcVolMA(data, period) {
 
 function fmtVol(v) {
   if (v == null) return "—";
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(3)}M`;
-  if (v >= 1_000)     return `${(v / 1_000).toFixed(3)}K`;
+  if (v >= 10_000) return `${(v / 10_000).toFixed(1)}萬`;
+  if (v >= 1_000)  return `${(v / 1_000).toFixed(1)}K`;
   return String(v);
 }
 
