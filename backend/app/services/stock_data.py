@@ -809,20 +809,17 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
     if cached is not None:
         return cached
 
-    # 分鐘線（1m/5m/15m/60m）：yfinance 回傳 unix timestamp（以 CST 本地時間偽裝 UTC）
+    # 分鐘線（1m/5m/15m/60m）：回傳真正的 UTC Unix timestamp，前端以本地時間（UTC+8）顯示
     if interval in ("1m", "5m", "15m", "60m"):
         try:
             symbol = _get_symbol(ticker)
             hist = yf.Ticker(symbol).history(period=period, interval=interval)
             if not hist.empty:
-                try:
-                    hist.index = hist.index.tz_convert("Asia/Taipei").tz_localize(None)
-                except Exception:
-                    hist.index = hist.index.tz_localize(None)
+                if hist.index.tz is None:
+                    hist.index = hist.index.tz_localize("UTC")
                 all_records = [
                     {
-                        # 以 CST 時間偽裝 UTC，讓圖表顯示台灣交易時段
-                        "date":   int(d.replace(tzinfo=timezone.utc).timestamp()),
+                        "date":   int(d.timestamp()),  # 真正 UTC timestamp，前端本地時間(+8)顯示正確
                         "open":   round(float(r["Open"]),  2),
                         "high":   round(float(r["High"]),  2),
                         "low":    round(float(r["Low"]),   2),
