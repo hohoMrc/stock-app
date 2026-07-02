@@ -218,6 +218,14 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     const volPane = chart.addPane();
     volSeriesRef.current = volPane.addSeries(HistogramSeries, {
       priceLineVisible: false, lastValueVisible: false,
+      priceFormat: {
+        type: "custom",
+        formatter: (v) => {
+          if (v >= 10000) return `${(v / 10000).toFixed(1)}萬`;
+          if (v >= 1000)  return `${(v / 1000).toFixed(0)}K`;
+          return String(Math.round(v));
+        },
+      },
     });
     volMa5Ref.current  = volPane.addSeries(LineSeries, {
       color: "#f59e0b", lineWidth: 1,
