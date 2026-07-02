@@ -154,14 +154,14 @@ def _fugle_candles(ticker: str, from_date: str, to_date: str) -> list:
         for c in candles:
             if not c.get("close"):
                 continue
-            vol_lots = c.get("volume", 0) or 0   # Fugle 歷史 K 線 volume 單位為張
+            vol_shares = c.get("volume", 0) or 0   # Fugle 歷史 K 線 volume 實際單位為股數
             result.append({
                 "date":   str(c["date"])[:10],
                 "open":   round(float(c.get("open",  c["close"])), 2),
                 "high":   round(float(c.get("high",  c["close"])), 2),
                 "low":    round(float(c.get("low",   c["close"])), 2),
                 "close":  round(float(c["close"]), 2),
-                "volume": int(vol_lots) * 1000,  # 張 → 股數（與 TWSE 一致）
+                "volume": int(vol_shares),  # 已是股數，直接使用
             })
         return sorted(result, key=lambda x: x["date"])
     except Exception as e:
