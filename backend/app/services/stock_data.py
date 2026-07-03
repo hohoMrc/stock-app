@@ -93,6 +93,8 @@ def _fugle_quote(ticker: str) -> dict:
         vol_zhang = total.get("tradeVolume")
         volume_int = int(vol_zhang) * 1000 if vol_zhang is not None else None
         name   = data.get("name")
+        chg    = data.get("change")
+        chg_pct = data.get("changePercent")
         # volume 可能為 0（收盤後重置），用 is not None 判斷
         return {
             "price":        round(float(price), 2) if price else None,
@@ -100,6 +102,8 @@ def _fugle_quote(ticker: str) -> dict:
             "volume_zhang": int(vol_zhang) if vol_zhang is not None else None,
             "name":         name,
             "exchange":     data.get("exchange"),
+            "change":       round(float(chg), 2) if chg is not None else None,
+            "change_pct":   round(float(chg_pct), 2) if chg_pct is not None else None,
             # 今日 OHLC（供補今日 K 棒用）
             "open":   round(float(data["openPrice"]),  2) if data.get("openPrice")  else None,
             "high":   round(float(data["highPrice"]),  2) if data.get("highPrice")  else None,
@@ -556,6 +560,8 @@ def get_stock_info(ticker: str) -> dict:
         "ticker":         ticker,
         "name":           display_name,
         "price":          price,
+        "change":         fugle_q.get("change"),
+        "change_pct":     fugle_q.get("change_pct"),
         "dividend_yield": dividend_yield,
         "volume":         volume,
         "volume_zhang":   volume_zhang,

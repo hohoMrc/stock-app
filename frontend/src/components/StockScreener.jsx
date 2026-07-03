@@ -372,7 +372,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
               </thead>
               <tbody>
                 {results.map((s) => (
-                  <tr key={s.ticker} className={s.weekly_change_pct > 0 ? "row-up" : s.weekly_change_pct < 0 ? "row-down" : ""}>
+                  <tr key={s.ticker} className={(() => { const v = s.change_pct ?? s.weekly_change_pct; return v > 0 ? "row-up" : v < 0 ? "row-down" : ""; })()}>
                     <td className="col-ticker">{s.ticker}</td>
                     <td className="col-name">{s.name}</td>
                     <td>{s.price ?? "—"}</td>
