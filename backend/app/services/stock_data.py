@@ -1214,7 +1214,7 @@ def screen_stocks(tickers: list, filters: dict) -> list:
                 ma_data = _calc_ma(ticker, near_ma)
                 if ma_data is None:
                     continue
-                if abs(ma_data["deviation_pct"]) > near_ma_pct:
+                if not (0 <= ma_data["deviation_pct"] <= near_ma_pct):
                     continue
                 info["ma_value"] = ma_data["ma"]
                 info["ma_deviation_pct"] = ma_data["deviation_pct"]

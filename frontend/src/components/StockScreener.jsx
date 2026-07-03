@@ -262,7 +262,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                 onChange={(e) => setFilters({ ...filters, near_ma_pct: e.target.value })}
               />
               <span className="filter-hint">
-                股價在均線 ±{filters.near_ma_pct}% 以內
+                股價在均線上方 0~{filters.near_ma_pct}%
               </span>
             </div>
           </div>
