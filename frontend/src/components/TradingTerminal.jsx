@@ -228,7 +228,16 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
                     className={selected?.ticker === s.ticker ? "tl-selected" : ""}
                     onClick={() => handleSelect(s)}
                   >
-                    <td className="tl-col-code">☆ {s.ticker}</td>
+                    <td className="tl-col-code">
+                      <span
+                        className={`tl-star ${watchlist.includes(s.ticker) ? "tl-star--on" : ""}`}
+                        onClick={(e) => { e.stopPropagation(); onToggleWatch(s.ticker); }}
+                        title={watchlist.includes(s.ticker) ? "移除自選" : "加入自選"}
+                      >
+                        {watchlist.includes(s.ticker) ? "★" : "☆"}
+                      </span>
+                      {s.ticker}
+                    </td>
                     <td className="tl-col-name">{s.name || s.ticker}</td>
                     <td className="tl-col-price">
                       <span className={`tl-price ${limitUp ? "limit-up" : limitDown ? "limit-down" : dir}`}>

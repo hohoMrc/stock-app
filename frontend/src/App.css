@@ -1355,8 +1355,20 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   text-align: left !important;
   color: var(--text-muted);
   font-size: 13px;
-  min-width: 64px;
+  min-width: 72px;
+  white-space: nowrap;
 }
+
+.tl-star {
+  cursor: pointer;
+  margin-right: 4px;
+  color: var(--text-muted);
+  font-size: 14px;
+  user-select: none;
+  transition: color 0.15s;
+}
+.tl-star:hover { color: #fbbf24; }
+.tl-star--on   { color: #fbbf24; }
 
 .tl-col-name {
   text-align: left !important;
