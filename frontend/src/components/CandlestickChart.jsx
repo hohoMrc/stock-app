@@ -7,7 +7,7 @@ const MA_CONFIG = [
   { key: "ma20",  period: 20, label: "MA20",  color: "#facc15" },
   { key: "ma30",  period: 30, label: "MA30",  color: "#a78bfa" },
   { key: "ma60",  period: 60, label: "MA60",  color: "#34d399" },
-  { key: "ema60", period: 60, label: "EMA60", color: "#10b981", ema: true },
+  { key: "ema60", period: 60, label: "EMA60", color: "#ef4444", ema: true },
 ];
 
 function calcMA(data, period) {
