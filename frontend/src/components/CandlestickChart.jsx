@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from "lightweight-charts";
 
 const MA_CONFIG = [
@@ -175,6 +175,25 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const [lastBar,     setLastBar]     = useState(null);
   const [lastMACD,    setLastMACD]    = useState(null);
 
+  // 動態 label 底部偏移（pane 被拖動時更新）
+  const [volBottom,  setVolBottom]  = useState(VOL_PANE_HEIGHT + MACD_PANE_HEIGHT - 2);
+  const [macdBottom, setMacdBottom] = useState(MACD_PANE_HEIGHT - 2);
+  const paneRORef = useRef(null);
+
+  const syncLabelOffsets = useCallback(() => {
+    const panes = chartRef.current?.panes();
+    if (!panes || panes.length < 3 || !containerRef.current) return;
+    const totalH = containerRef.current.clientHeight;
+    if (!totalH) return;
+    const f = panes.map(p => (typeof p.getStretchFactor === "function" ? p.getStretchFactor() : 80));
+    const sum = f.reduce((a, b) => a + b, 0);
+    if (!sum) return;
+    const macdH = Math.round((f[2] / sum) * totalH);
+    const volH  = Math.round((f[1] / sum) * totalH);
+    setVolBottom(macdH + volH - 2);
+    setMacdBottom(macdH - 2);
+  }, []);
+
   // ── 建立圖表實例 ──────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
@@ -289,8 +308,15 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     });
     ro.observe(containerRef.current);
 
+    // 監聽 pane canvas 高度變化（pane 分隔線拖動時更新 label 位置）
+    syncLabelOffsets();
+    if (paneRORef.current) paneRORef.current.disconnect();
+    paneRORef.current = new ResizeObserver(syncLabelOffsets);
+    containerRef.current.querySelectorAll("canvas").forEach(c => paneRORef.current.observe(c));
+
     return () => {
       ro.disconnect();
+      paneRORef.current?.disconnect();
       chartRef.current?.remove();
       chartRef.current        = null;
       candleSeriesRef.current = null;
@@ -506,7 +532,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       {/* 圖表本體 */}
       <div ref={containerRef} style={{ width: "100%", position: "relative" }}>
         {/* VOL 副圖標籤 */}
-        <div className="kd-label-bar" style={{ bottom: VOL_PANE_HEIGHT + MACD_PANE_HEIGHT - 2 }}>
+        <div className="kd-label-bar" style={{ bottom: volBottom }}>
           <span className="kd-label-title">VOL(5,10,20)</span>
           {bar?.volMa && (
             <>
@@ -519,7 +545,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
         </div>
 
         {/* MACD 副圖標籤 */}
-        <div className="kd-label-bar" style={{ bottom: MACD_PANE_HEIGHT - 2 }}>
+        <div className="kd-label-bar" style={{ bottom: macdBottom }}>
           <span className="kd-label-title">MACD(12,26,9)</span>
           {mac ? (
             <>
