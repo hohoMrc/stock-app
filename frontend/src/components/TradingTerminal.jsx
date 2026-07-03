@@ -86,15 +86,17 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
     };
   }, []);
 
-  // ── 圖表區 ResizeObserver ─────────────────────────────────────────────
+  // ── 圖表區 ResizeObserver（selected 後 div 才 render，需重跑）─────────
   useEffect(() => {
     if (!chartAreaRef.current) return;
     const ro = new ResizeObserver(([entry]) => {
       setChartAreaH(entry.contentRect.height);
     });
     ro.observe(chartAreaRef.current);
+    // 立即抓一次現有高度
+    setChartAreaH(chartAreaRef.current.clientHeight);
     return () => ro.disconnect();
-  }, []);
+  }, [selected]);
 
   // ── 排行清單 ──────────────────────────────────────────────────────────
   const loadList = async (tab) => {
