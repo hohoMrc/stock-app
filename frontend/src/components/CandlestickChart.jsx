@@ -4,7 +4,7 @@ import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from "lig
 const MA_CONFIG = [
   { key: "ma5",   period: 5,  label: "MA5",   color: "#f59e0b" },
   { key: "ma10",  period: 10, label: "MA10",  color: "#38bdf8" },
-  { key: "ma20",  period: 20, label: "MA20",  color: "#fb923c" },
+  { key: "ma20",  period: 20, label: "MA20",  color: "#facc15" },
   { key: "ma30",  period: 30, label: "MA30",  color: "#a78bfa" },
   { key: "ma60",  period: 60, label: "MA60",  color: "#34d399" },
   { key: "ema60", period: 60, label: "EMA60", color: "#10b981", ema: true },
