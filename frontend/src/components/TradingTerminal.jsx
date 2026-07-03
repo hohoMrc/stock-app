@@ -404,7 +404,7 @@ function OrderBook({ data, loading }) {
           {[...asks].reverse().map((a, i) => (
             <div key={i} className="ob-row">
               <span className="ob-price down">{a.price}</span>
-              <span className="ob-qty">{Math.round(a.size / 1000)}</span>
+              <span className="ob-qty">{a.size}</span>
               <div className="ob-bar-wrap">
                 <div
                   className="ob-bar ob-bar-ask"
@@ -424,7 +424,7 @@ function OrderBook({ data, loading }) {
           {bids.map((b, i) => (
             <div key={i} className="ob-row">
               <span className="ob-price up">{b.price}</span>
-              <span className="ob-qty">{Math.round(b.size / 1000)}</span>
+              <span className="ob-qty">{b.size}</span>
               <div className="ob-bar-wrap">
                 <div
                   className="ob-bar ob-bar-bid"
