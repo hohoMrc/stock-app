@@ -26,6 +26,11 @@ export const getTrades            = (ticker, limit = 30) => api.get(`/api/stocks
 export const register = (username, password) => api.post("/api/auth/register", { username, password });
 export const login    = (username, password) => api.post("/api/auth/login",    { username, password });
 
+// Admin
+export const adminListUsers        = ()                        => api.get("/api/admin/users");
+export const adminChangePassword   = (userId, new_password)    => api.patch(`/api/admin/users/${userId}/password`, { new_password });
+export const adminDeleteUser       = (userId)                  => api.delete(`/api/admin/users/${userId}`);
+
 // Watchlist（後端版）
 export const fetchWatchlist   = ()                => api.get("/api/watchlist");
 export const addWatch         = (ticker)          => api.post(`/api/watchlist/${ticker}`);

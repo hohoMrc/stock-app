@@ -8,7 +8,10 @@ import AuthModal from "./components/AuthModal";
 import WatchNoteModal from "./components/WatchNoteModal";
 import TradeValueRanking from "./components/TradeValueRanking";
 import TradingTerminal from "./components/TradingTerminal";
+import AdminPage from "./components/AdminPage";
 import { fetchWatchlist, addWatch, removeWatch, updateWatchNote } from "./api";
+
+const ADMIN_USERNAME = "hoholin";
 import "./App.css";
 
 const DEFAULT_TICKERS = [
@@ -188,6 +191,14 @@ export default function App() {
               <span className="watch-count">{watchlist.length}</span>
             )}
           </button>
+          {username === ADMIN_USERNAME && (
+            <button
+              className={activePage === "admin" ? "active" : ""}
+              onClick={() => setActivePage("admin")}
+            >
+              管理
+            </button>
+          )}
         </nav>
 
         {/* 手機版：漢堡按鈕 */}
@@ -220,6 +231,12 @@ export default function App() {
               className={activePage === "ranking" ? "active" : ""}
               onClick={() => setActivePage("ranking")}
             >成交值排行</button>
+            {username === ADMIN_USERNAME && (
+              <button
+                className={activePage === "admin" ? "active" : ""}
+                onClick={() => setActivePage("admin")}
+              >管理</button>
+            )}
             <div className="mobile-menu-divider" />
             {username ? (
               <>
@@ -268,6 +285,9 @@ export default function App() {
         )}
         {activePage === "terminal" && (
           <TradingTerminal watchlist={watchlist} onToggleWatch={toggleWatch} />
+        )}
+        {activePage === "admin" && username === ADMIN_USERNAME && (
+          <AdminPage />
         )}
 
         {/* 保持 DOM 存在（display:none 效果），避免切頁時狀態消失 */}

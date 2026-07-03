@@ -228,6 +228,28 @@ def get_user_by_id(user_id: int) -> dict | None:
     return dict(row) if row else None
 
 
+def get_all_users() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, username, created_at FROM users ORDER BY created_at"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def update_user_password(user_id: int, password_hash: str):
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE users SET password_hash=? WHERE id=?",
+            (password_hash, user_id)
+        )
+
+
+def delete_user(user_id: int):
+    with _conn() as conn:
+        conn.execute("DELETE FROM watchlists WHERE user_id=?", (user_id,))
+        conn.execute("DELETE FROM users WHERE id=?", (user_id,))
+
+
 # ── watchlists ───────────────────────────────────────────
 
 def get_watchlist(user_id: int) -> list[dict]:
