@@ -4,6 +4,7 @@ import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from "lig
 const MA_CONFIG = [
   { key: "ma5",   period: 5,  label: "MA5",   color: "#f59e0b" },
   { key: "ma10",  period: 10, label: "MA10",  color: "#38bdf8" },
+  { key: "ma20",  period: 20, label: "MA20",  color: "#fb923c" },
   { key: "ma30",  period: 30, label: "MA30",  color: "#a78bfa" },
   { key: "ma60",  period: 60, label: "MA60",  color: "#34d399" },
   { key: "ema60", period: 60, label: "EMA60", color: "#10b981", ema: true },
@@ -167,7 +168,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const volMapRef       = useRef(new Map());
   const macdMapRef      = useRef(new Map());
 
-  const [activeMA,    setActiveMA]    = useState({ ma5: true, ma10: true, ma30: true, ma60: true, ema60: true });
+  const [activeMA,    setActiveMA]    = useState({ ma5: true, ma10: true, ma20: true, ma30: true, ma60: true, ema60: true });
   const [showBOLL,    setShowBOLL]    = useState(false);
   const [hoveredBar,  setHoveredBar]  = useState(null);
   const [hoveredMACD, setHoveredMACD] = useState(null);
