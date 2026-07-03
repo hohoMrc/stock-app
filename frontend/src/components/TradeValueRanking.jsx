@@ -100,6 +100,27 @@ function RowWrapper({ s, children }) {
   return <tr className={up ? "row-up" : down ? "row-down" : ""}>{children}</tr>;
 }
 
+function isLimitUp(s) {
+  if (s.is_limit_up != null) return s.is_limit_up;
+  return s.change_pct != null && s.change_pct >= 9.5;
+}
+
+function isLimitDown(s) {
+  if (s.is_limit_down != null) return s.is_limit_down;
+  return s.change_pct != null && s.change_pct <= -9.5;
+}
+
+function CloseCell({ s }) {
+  const up   = isLimitUp(s);
+  const down = isLimitDown(s);
+  const style = up
+    ? { background: "rgba(239,68,68,0.30)", borderRadius: 4, padding: "2px 6px" }
+    : down
+    ? { background: "rgba(34,197,94,0.25)", borderRadius: 4, padding: "2px 6px" }
+    : {};
+  return <td><span style={style}>{s.close ?? "—"}</span></td>;
+}
+
 function ChangeCells({ s }) {
   const sign = s.change > 0 ? "+" : "";
   return (
@@ -136,7 +157,7 @@ function ValueTable({ stocks, onSelect }) {
             <td className="rank-num">{i + 1}</td>
             <td className="col-ticker">{s.ticker}</td>
             <td className="col-name">{s.name}</td>
-            <td>{s.close ?? "—"}</td>
+            <CloseCell s={s} />
             <ChangeCells s={s} />
             <td className="trade-value-cell">{s.trade_value_yi ?? "—"}</td>
             <ExchangeBadge exchange={s.exchange} />
@@ -164,7 +185,7 @@ function TurnoverTable({ stocks, onSelect }) {
             <td className="rank-num">{i + 1}</td>
             <td className="col-ticker">{s.ticker}</td>
             <td className="col-name">{s.name}</td>
-            <td>{s.close ?? "—"}</td>
+            <CloseCell s={s} />
             <ChangeCells s={s} />
             <td className="trade-value-cell">{s.turnover_pct != null ? `${s.turnover_pct}%` : "—"}</td>
             <td>{s.trade_volume_zhang != null ? s.trade_volume_zhang.toLocaleString() : "—"}</td>
