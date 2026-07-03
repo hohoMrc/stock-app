@@ -175,9 +175,9 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const [lastBar,     setLastBar]     = useState(null);
   const [lastMACD,    setLastMACD]    = useState(null);
 
-  // 動態 label 底部偏移（pane 被拖動時更新）
-  const [volBottom,  setVolBottom]  = useState(VOL_PANE_HEIGHT + MACD_PANE_HEIGHT - 2);
-  const [macdBottom, setMacdBottom] = useState(MACD_PANE_HEIGHT - 2);
+  // 動態 label top 定位（pane 被拖動時更新）
+  const [volTop,  setVolTop]  = useState(height + 2);
+  const [macdTop, setMacdTop] = useState(height + VOL_PANE_HEIGHT + 2);
   const paneRORef = useRef(null);
 
   const syncLabelOffsets = useCallback(() => {
@@ -188,16 +188,20 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     const f = panes.map(p => (typeof p.getStretchFactor === "function" ? p.getStretchFactor() : 80));
     const sum = f.reduce((a, b) => a + b, 0);
     if (!sum) return;
-    const macdH = Math.round((f[2] / sum) * totalH);
-    const volH  = Math.round((f[1] / sum) * totalH);
-    setVolBottom(macdH + volH - 2);
-    setMacdBottom(macdH - 2);
+    const kH    = Math.round((f[0] / sum) * totalH);  // K 線 pane 高度
+    const macdH = Math.round((f[2] / sum) * totalH);  // MACD pane 高度
+    const volH  = Math.round((f[1] / sum) * totalH);  // VOL pane 高度
+    setVolTop(kH + 2);                 // VOL label：K 線 pane 結束後 2px
+    setMacdTop(kH + volH + 2);        // MACD label：VOL pane 結束後 2px
   }, []);
 
   // ── 建立圖表實例 ──────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
     const totalHeight = height + VOL_PANE_HEIGHT + MACD_PANE_HEIGHT;
+    // 重設初始 top（避免 height prop 改變後閃一下）
+    setVolTop(height + 2);
+    setMacdTop(height + VOL_PANE_HEIGHT + 2);
     const chart = createChart(containerRef.current, {
       width:  containerRef.current.clientWidth,
       height: totalHeight,
@@ -532,7 +536,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       {/* 圖表本體 */}
       <div ref={containerRef} style={{ width: "100%", position: "relative" }}>
         {/* VOL 副圖標籤 */}
-        <div className="kd-label-bar" style={{ bottom: volBottom }}>
+        <div className="kd-label-bar" style={{ top: volTop }}>
           <span className="kd-label-title">VOL(5,10,20)</span>
           {bar?.volMa && (
             <>
@@ -545,7 +549,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
         </div>
 
         {/* MACD 副圖標籤 */}
-        <div className="kd-label-bar" style={{ bottom: macdBottom }}>
+        <div className="kd-label-bar" style={{ top: macdTop }}>
           <span className="kd-label-title">MACD(12,26,9)</span>
           {mac ? (
             <>
