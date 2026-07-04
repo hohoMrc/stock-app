@@ -269,6 +269,9 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     macdHistRef.current = macdPane.addSeries(HistogramSeries, {
       priceLineVisible: false, lastValueVisible: false,
     });
+    macdHistRef.current.priceScale().applyOptions({
+      scaleMargins: { top: 0.05, bottom: 0.15 },
+    });
     difSeriesRef.current = macdPane.addSeries(LineSeries, {
       color: "#fbbf24", lineWidth: 1.5,
       priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
