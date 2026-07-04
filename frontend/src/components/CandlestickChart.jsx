@@ -146,7 +146,7 @@ function getFromDate(period, asUnix = false) {
 const VOL_PANE_HEIGHT  = 80;
 const MACD_PANE_HEIGHT = 120;
 
-export default function CandlestickChart({ data, period = "3mo", interval = "1d", height = 320 }) {
+export default function CandlestickChart({ data, period = "3mo", interval = "1d" }) {
   const containerRef    = useRef(null);
   const chartRef        = useRef(null);
   const candleSeriesRef = useRef(null);
@@ -176,8 +176,8 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const [lastMACD,    setLastMACD]    = useState(null);
 
   // 動態 label top 定位（pane 被拖動時更新）
-  const [volTop,  setVolTop]  = useState(height + 2);
-  const [macdTop, setMacdTop] = useState(height + VOL_PANE_HEIGHT + 2);
+  const [volTop,  setVolTop]  = useState(0);
+  const [macdTop, setMacdTop] = useState(0);
   const paneRORef = useRef(null);
 
   const syncLabelOffsets = useCallback(() => {
@@ -198,10 +198,8 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   // ── 建立圖表實例 ──────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
-    const totalHeight = height + VOL_PANE_HEIGHT + MACD_PANE_HEIGHT;
-    // 重設初始 top（避免 height prop 改變後閃一下）
-    setVolTop(height - 20);
-    setMacdTop(height + VOL_PANE_HEIGHT + 2);
+    const totalHeight = containerRef.current.clientHeight || (VOL_PANE_HEIGHT + MACD_PANE_HEIGHT + 320);
+    const kLineH = Math.max(120, totalHeight - VOL_PANE_HEIGHT - MACD_PANE_HEIGHT);
     const chart = createChart(containerRef.current, {
       width:  containerRef.current.clientWidth,
       height: totalHeight,
@@ -282,7 +280,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     });
 
     const panes = chart.panes();
-    panes[0].setStretchFactor(height);
+    panes[0].setStretchFactor(kLineH);
     panes[1].setStretchFactor(VOL_PANE_HEIGHT);
     panes[2].setStretchFactor(MACD_PANE_HEIGHT);
 
@@ -309,9 +307,14 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       setHoveredMACD(macdMapRef.current.get(key) ?? null);
     });
 
-    const ro = new ResizeObserver(() => {
-      if (chartRef.current && containerRef.current)
-        chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
+    const ro = new ResizeObserver(([entry]) => {
+      if (!chartRef.current) return;
+      const newW = entry.contentRect.width;
+      const newH = entry.contentRect.height;
+      chartRef.current.applyOptions({ width: newW, height: newH });
+      const newKH = Math.max(120, newH - VOL_PANE_HEIGHT - MACD_PANE_HEIGHT);
+      chartRef.current.panes()[0]?.setStretchFactor(newKH);
+      syncLabelOffsets();
     });
     ro.observe(containerRef.current);
 
@@ -339,7 +342,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       macdHistRef.current     = null;
       maSeriesRefs.current    = {};
     };
-  }, [height]);
+  }, []);
 
   // ── 載入資料 ──────────────────────────────────────────────────
   function applyVisibleRange(p) {
@@ -468,7 +471,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const sign    = (v) => v > 0 ? "+" : "";
 
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", height: "100%", display: "flex", flexDirection: "column" }}>
 
       {/* MA 切換列 */}
       <div className="ma-toggle-bar">
@@ -536,8 +539,8 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
         )}
       </div>
 
-      {/* 圖表本體 */}
-      <div ref={containerRef} style={{ width: "100%", position: "relative" }}>
+      {/* 圖表本體：flex:1 填滿 MA 列 + 資訊列以外的空間 */}
+      <div ref={containerRef} style={{ flex: 1, minHeight: 0, position: "relative" }}>
         {/* VOL 副圖標籤 */}
         <div className="kd-label-bar" style={{ top: volTop }}>
           <span className="kd-label-title">VOL(5,10,20)</span>

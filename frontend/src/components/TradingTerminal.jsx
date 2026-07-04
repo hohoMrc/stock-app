@@ -49,9 +49,6 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
   const isDragging   = useRef(false);
   const dragStartX   = useRef(0);
 
-  // ── 圖表區高度：ResizeObserver 偵測 terminal-chart-area 實際高度 ──
-  const chartAreaRef  = useRef(null);
-  const [chartAreaH, setChartAreaH] = useState(240);
   const dragStartRW  = useRef(560);
 
   const onDividerDown = (e) => {
@@ -86,17 +83,6 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
     };
   }, []);
 
-  // ── 圖表區 ResizeObserver（selected 後 div 才 render，需重跑）─────────
-  useEffect(() => {
-    if (!chartAreaRef.current) return;
-    const ro = new ResizeObserver(([entry]) => {
-      setChartAreaH(entry.contentRect.height);
-    });
-    ro.observe(chartAreaRef.current);
-    // 立即抓一次現有高度
-    setChartAreaH(chartAreaRef.current.clientHeight);
-    return () => ro.disconnect();
-  }, [selected]);
 
   // ── 排行清單 ──────────────────────────────────────────────────────────
   const loadList = async (tab) => {
@@ -364,7 +350,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
             </div>
 
             {/* K 線圖 */}
-            <div className="terminal-chart-area" ref={chartAreaRef}>
+            <div className="terminal-chart-area">
               {chartLoading ? (
                 <div className="terminal-loading">載入圖表...</div>
               ) : chartData.length > 0 ? (
@@ -372,7 +358,6 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
                   data={chartData}
                   period={chartPeriod}
                   interval={chartInterval}
-                  height={Math.max(120, chartAreaH - 200 - 8)}
                 />
               ) : (
                 <div className="terminal-loading">無圖表資料</div>
