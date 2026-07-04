@@ -144,7 +144,7 @@ function getFromDate(period, asUnix = false) {
 }
 
 const VOL_PANE_HEIGHT  = 80;
-const MACD_PANE_HEIGHT = 80;
+const MACD_PANE_HEIGHT = 120;
 
 export default function CandlestickChart({ data, period = "3mo", interval = "1d", height = 320 }) {
   const containerRef    = useRef(null);

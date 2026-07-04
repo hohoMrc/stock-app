@@ -372,7 +372,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
                   data={chartData}
                   period={chartPeriod}
                   interval={chartInterval}
-                  height={Math.max(120, chartAreaH - 160 - 8)}
+                  height={Math.max(120, chartAreaH - 200 - 8)}
                 />
               ) : (
                 <div className="terminal-loading">無圖表資料</div>
