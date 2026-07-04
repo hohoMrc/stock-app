@@ -191,7 +191,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     const kH    = Math.round((f[0] / sum) * totalH);  // K 線 pane 高度
     const macdH = Math.round((f[2] / sum) * totalH);  // MACD pane 高度
     const volH  = Math.round((f[1] / sum) * totalH);  // VOL pane 高度
-    setVolTop(kH + 2);                 // VOL label：K 線 pane 結束後 2px
+    setVolTop(kH - 20);                // VOL label：K 線 pane 底部往上 20px
     setMacdTop(kH + volH + 2);        // MACD label：VOL pane 結束後 2px
   }, []);
 
@@ -200,7 +200,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     if (!containerRef.current) return;
     const totalHeight = height + VOL_PANE_HEIGHT + MACD_PANE_HEIGHT;
     // 重設初始 top（避免 height prop 改變後閃一下）
-    setVolTop(height + 2);
+    setVolTop(height - 20);
     setMacdTop(height + VOL_PANE_HEIGHT + 2);
     const chart = createChart(containerRef.current, {
       width:  containerRef.current.clientWidth,
@@ -268,9 +268,6 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     const macdPane = chart.addPane();
     macdHistRef.current = macdPane.addSeries(HistogramSeries, {
       priceLineVisible: false, lastValueVisible: false,
-    });
-    macdHistRef.current.priceScale().applyOptions({
-      scaleMargins: { top: 0.05, bottom: 0.15 },
     });
     difSeriesRef.current = macdPane.addSeries(LineSeries, {
       color: "#fbbf24", lineWidth: 1.5,
