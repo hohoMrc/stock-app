@@ -264,18 +264,21 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
     });
 
-    // pane 2: MACD
+    // pane 2: MACD — 三個系列強制同一 price scale，確保 0 軸在可視範圍
     const macdPane = chart.addPane();
     macdHistRef.current = macdPane.addSeries(HistogramSeries, {
       priceLineVisible: false, lastValueVisible: false,
+      priceScaleId: 'right',
     });
     difSeriesRef.current = macdPane.addSeries(LineSeries, {
       color: "#fbbf24", lineWidth: 1.5,
       priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+      priceScaleId: 'right',
     });
     deaSeriesRef.current = macdPane.addSeries(LineSeries, {
       color: "#60a5fa", lineWidth: 1.5,
       priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+      priceScaleId: 'right',
     });
 
     const panes = chart.panes();
