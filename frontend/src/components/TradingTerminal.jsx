@@ -294,35 +294,6 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
       >
         {selected ? (
           <>
-            {/* 股票標頭 */}
-            <div className="terminal-stock-header">
-              <div className="tsh-title">
-                <span className="tsh-ticker">{selected.ticker}</span>
-                <span className="tsh-name">{selected.name}</span>
-              </div>
-              <div className="tsh-price-wrap">
-                {(() => {
-                  const close  = orderbook.close  ?? selected.close;
-                  const change = orderbook.change  ?? selected.change;
-                  const pct    = orderbook.change_pct ?? selected.change_pct;
-                  const up   = change > 0;
-                  const down = change < 0;
-                  const sign = up ? "+" : "";
-                  return (
-                    <>
-                      <span className={`tsh-price ${up ? "up" : down ? "down" : ""}`}>{close ?? "—"}</span>
-                      <span className={`tsh-change ${up ? "up" : down ? "down" : ""}`}>
-                        {change != null ? `${sign}${change}` : ""}
-                      </span>
-                      <span className={`tsh-pct ${up ? "up" : down ? "down" : ""}`}>
-                        {pct != null ? `(${sign}${pct}%)` : ""}
-                      </span>
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-
             {/* 圖表控制列 */}
             <div className="terminal-chart-controls">
               <div className="tcc-intervals">
