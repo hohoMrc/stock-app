@@ -1492,6 +1492,7 @@ TURNOVER_TTL = 300  # 5 分鐘
 
 def get_turnover_ranking(limit: int = 50) -> list:
     """取得週轉率排行（成交量 ÷ 在外流通股數）
+    優先 Fugle snapshot/actives（盤中即時），退回 TWSE/TPEx 收盤資料。
     在外流通股數 ≈ 實收資本額(千元) × 100（面額 10 元估算）
     """
     cached = _cache_get(_turnover_cache, "turnover", TURNOVER_TTL)
@@ -1500,6 +1501,50 @@ def get_turnover_ranking(limit: int = 50) -> list:
 
     _load_tw_stock_names()
     results = []
+
+    # 1) 優先 Fugle snapshot/actives（今日即時成交量）
+    for market in ("TSE", "OTC"):
+        label = "上市" if market == "TSE" else "上櫃"
+        try:
+            client = _get_fugle()
+            if client:
+                resp = client.stock.snapshot.actives(
+                    market=market, trade="volume", type="ALLBUT0999"
+                )
+                data = resp.get("data", []) if isinstance(resp, dict) else []
+                for item in data:
+                    code = item.get("symbol", "")
+                    vol  = item.get("tradeVolume", 0) or 0
+                    if not vol:
+                        continue
+                    capital = _tw_stock_capital.get(code)
+                    if not capital or capital <= 0:
+                        continue
+                    outstanding  = capital * 100
+                    turnover_pct = round(float(vol) / outstanding * 100, 4)
+                    if turnover_pct <= 0:
+                        continue
+                    close   = item.get("closePrice")
+                    chg     = item.get("change")
+                    chg_pct = item.get("changePercent")
+                    results.append({
+                        "ticker":             code,
+                        "name":               item.get("name", _tw_stock_names.get(code, "")),
+                        "close":              round(float(close), 2) if close is not None else None,
+                        "change":             round(float(chg), 2) if chg is not None else None,
+                        "change_pct":         round(float(chg_pct), 2) if chg_pct is not None else None,
+                        "turnover_pct":       turnover_pct,
+                        "trade_volume_zhang": round(int(vol) / 1000),
+                        "exchange":           label,
+                    })
+        except Exception as e:
+            print(f"[Fugle] snapshot actives volume {market} 失敗: {e}")
+
+    if results:
+        results.sort(key=lambda x: x["turnover_pct"], reverse=True)
+        results = _enrich_with_intraday(results[:limit])
+        _cache_set(_turnover_cache, "turnover", results)
+        return results[:limit]
 
     def _to_turnover(code, name, vol, close, chg, chg_pct, exchange):
         capital = _tw_stock_capital.get(code)
