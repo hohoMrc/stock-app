@@ -1493,7 +1493,8 @@ TURNOVER_TTL = 300  # 5 分鐘
 def get_turnover_ranking(limit: int = 50) -> list:
     """取得週轉率排行（成交量 ÷ 在外流通股數）
     優先 Fugle snapshot/actives（盤中即時），退回 TWSE/TPEx 收盤資料。
-    在外流通股數 ≈ 實收資本額(千元) × 100（面額 10 元估算）
+    Fugle tradeVolume 單位：張(lot)
+    在外流通股數(張) = 實收資本額(元) / 面額10元 / 1000股/張
     """
     cached = _cache_get(_turnover_cache, "turnover", TURNOVER_TTL)
     if cached is not None:
@@ -1520,8 +1521,11 @@ def get_turnover_ranking(limit: int = 50) -> list:
                     capital = _tw_stock_capital.get(code)
                     if not capital or capital <= 0:
                         continue
-                    outstanding  = capital * 100
-                    turnover_pct = round(float(vol) / outstanding * 100, 4)
+                    # Fugle tradeVolume 單位：張；outstanding_zhang = 實收資本額(元)/10(面額)/1000
+                    outstanding_zhang = capital / 10_000
+                    if outstanding_zhang <= 0:
+                        continue
+                    turnover_pct = round(float(vol) / outstanding_zhang * 100, 4)
                     if turnover_pct <= 0:
                         continue
                     close   = item.get("closePrice")
@@ -1534,7 +1538,7 @@ def get_turnover_ranking(limit: int = 50) -> list:
                         "change":             round(float(chg), 2) if chg is not None else None,
                         "change_pct":         round(float(chg_pct), 2) if chg_pct is not None else None,
                         "turnover_pct":       turnover_pct,
-                        "trade_volume_zhang": round(int(vol) / 1000),
+                        "trade_volume_zhang": int(vol),
                         "exchange":           label,
                     })
         except Exception as e:
