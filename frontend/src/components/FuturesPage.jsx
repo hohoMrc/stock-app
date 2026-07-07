@@ -13,7 +13,7 @@ const TIMEFRAMES = [
 
 const PRODUCTS = [
   { key: "TXF", label: "台指期" },
-  { key: "MTX", label: "微台" },
+  { key: "TMF", label: "微台" },
 ];
 
 const IDENTITY_LABEL = { foreign: "外資", trust: "投信", dealer: "自營商" };
