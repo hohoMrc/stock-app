@@ -1,15 +1,22 @@
 import sqlite3
+import threading
 import time
 from pathlib import Path
 from datetime import datetime, timedelta
 
 DB_PATH = Path(__file__).parent.parent / "stock_cache.db"
 
+_local = threading.local()
 
-def _conn():
-    c = sqlite3.connect(DB_PATH, check_same_thread=False)
-    c.row_factory = sqlite3.Row
-    return c
+
+def _conn() -> sqlite3.Connection:
+    """每個 thread 重用同一個 SQLite 連線，避免 fd 耗盡。"""
+    conn = getattr(_local, "conn", None)
+    if conn is None:
+        conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        _local.conn = conn
+    return conn
 
 
 def init_db():
