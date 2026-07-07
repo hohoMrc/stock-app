@@ -1151,17 +1151,22 @@ def _detect_ma_pattern(ticker: str) -> dict:
     # ── 分歧 ──────────────────────────────────────────────
     # 近 6 天內 MA5/MA20 曾幾乎黏合（gap < 2%），現在 MA5 已上方且 gap < 10%
     # MA5 不能跌破 MA20 超過 0.5%（否則是死叉 → 應歸類為鳥嘴）
+    # 額外：MA5 最近 3 天必須上升，且 gap 正在擴大（排除 MA5 往下插的假訊號）
     divergence = False
     if 0.005 < cur < 0.10:
-        abs_recent = [abs(g) for g in recent_div]
-        min_gap    = min(abs_recent)
-        min_idx    = abs_recent.index(min_gap)
-        min_actual = recent_div[min_idx]
+        abs_recent  = [abs(g) for g in recent_div]
+        min_gap     = min(abs_recent)
+        min_idx     = abs_recent.index(min_gap)
+        min_actual  = recent_div[min_idx]
+        ma5_rising  = len(ma5) >= 3 and ma5[-1] > ma5[-3]
+        gap_widening = cur > gaps[-3] if len(gaps) >= 3 else True
         if (min_gap < 0.02
                 and 0 < min_idx < WINDOW_DIV - 2
-                and min_actual >= -0.005           # 允許極短暫觸碰但不能真的死叉
+                and min_actual >= -0.005
                 and all(g >= -0.005 for g in recent_div)
-                and cur - min_actual > 0.005):
+                and cur - min_actual > 0.005
+                and ma5_rising
+                and gap_widening):
             divergence = True
 
     return {"bird_beak": bird_beak, "divergence": divergence}
