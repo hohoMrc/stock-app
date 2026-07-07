@@ -1105,9 +1105,9 @@ def _calc_ma(ticker: str, ma_key: str):
 
 def _detect_ma_pattern(ticker: str) -> dict:
     """
-    偵測鳥嘴與分歧型態。
-    - 鳥嘴：MA5 從下方逼近 MA20，gap 縮小中，MA5 上升
-    - 分歧：MA5 在 MA20 上方，兩線曾幾乎重疊但未死亡交叉，現在再度分開
+    偵測 MA 黏合型態（原鳥嘴＋分歧合一）：
+    近 15 天內 MA5/MA20 曾收斂至 3% 以內，且 MA5 目前上升中。
+    MA5 在 MA20 上下 15% 以內均觸發，由使用者人為判斷鳥嘴或分歧。
     """
     symbol = _get_symbol(ticker)
     hist = yf.Ticker(symbol).history(period="3mo")
@@ -1119,7 +1119,6 @@ def _detect_ma_pattern(ticker: str) -> dict:
     ma5_all  = closes.rolling(5).mean().dropna().values
     ma20_all = closes.rolling(20).mean().dropna().values
 
-    # ma5_all[0] 對應 day4，ma20_all[0] 對應 day19
     # 對齊：ma5_all[15:] 與 ma20_all[:] 為同一天
     if len(ma5_all) < 16 or len(ma20_all) < 10:
         return {"bird_beak": False, "divergence": False}
@@ -1133,43 +1132,20 @@ def _detect_ma_pattern(ticker: str) -> dict:
     gaps = (ma5 - ma20) / ma20
     cur  = gaps[-1]
 
-    # 鳥嘴用 10 天窗口；分歧用較短的 6 天確保訊號新鮮
-    WINDOW_BIRD = 10
-    WINDOW_DIV  = 6
-    recent_bird = gaps[-WINDOW_BIRD:]
-    recent_div  = gaps[-WINDOW_DIV:]
+    # ── MA 黏合（鳥嘴＋分歧共同條件）──────────────────────
+    # 1. 近 15 天內 MA5/MA20 gap 曾 < 3%（真的黏合過）
+    # 2. MA5 目前在上升（近 5 天）
+    # 3. 目前 MA5 在 MA20 ±15% 以內（排除已大幅乖離的情況）
+    WINDOW = 15
+    recent = gaps[-WINDOW:]
+    min_abs_gap  = min(abs(g) for g in recent)
+    ma5_rising   = len(ma5) >= 5 and ma5[-1] > ma5[-5]
+    in_range     = -0.15 < cur < 0.15
 
-    # ── 鳥嘴 ──────────────────────────────────────────────
-    # gap 在 -4% ~ +1%（MA5 逼近或剛越過 MA20）
-    # 近 10 天 gap 持續縮小，MA5 上升
-    bird_beak = False
-    if -0.04 <= cur <= 0.01:
-        gap_shrinking = recent_bird[-1] > recent_bird[0]
-        ma5_rising    = ma5[-1] > ma5[-5] if len(ma5) >= 5 else False
-        bird_beak     = gap_shrinking and ma5_rising
+    ma_squeeze = min_abs_gap < 0.03 and ma5_rising and in_range
 
-    # ── 分歧 ──────────────────────────────────────────────
-    # 近 6 天內 MA5/MA20 曾幾乎黏合（gap < 2%），現在 MA5 已上方且 gap < 10%
-    # MA5 不能跌破 MA20 超過 0.5%（否則是死叉 → 應歸類為鳥嘴）
-    # 額外：MA5 最近 3 天必須上升，且 gap 正在擴大（排除 MA5 往下插的假訊號）
-    divergence = False
-    if 0.005 < cur < 0.10:
-        abs_recent  = [abs(g) for g in recent_div]
-        min_gap     = min(abs_recent)
-        min_idx     = abs_recent.index(min_gap)
-        min_actual  = recent_div[min_idx]
-        ma5_rising  = len(ma5) >= 3 and ma5[-1] > ma5[-3]
-        gap_widening = cur > gaps[-3] if len(gaps) >= 3 else True
-        if (min_gap < 0.02
-                and 0 < min_idx < WINDOW_DIV - 2
-                and min_actual >= -0.005
-                and all(g >= -0.005 for g in recent_div)
-                and cur - min_actual > 0.005
-                and ma5_rising
-                and gap_widening):
-            divergence = True
-
-    return {"bird_beak": bird_beak, "divergence": divergence}
+    # 相容舊 pattern key，兩個都回傳同一值讓前端過濾仍可用
+    return {"bird_beak": ma_squeeze, "divergence": ma_squeeze}
 
 
 def _check_technical_signals(ticker: str) -> dict | None:

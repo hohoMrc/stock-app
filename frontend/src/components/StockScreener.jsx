@@ -119,7 +119,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
 
   const hasMA = !!filters.near_ma;
   const hasPattern = !!filters.pattern;
-  const PATTERN_LABEL = { bird_beak: "🐦 鳥嘴", divergence: "↗ 分歧" };
+  const PATTERN_LABEL = { bird_beak: "⚡ MA黏合", divergence: "⚡ MA黏合" };
 
   return (
     <div className="page">
@@ -140,17 +140,9 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
           className="preset-btn preset-btn--pattern"
           onClick={() => handlePattern("bird_beak")}
           disabled={loading}
-          title="MA5 從下方逼近 MA20，即將黃金交叉"
+          title="近 15 天 MA5/MA20 曾黏合，MA5 上升中（含鳥嘴與分歧）"
         >
-          🐦 鳥嘴
-        </button>
-        <button
-          className="preset-btn preset-btn--pattern"
-          onClick={() => handlePattern("divergence")}
-          disabled={loading}
-          title="MA5/MA20 曾幾乎黏合，現再度分開上漲"
-        >
-          ↗ 分歧
+          ⚡ MA黏合
         </button>
       </div>
 
@@ -272,9 +264,8 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
           <label>均線型態</label>
           <div className="pattern-btns">
             {[
-              { value: "",            label: "不篩選" },
-              { value: "bird_beak",   label: "🐦 鳥嘴", desc: "MA5 從下方逼近 MA20，即將黃金交叉" },
-              { value: "divergence",  label: "↗ 分歧",  desc: "MA5/MA20 曾幾乎黏合，現再度分開上漲" },
+              { value: "",           label: "不篩選" },
+              { value: "bird_beak",  label: "⚡ MA黏合", desc: "近 15 天 MA5/MA20 曾黏合，MA5 上升中（含鳥嘴與分歧）" },
             ].map((o) => (
               <button
                 key={o.value}
