@@ -1072,26 +1072,43 @@ def scan_all_weekly_surge(min_weekly_change: float = 20.0,
 
     _load_tw_stock_names()
 
-    def fetch_info(ticker_wchg):
-        ticker, wchg = ticker_wchg
-        try:
-            info = get_stock_info(ticker)
-            if not info.get("price"):
-                return None
-            info["weekly_change_pct"] = wchg
-            if filters and not _passes_basic_filters(info, filters):
-                return None
-            return info
-        except Exception:
-            return None
-
     results = []
-    with ThreadPoolExecutor(max_workers=10) as pool:
-        futures = {pool.submit(fetch_info, c): c for c in candidates}
-        for fut in as_completed(futures):
-            r = fut.result()
-            if r:
-                results.append(r)
+    for ticker, wchg in candidates:
+        try:
+            # 從 DB 取最後兩筆計算漲跌幅
+            recs = get_candles(ticker, from_date, to_date)
+            if not recs:
+                continue
+            last  = recs[-1]
+            prev  = recs[-2] if len(recs) >= 2 else last
+            close = last.get("close")
+            vol   = last.get("volume")  # 股數
+            if not close:
+                continue
+            vol_zhang = round(int(vol) / 1000) if vol else None
+            change_pct = round((close - prev["close"]) / prev["close"] * 100, 2) if prev["close"] else None
+
+            # capital 篩選（從記憶體 dict）
+            capital_raw = _tw_stock_capital.get(ticker)          # 元
+            capital_yi  = round(capital_raw / 1e8, 2) if capital_raw else None
+
+            if min_volume and (vol_zhang is None or vol_zhang < min_volume):
+                continue
+            if min_capital and (capital_yi is None or capital_yi < min_capital):
+                continue
+
+            results.append({
+                "ticker":           ticker,
+                "name":             _tw_stock_names.get(ticker, ""),
+                "price":            round(float(close), 2),
+                "change_pct":       change_pct,
+                "volume_zhang":     vol_zhang,
+                "capital_yi":       capital_yi,
+                "weekly_change_pct": wchg,
+                "exchange":         _tw_stock_exchange.get(ticker, ""),
+            })
+        except Exception:
+            pass
 
     return sorted(results, key=lambda x: x.get("weekly_change_pct", 0), reverse=True)
 
