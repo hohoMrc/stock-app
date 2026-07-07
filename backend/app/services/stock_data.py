@@ -1121,10 +1121,10 @@ def _calc_ma_squeeze(closes_list: list) -> bool:
     ma5, ma20 = ma5[-n:], ma20[-n:]
     gaps = (ma5 - ma20) / ma20
     cur  = gaps[-1]
-    recent      = gaps[-15:]
+    recent      = gaps[-30:]   # 近 30 天（約 6 週）
     min_abs_gap = min(abs(g) for g in recent)
     ma5_rising  = len(ma5) >= 5 and ma5[-1] > ma5[-5]
-    return min_abs_gap < 0.03 and ma5_rising and -0.15 < cur < 0.15
+    return min_abs_gap < 0.05 and ma5_rising and -0.15 < cur < 0.15
 
 
 def _detect_ma_pattern(ticker: str) -> dict:
