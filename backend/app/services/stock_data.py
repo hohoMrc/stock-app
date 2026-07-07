@@ -1142,7 +1142,8 @@ def _calc_ma_squeeze(closes_list: list) -> bool:
     """
     MA 黏合型態（先發散再收斂）：
     1. 目前 MA5 在 MA20 上方，差距 < 3%（正在黏合）
-    2. 近 30 天內曾大幅發散（gap 曾 > 5%），確認有過上漲動能後回落
+    2. 近 15 天內曾大幅發散（gap 曾 > 5%），確認有過上漲動能後回落
+    3. 近 15 天 MA5 從未低於 MA20（全程在上方）
     """
     if len(closes_list) < 40:
         return False
@@ -1152,10 +1153,13 @@ def _calc_ma_squeeze(closes_list: list) -> bool:
     n    = min(len(ma5), len(ma20))
     ma5, ma20 = ma5[-n:], ma20[-n:]
     gaps = (ma5 - ma20) / ma20
-    cur  = gaps[-1]
+    cur     = gaps[-1]
+    recent  = gaps[-15:]
     if not (0 < cur < 0.03):
         return False
-    if max(gaps[-30:]) < 0.05:
+    if max(recent) < 0.05:
+        return False
+    if min(recent) < 0:
         return False
     return True
 
