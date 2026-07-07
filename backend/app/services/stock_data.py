@@ -1140,26 +1140,24 @@ def _calc_ma(ticker: str, ma_key: str):
 
 def _calc_ma_squeeze(closes_list: list) -> bool:
     """
-    純計算：給一串收盤價，判斷是否符合 MA 黏合條件。
-    近 15 天內 MA5/MA20 gap 曾 < 3%，MA5 近 5 天上升，MA5 在 MA20 ±15% 以內。
+    MA 黏合型態（先發散再收斂）：
+    1. 目前 MA5 在 MA20 上方，差距 < 3%（正在黏合）
+    2. 近 30 天內曾大幅發散（gap 曾 > 5%），確認有過上漲動能後回落
     """
-    if len(closes_list) < 25:
+    if len(closes_list) < 40:
         return False
-    closes  = pd.Series(closes_list)
-    ma5_all  = closes.rolling(5).mean().dropna().values
-    ma20_all = closes.rolling(20).mean().dropna().values
-    if len(ma5_all) < 16 or len(ma20_all) < 10:
-        return False
-    ma5  = ma5_all[15:]
-    ma20 = ma20_all
+    closes = pd.Series(closes_list)
+    ma5  = closes.rolling(5).mean().dropna().values
+    ma20 = closes.rolling(20).mean().dropna().values
     n    = min(len(ma5), len(ma20))
     ma5, ma20 = ma5[-n:], ma20[-n:]
     gaps = (ma5 - ma20) / ma20
     cur  = gaps[-1]
-    recent      = gaps[-30:]   # 近 30 天（約 6 週）
-    min_abs_gap = min(abs(g) for g in recent)
-    ma5_rising  = len(ma5) >= 5 and ma5[-1] > ma5[-5]
-    return min_abs_gap < 0.05 and ma5_rising and 0 < cur < 0.03
+    if not (0 < cur < 0.03):
+        return False
+    if max(gaps[-30:]) < 0.05:
+        return False
+    return True
 
 
 def _detect_ma_pattern(ticker: str) -> dict:
