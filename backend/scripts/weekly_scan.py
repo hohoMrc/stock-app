@@ -35,16 +35,16 @@ if __name__ == "__main__":
     print("[週漲幅] 開始掃描...")
     try:
         from app.services.stock_data import scan_all_weekly_surge
-        hits = scan_all_weekly_surge(min_weekly_change=10, min_volume=500, min_capital=2)
+        hits = scan_all_weekly_surge(min_weekly_change=20, min_volume=1000, min_capital=2)
 
         if hits:
             lines = [
                 f"  {s['ticker']} {s.get('name', '')}  週漲 +{s.get('weekly_change_pct', '')}%  {s.get('price', '')}元"
                 for s in hits
             ]
-            msg = f"[週漲幅] 本週找到 {len(hits)} 支（週漲≥10%）\n" + "\n".join(lines)
+            msg = f"[週漲幅] 本週找到 {len(hits)} 支（週漲≥20%、日量≥1000張）\n" + "\n".join(lines)
         else:
-            msg = "[週漲幅] 本週無符合條件的股票（週漲≥10%）"
+            msg = "[週漲幅] 本週無符合條件的股票（週漲≥20%、日量≥1000張）"
 
         print(msg)
         _tg_notify(msg)
