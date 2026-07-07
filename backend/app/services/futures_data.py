@@ -28,7 +28,7 @@ def _current_symbol(product: str = "TXF") -> str:
 
 def _init_sdk():
     global _sdk, _rest_client
-    from fubon_neo.sdk import FubonSDK
+    from fubon_neo.sdk import FubonSDK, Mode
     sdk = FubonSDK()
     sdk.login(
         os.environ["FUBON_ID"],
@@ -36,7 +36,7 @@ def _init_sdk():
         os.environ["FUBON_CERT_PATH"],
         os.environ["FUBON_CERT_PASSWORD"],
     )
-    sdk.init_realtime()
+    sdk.init_realtime(Mode.Normal)
     _sdk         = sdk
     _rest_client = sdk.marketdata.rest_client
 
@@ -149,3 +149,64 @@ def get_institutional_positions() -> list:
             result[d][key] = net
 
     return sorted(result.values(), key=lambda x: x["date"])[-30:]
+
+# ── WebSocket 即時訂閱管理 ───────────────────────────────
+import asyncio
+import json as _json
+
+# symbol → set of asyncio.Queue（每個連線一個 queue）
+_ws_queues: dict[str, set] = {}
+_ws_lock = threading.Lock()
+_ws_futopt = None   # Fubon WS futopt client（全域共用）
+
+
+def _get_ws_futopt():
+    """取得 Fubon WebSocket futopt client，確保已登入並連線。"""
+    global _ws_futopt
+    if _ws_futopt is not None:
+        return _ws_futopt
+    with _lock:
+        if _ws_futopt is not None:
+            return _ws_futopt
+        _get_client()   # 確保 _sdk 已初始化（Mode.Normal）
+        futopt = _sdk.marketdata.websocket_client.futopt
+
+        def _on_message(raw):
+            try:
+                msg = _json.loads(raw) if isinstance(raw, str) else raw
+            except Exception:
+                msg = raw
+            event = msg.get("event") if isinstance(msg, dict) else None
+            if event != "data":
+                return
+            sym  = (msg.get("data") or {}).get("symbol", "")
+            with _ws_lock:
+                queues = _ws_queues.get(sym, set()).copy()
+            for q in queues:
+                try:
+                    loop = q._loop
+                    asyncio.run_coroutine_threadsafe(q.put(msg["data"]), loop)
+                except Exception:
+                    pass
+
+        futopt.on("message", _on_message)
+        futopt.connect()
+        _ws_futopt = futopt
+    return _ws_futopt
+
+
+def add_ws_listener(symbol: str, queue: asyncio.Queue):
+    """前端 WebSocket 連線進來時，把 queue 登記到 symbol 訂閱。"""
+    futopt = _get_ws_futopt()
+    with _ws_lock:
+        if symbol not in _ws_queues:
+            _ws_queues[symbol] = set()
+            # 第一個 listener 才真正訂閱
+            futopt.subscribe({"channel": "trades", "symbol": symbol})
+        _ws_queues[symbol].add(queue)
+
+
+def remove_ws_listener(symbol: str, queue: asyncio.Queue):
+    """前端斷線時移除 queue。"""
+    with _ws_lock:
+        _ws_queues.get(symbol, set()).discard(queue)

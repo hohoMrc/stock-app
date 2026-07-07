@@ -1879,3 +1879,11 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .futures-product-btn { padding: 6px 18px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; font-size: 14px; font-weight: 500; }
 .futures-product-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
 .futures-product-btn:hover:not(.active) { background: var(--card); color: var(--text); }
+
+/* 即時報價閃爍 */
+@keyframes flash-up   { 0%{background:#ef444433} 100%{background:transparent} }
+@keyframes flash-down { 0%{background:#22c55e33} 100%{background:transparent} }
+.flash-up   { animation: flash-up   0.4s ease-out; border-radius: 4px; }
+.flash-down { animation: flash-down 0.4s ease-out; border-radius: 4px; }
+.futures-live-dot { font-size: 10px; color: #22c55e; animation: blink 1.5s infinite; margin-left: 4px; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }

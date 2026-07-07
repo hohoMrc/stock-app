@@ -1,6 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createChart, CandlestickSeries, HistogramSeries } from "lightweight-charts";
 import { getFuturesQuote, getFuturesCandles, getFuturesInstitutional } from "../api";
+
+const WS_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000")
+  .replace(/^http/, "ws");
 
 const TIMEFRAMES = [
   { key: "D",  label: "日K" },
@@ -19,21 +22,25 @@ const PRODUCTS = [
 const IDENTITY_LABEL = { foreign: "外資", trust: "投信", dealer: "自營商" };
 const IDENTITY_COLOR = { foreign: "#38bdf8", trust: "#f59e0b", dealer: "#a78bfa" };
 
-function QuoteHeader({ quote, loading }) {
+function QuoteHeader({ quote, loading, livePrice, priceFlash }) {
   if (loading) return <div className="futures-quote-loading">載入中...</div>;
   if (!quote)  return null;
-  const up = quote.change >= 0;
+  const displayPrice = livePrice ?? quote.price;
+  const change    = quote.prev_close ? Math.round(displayPrice - quote.prev_close) : quote.change;
+  const changePct = quote.prev_close ? Math.round((displayPrice - quote.prev_close) / quote.prev_close * 10000) / 100 : quote.change_pct;
+  const up = change >= 0;
   return (
     <div className="futures-quote">
       <div className="futures-quote-main">
         <span className="futures-symbol">{quote.symbol}</span>
         <span className="futures-name">{quote.name}</span>
-        <span className={`futures-price ${up ? "up" : "down"}`}>
-          {quote.price?.toLocaleString()}
+        <span className={`futures-price ${up ? "up" : "down"} ${priceFlash ? `flash-${priceFlash}` : ""}`}>
+          {displayPrice?.toLocaleString()}
         </span>
         <span className={`futures-change ${up ? "up" : "down"}`}>
-          {up ? "▲" : "▼"} {Math.abs(quote.change)} ({up ? "+" : ""}{quote.change_pct}%)
+          {up ? "▲" : "▼"} {Math.abs(change)} ({up ? "+" : ""}{changePct}%)
         </span>
+        <span className="futures-live-dot" title="即時報價">●</span>
       </div>
       <div className="futures-quote-detail">
         <span>昨收 <b>{quote.prev_close?.toLocaleString()}</b></span>
@@ -179,15 +186,52 @@ export default function FuturesPage() {
   const [institutional, setInstitutional] = useState([]);
   const [quoteLoading,  setQuoteLoading]  = useState(true);
   const [candleLoading, setCandleLoading] = useState(true);
+  const [livePrice,    setLivePrice]    = useState(null);
+  const [priceFlash,   setPriceFlash]   = useState(null); // "up" | "down"
   const [error, setError] = useState(null);
+  const wsRef = useRef(null);
+  const prevPriceRef = useRef(null);
 
+  // 初始報價
   useEffect(() => {
     setQuoteLoading(true);
     setQuote(null);
+    setLivePrice(null);
+    prevPriceRef.current = null;
     getFuturesQuote(product)
-      .then(r => setQuote(r.data))
+      .then(r => { setQuote(r.data); setLivePrice(r.data.price); prevPriceRef.current = r.data.price; })
       .catch(e => setError(e?.response?.data?.detail || e.message))
       .finally(() => setQuoteLoading(false));
+  }, [product]);
+
+  // WebSocket 即時更新
+  useEffect(() => {
+    if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
+    const ws = new WebSocket(`${WS_BASE}/ws/futures?product=${product}`);
+    wsRef.current = ws;
+    ws.onmessage = (e) => {
+      try {
+        const data  = JSON.parse(e.data);
+        const trades = data.trades || [];
+        if (!trades.length) return;
+        const price = trades[trades.length - 1].price;
+        if (!price) return;
+        const prev = prevPriceRef.current;
+        setPriceFlash(prev == null ? null : price >= prev ? "up" : "down");
+        setLivePrice(price);
+        prevPriceRef.current = price;
+        setTimeout(() => setPriceFlash(null), 400);
+        // 同步更新 quote 的 change
+        setQuote(q => q ? {
+          ...q,
+          price,
+          change:     q.prev_close ? Math.round(price - q.prev_close) : q.change,
+          change_pct: q.prev_close ? Math.round((price - q.prev_close) / q.prev_close * 10000) / 100 : q.change_pct,
+        } : q);
+      } catch (_) {}
+    };
+    ws.onerror = () => {};
+    return () => { ws.close(); wsRef.current = null; };
   }, [product]);
 
   useEffect(() => {
@@ -220,7 +264,7 @@ export default function FuturesPage() {
         ))}
       </div>
 
-      <QuoteHeader quote={quote} loading={quoteLoading} />
+      <QuoteHeader quote={quote} loading={quoteLoading} livePrice={livePrice} priceFlash={priceFlash} />
 
       {error && <p className="error">❌ {error}</p>}
 
