@@ -1043,22 +1043,30 @@ def scan_all_weekly_surge(min_weekly_change: float = 20.0,
     # 一次 SQL 取所有股票 50 天 K 線
     all_candles = get_all_candles_in_range(from_date, to_date)
 
+    def _weekly_chg(records):
+        """純 Python 按 ISO 週分組，取最後兩週收盤算漲幅。"""
+        from datetime import datetime as _dt
+        week_close: dict = {}
+        for r in records:
+            c = r.get("close")
+            if not c:
+                continue
+            d = _dt.strptime(r["date"], "%Y-%m-%d")
+            wk = d.isocalendar()[:2]          # (year, week)
+            week_close[wk] = c                 # 每週最後一筆覆蓋
+        if len(week_close) < 2:
+            return None
+        weeks = sorted(week_close)
+        prev, last = week_close[weeks[-2]], week_close[weeks[-1]]
+        return round((last - prev) / prev * 100, 2) if prev else None
+
     weekly_map: dict = {}
     for ticker, records in all_candles.items():
         if not is_regular(ticker) or len(records) < 5:
             continue
-        try:
-            df = pd.DataFrame(records)
-            df["date"] = pd.to_datetime(df["date"])
-            df = df.set_index("date")
-            weekly = df["close"].resample("W-FRI").last().dropna()
-            if len(weekly) < 2:
-                continue
-            chg = (weekly.iloc[-1] - weekly.iloc[-2]) / weekly.iloc[-2] * 100
-            if chg >= min_weekly_change:
-                weekly_map[ticker] = (round(float(chg), 2), records)
-        except Exception:
-            pass
+        chg = _weekly_chg(records)
+        if chg is not None and chg >= min_weekly_change:
+            weekly_map[ticker] = (chg, records)
 
     results = []
     for ticker, (wchg, recs) in sorted(weekly_map.items(), key=lambda x: -x[1][0]):
