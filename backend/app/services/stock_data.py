@@ -967,11 +967,36 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
     return all_records
 
 
+def _get_closes_from_db(ticker: str, min_days: int = 20) -> list | None:
+    """從 DB 取近 100 個自然日的收盤價，不足 min_days 筆則回 None。"""
+    from app.db import get_candles
+    from_date = (date.today() - timedelta(days=100)).strftime("%Y-%m-%d")
+    to_date   = date.today().strftime("%Y-%m-%d")
+    records   = get_candles(ticker, from_date, to_date)
+    if not records:
+        return None
+    closes = [r["close"] for r in records if r["close"] is not None]
+    return closes if len(closes) >= min_days else None
+
+
 def _get_weekly_change(ticker: str):
-    """計算週漲幅：本週收盤 vs 上週五收盤，與週K圖表顯示一致。
-    優先使用 Fugle candles，失敗則退回 yfinance。
-    """
-    # 1) Fugle
+    """計算週漲幅：本週收盤 vs 上週五收盤。優先 DB → Fugle → yfinance。"""
+    # 1) DB
+    closes = _get_closes_from_db(ticker, min_days=10)
+    if closes:
+        from_date = (date.today() - timedelta(days=50)).strftime("%Y-%m-%d")
+        to_date   = date.today().strftime("%Y-%m-%d")
+        from app.db import get_candles
+        records = get_candles(ticker, from_date, to_date)
+        if records:
+            df = pd.DataFrame(records)
+            df["date"] = pd.to_datetime(df["date"])
+            df = df.set_index("date")
+            weekly = df["close"].resample("W-FRI").last().dropna()
+            if len(weekly) >= 2:
+                return round((weekly.iloc[-1] - weekly.iloc[-2]) / weekly.iloc[-2] * 100, 2)
+
+    # 2) Fugle
     to_dt   = date.today()
     from_dt = to_dt - timedelta(days=40)
     candles = _fugle_candles(ticker, from_dt.strftime("%Y-%m-%d"), to_dt.strftime("%Y-%m-%d"))
@@ -983,7 +1008,7 @@ def _get_weekly_change(ticker: str):
         if len(weekly) >= 2:
             return round((weekly.iloc[-1] - weekly.iloc[-2]) / weekly.iloc[-2] * 100, 2)
 
-    # 2) yfinance fallback
+    # 3) yfinance fallback
     try:
         symbol = _get_symbol(ticker)
         hist   = yf.Ticker(symbol).history(period="1mo")
@@ -1081,17 +1106,30 @@ def scan_all_weekly_surge(min_weekly_change: float = 20.0,
 
 
 def _calc_ma(ticker: str, ma_key: str):
-    """計算指定均線，回傳 (目前股價, MA值, 偏離%) 或 None"""
+    """計算指定均線，回傳 (目前股價, MA值, 偏離%) 或 None。優先 DB（MA≤60），MA240 用 yfinance。"""
     cfg = MA_PERIODS[ma_key]
     days = cfg["days"]
     is_ema = cfg.get("ema", False)
+
+    # 1) DB（3個月約63交易日，足夠 MA5/MA20/MA60/EMA60）
+    if days <= 60:
+        closes_list = _get_closes_from_db(ticker, min_days=days)
+        if closes_list:
+            closes = pd.Series(closes_list)
+            if is_ema:
+                ma_value = round(float(closes.ewm(span=days, adjust=False).mean().iloc[-1]), 2)
+            else:
+                ma_value = round(float(closes.values[-days:].mean()), 2)
+            current_price = round(float(closes.values[-1]), 2)
+            deviation_pct = round((current_price - ma_value) / ma_value * 100, 2)
+            return {"price": current_price, "ma": ma_value, "deviation_pct": deviation_pct}
+
+    # 2) yfinance fallback（MA240 或 DB 不足）
     needed_period = "1y" if days <= 60 else "2y"
     symbol = _get_symbol(ticker)
     hist = yf.Ticker(symbol).history(period=needed_period)
-
     if hist.empty or len(hist) < days:
         return None
-
     closes = hist["Close"]
     if is_ema:
         ma_value = round(float(closes.ewm(span=days, adjust=False).mean().iloc[-1]), 2)
@@ -1099,7 +1137,6 @@ def _calc_ma(ticker: str, ma_key: str):
         ma_value = round(float(closes.values[-days:].mean()), 2)
     current_price = round(float(closes.values[-1]), 2)
     deviation_pct = round((current_price - ma_value) / ma_value * 100, 2)
-
     return {"price": current_price, "ma": ma_value, "deviation_pct": deviation_pct}
 
 
@@ -1180,7 +1217,24 @@ def scan_ma_squeeze(limit: int = 200) -> list:
 
 
 def _check_technical_signals(ticker: str) -> dict | None:
-    """計算技術訊號（前日漲幅、MA20方向、收盤與MA5/MA60相對位置）"""
+    """計算技術訊號（前日漲幅、MA20方向、收盤與MA5/MA60相對位置）。優先 DB → yfinance。"""
+    # 1) DB（需 ≥65 筆，約 3 個月）
+    closes_list = _get_closes_from_db(ticker, min_days=65)
+    if closes_list:
+        closes = pd.Series(closes_list)
+        prev_close  = float(closes.iloc[-1])
+        prev2_close = float(closes.iloc[-2])
+        ma5  = closes.rolling(5).mean()
+        ma20 = closes.rolling(20).mean()
+        ma60 = closes.rolling(60).mean()
+        return {
+            "prev_day_change_pct": round((prev_close - prev2_close) / prev2_close * 100, 2),
+            "ma20_rising":         float(ma20.iloc[-1]) > float(ma20.iloc[-2]),
+            "price_above_ma5":     prev_close > float(ma5.iloc[-1]),
+            "price_above_ma60":    prev_close > float(ma60.iloc[-1]),
+        }
+
+    # 2) yfinance fallback
     symbol = _get_symbol(ticker)
     try:
         hist = yf.Ticker(symbol).history(period="1y")
@@ -1188,18 +1242,14 @@ def _check_technical_signals(ticker: str) -> dict | None:
         return None
     if hist.empty or len(hist) < 65:
         return None
-
     closes = hist["Close"]
     prev_close  = float(closes.iloc[-1])
     prev2_close = float(closes.iloc[-2])
-    prev_day_change_pct = round((prev_close - prev2_close) / prev2_close * 100, 2)
-
     ma5  = closes.rolling(5).mean()
     ma20 = closes.rolling(20).mean()
     ma60 = closes.rolling(60).mean()
-
     return {
-        "prev_day_change_pct": prev_day_change_pct,
+        "prev_day_change_pct": round((prev_close - prev2_close) / prev2_close * 100, 2),
         "ma20_rising":         float(ma20.iloc[-1]) > float(ma20.iloc[-2]),
         "price_above_ma5":     prev_close > float(ma5.iloc[-1]),
         "price_above_ma60":    prev_close > float(ma60.iloc[-1]),
