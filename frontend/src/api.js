@@ -17,8 +17,8 @@ export const screenStocks = (filters) => api.post("/api/stocks/screen", filters)
 export const scanWeeklySurge = (params) => api.get("/api/stocks/scan/weekly-surge", { params });
 export const getIndustryStocks = (industry, exclude) =>
   api.get(`/api/stocks/industry/${encodeURIComponent(industry)}`, { params: { exclude } });
-export const getTradeValueRanking = (limit = 50) => api.get("/api/stocks/ranking/trade-value", { params: { limit } });
-export const getTurnoverRanking   = (limit = 50) => api.get("/api/stocks/ranking/turnover",     { params: { limit } });
+export const getTradeValueRanking = (limit = 50, force = false) => api.get("/api/stocks/ranking/trade-value", { params: { limit, force } });
+export const getTurnoverRanking   = (limit = 50, force = false) => api.get("/api/stocks/ranking/turnover",     { params: { limit, force } });
 export const getOrderbook         = (ticker)     => api.get(`/api/stocks/${ticker}/orderbook`);
 export const getTrades            = (ticker, limit = 30) => api.get(`/api/stocks/${ticker}/trades`, { params: { limit } });
 

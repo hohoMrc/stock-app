@@ -57,18 +57,18 @@ async def weekly_surge_scan(
 
 
 @router.get("/ranking/trade-value")
-async def trade_value_ranking(limit: int = Query(default=50, le=100)):
+async def trade_value_ranking(limit: int = Query(default=50, le=100), force: bool = Query(default=False)):
     try:
-        stocks = get_trade_value_ranking(limit)
+        stocks = get_trade_value_ranking(limit, force=force)
         return {"count": len(stocks), "stocks": stocks}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/ranking/turnover")
-async def turnover_ranking(limit: int = Query(default=50, le=100)):
+async def turnover_ranking(limit: int = Query(default=50, le=100), force: bool = Query(default=False)):
     try:
-        stocks = get_turnover_ranking(limit)
+        stocks = get_turnover_ranking(limit, force=force)
         return {"count": len(stocks), "stocks": stocks}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -14,13 +14,13 @@ export default function TradeValueRanking({ onSelect }) {
   const [updatedAt, setUpdatedAt]   = useState({ value: null, turnover: null });
   const loaded = useRef({ value: false, turnover: false });
 
-  const load = async (tab) => {
+  const load = async (tab, force = false) => {
     setLoading((p) => ({ ...p, [tab]: true }));
     setError((p) => ({ ...p, [tab]: null }));
     try {
       const res = tab === "value"
-        ? await getTradeValueRanking(50)
-        : await getTurnoverRanking(50);
+        ? await getTradeValueRanking(50, force)
+        : await getTurnoverRanking(50, force);
       setData((p) => ({ ...p, [tab]: res.data.stocks }));
       setUpdatedAt((p) => ({
         ...p,
@@ -56,7 +56,7 @@ export default function TradeValueRanking({ onSelect }) {
         <h2>排行榜</h2>
         <div className="ranking-meta">
           {time && <span className="ranking-time">更新：{time}</span>}
-          <button className="refresh-btn" onClick={() => load(activeTab)} disabled={isLoading}>
+          <button className="refresh-btn" onClick={() => load(activeTab, true)} disabled={isLoading}>
             {isLoading ? "載入中..." : "↻ 重新整理"}
           </button>
         </div>

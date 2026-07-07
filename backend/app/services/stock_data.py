@@ -1402,13 +1402,14 @@ def _enrich_with_intraday(stocks: list) -> list:
     return merged
 
 
-def get_trade_value_ranking(limit: int = 50) -> list:
+def get_trade_value_ranking(limit: int = 50, force: bool = False) -> list:
     """取得成交值排行（合併上市 + 上櫃）
     優先 Fugle snapshot/actives（盤中即時），退回 TWSE/TPEx 收盤資料。
     """
-    cached = _cache_get(_ranking_cache, "trade_value", RANKING_TTL)
-    if cached is not None:
-        return cached[:limit]
+    if not force:
+        cached = _cache_get(_ranking_cache, "trade_value", RANKING_TTL)
+        if cached is not None:
+            return cached[:limit]
 
     results = []
 
@@ -1495,15 +1496,16 @@ _turnover_cache: dict = {}
 TURNOVER_TTL = 300  # 5 分鐘
 
 
-def get_turnover_ranking(limit: int = 50) -> list:
+def get_turnover_ranking(limit: int = 50, force: bool = False) -> list:
     """取得週轉率排行（成交量 ÷ 在外流通股數）
     優先 Fugle snapshot/actives（盤中即時），退回 TWSE/TPEx 收盤資料。
     Fugle tradeVolume 單位：張(lot)
     在外流通股數(張) = 實收資本額(元) / 面額10元 / 1000股/張
     """
-    cached = _cache_get(_turnover_cache, "turnover", TURNOVER_TTL)
-    if cached is not None:
-        return cached[:limit]
+    if not force:
+        cached = _cache_get(_turnover_cache, "turnover", TURNOVER_TTL)
+        if cached is not None:
+            return cached[:limit]
 
     _load_tw_stock_names()
     results = []
