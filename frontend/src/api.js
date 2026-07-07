@@ -23,9 +23,9 @@ export const getTurnoverRanking   = (limit = 50, force = false) => api.get("/api
 export const getOrderbook         = (ticker)     => api.get(`/api/stocks/${ticker}/orderbook`);
 
 // 台指期
-export const getFuturesQuote         = (symbol)        => api.get("/api/futures/quote",         { params: symbol ? { symbol } : {} });
-export const getFuturesCandles       = (timeframe = "60", symbol) => api.get("/api/futures/candles", { params: { timeframe, ...(symbol ? { symbol } : {}) } });
-export const getFuturesInstitutional = ()               => api.get("/api/futures/institutional");
+export const getFuturesQuote         = (product = "TXF")                  => api.get("/api/futures/quote",         { params: { product } });
+export const getFuturesCandles       = (timeframe = "60", product = "TXF") => api.get("/api/futures/candles",        { params: { timeframe, product } });
+export const getFuturesInstitutional = ()                                   => api.get("/api/futures/institutional");
 export const getTrades            = (ticker, limit = 30) => api.get(`/api/stocks/${ticker}/trades`, { params: { limit } });
 
 // Auth

@@ -11,6 +11,11 @@ const TIMEFRAMES = [
   { key: "1",  label: "1分" },
 ];
 
+const PRODUCTS = [
+  { key: "TXF", label: "台指期" },
+  { key: "MTX", label: "微台" },
+];
+
 const IDENTITY_LABEL = { foreign: "外資", trust: "投信", dealer: "自營商" };
 const IDENTITY_COLOR = { foreign: "#38bdf8", trust: "#f59e0b", dealer: "#a78bfa" };
 
@@ -167,6 +172,7 @@ function InstitutionalChart({ data }) {
 }
 
 export default function FuturesPage() {
+  const [product,      setProduct]      = useState("TXF");
   const [timeframe,    setTimeframe]    = useState("60");
   const [quote,        setQuote]        = useState(null);
   const [candles,      setCandles]      = useState([]);
@@ -177,11 +183,14 @@ export default function FuturesPage() {
 
   useEffect(() => {
     setQuoteLoading(true);
-    getFuturesQuote()
+    setQuote(null);
+    getFuturesQuote(product)
       .then(r => setQuote(r.data))
       .catch(e => setError(e?.response?.data?.detail || e.message))
       .finally(() => setQuoteLoading(false));
+  }, [product]);
 
+  useEffect(() => {
     getFuturesInstitutional()
       .then(r => setInstitutional(r.data.data || []))
       .catch(() => {});
@@ -190,14 +199,27 @@ export default function FuturesPage() {
   useEffect(() => {
     setCandleLoading(true);
     setCandles([]);
-    getFuturesCandles(timeframe)
+    getFuturesCandles(timeframe, product)
       .then(r => setCandles(r.data.data || []))
       .catch(e => setError(e?.response?.data?.detail || e.message))
       .finally(() => setCandleLoading(false));
-  }, [timeframe]);
+  }, [timeframe, product]);
 
   return (
     <div className="page futures-page">
+      {/* 商品切換 */}
+      <div className="futures-product-bar">
+        {PRODUCTS.map(p => (
+          <button
+            key={p.key}
+            className={`futures-product-btn ${product === p.key ? "active" : ""}`}
+            onClick={() => setProduct(p.key)}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
       <QuoteHeader quote={quote} loading={quoteLoading} />
 
       {error && <p className="error">❌ {error}</p>}

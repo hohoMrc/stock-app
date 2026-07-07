@@ -12,17 +12,18 @@ _lock        = threading.Lock()
 MONTH_CODES = "ABCDEFGHIJKL"
 
 
-def _current_txf_symbol() -> str:
+def _current_symbol(product: str = "TXF") -> str:
+    """自動產生當前近月合約代號，product 可為 TXF 或 MTX。"""
     today = date.today()
     year, month = today.year, today.month
     cal       = calendar.monthcalendar(year, month)
     weds      = [w[2] for w in cal if w[2] != 0]
     third_wed = weds[2] if len(weds) >= 3 else weds[-1]
-    if today > date(year, month, third_wed):   # 結算日後切換下月
+    if today > date(year, month, third_wed):
         month += 1
         if month > 12:
             month, year = 1, year + 1
-    return f"TXF{MONTH_CODES[month - 1]}{year % 10}"
+    return f"{product}{MONTH_CODES[month - 1]}{year % 10}"
 
 
 def _init_sdk():
@@ -50,7 +51,7 @@ def _get_client():
 
 
 def get_futures_quote(symbol: str | None = None) -> dict:
-    symbol = symbol or _current_txf_symbol()
+    symbol = symbol or _current_symbol()
     data   = _get_client().futopt.intraday.quote(symbol=symbol)
     price  = data.get("closePrice") or (data.get("lastTrade") or {}).get("price")
     prev   = data.get("previousClose")
@@ -71,7 +72,7 @@ def get_futures_quote(symbol: str | None = None) -> dict:
 
 
 def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> list:
-    symbol = symbol or _current_txf_symbol()
+    symbol = symbol or _current_symbol()
 
     if timeframe == "D":
         import yfinance as yf
