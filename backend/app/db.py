@@ -184,6 +184,21 @@ def get_industry_stocks_with_price(industry: str, exclude_ticker: str | None = N
 
 # ── candles ─────────────────────────────────────────────
 
+def get_all_candles_in_range(from_date: str, to_date: str) -> dict[str, list[dict]]:
+    """一次取出所有 ticker 在日期範圍內的 K 線，回傳 {ticker: [candle,...]}。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker, date, close, volume FROM candles "
+            "WHERE date>=? AND date<=? ORDER BY ticker, date",
+            (from_date, to_date)
+        ).fetchall()
+    result: dict[str, list] = {}
+    for r in rows:
+        d = dict(r)
+        result.setdefault(d["ticker"], []).append(d)
+    return result
+
+
 def get_candles(ticker: str, from_date: str, to_date: str) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(

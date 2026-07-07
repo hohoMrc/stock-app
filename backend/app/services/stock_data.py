@@ -1030,7 +1030,7 @@ def scan_all_weekly_surge(min_weekly_change: float = 20.0,
     Step 1: 從 DB 取近 50 天 K 線，計算週漲幅。
     Step 2: 符合門檻者再從 DB 取 volume/capital 篩選，Fugle 補即時股價。
     """
-    from app.db import get_all_db_tickers_with_meta, get_candles
+    from app.db import get_all_candles_in_range
 
     def is_regular(code: str) -> bool:
         return code.isdigit() and 4 <= len(code) <= 5
@@ -1038,15 +1038,14 @@ def scan_all_weekly_surge(min_weekly_change: float = 20.0,
     from_date = (date.today() - timedelta(days=50)).strftime("%Y-%m-%d")
     to_date   = date.today().strftime("%Y-%m-%d")
 
-    all_tickers = get_all_db_tickers_with_meta()
-    weekly_map: dict = {}
+    _load_tw_stock_names()
 
-    for row in all_tickers:
-        ticker = row["ticker"]
-        if not is_regular(ticker):
-            continue
-        records = get_candles(ticker, from_date, to_date)
-        if not records or len(records) < 5:
+    # 一次 SQL 取所有股票 50 天 K 線
+    all_candles = get_all_candles_in_range(from_date, to_date)
+
+    weekly_map: dict = {}
+    for ticker, records in all_candles.items():
+        if not is_regular(ticker) or len(records) < 5:
             continue
         try:
             df = pd.DataFrame(records)
@@ -1057,39 +1056,22 @@ def scan_all_weekly_surge(min_weekly_change: float = 20.0,
                 continue
             chg = (weekly.iloc[-1] - weekly.iloc[-2]) / weekly.iloc[-2] * 100
             if chg >= min_weekly_change:
-                weekly_map[ticker] = round(float(chg), 2)
+                weekly_map[ticker] = (round(float(chg), 2), records)
         except Exception:
             pass
 
-    # Step 2：符合週漲幅門檻 → 再用 DB 最新 K 線做 volume/capital 篩選
-    filters = {}
-    if min_volume:
-        filters["min_volume"] = min_volume
-    if min_capital:
-        filters["min_capital"] = min_capital
-
-    candidates = sorted(weekly_map.items(), key=lambda x: -x[1])
-
-    _load_tw_stock_names()
-
     results = []
-    for ticker, wchg in candidates:
+    for ticker, (wchg, recs) in sorted(weekly_map.items(), key=lambda x: -x[1][0]):
         try:
-            # 從 DB 取最後兩筆計算漲跌幅
-            recs = get_candles(ticker, from_date, to_date)
-            if not recs:
-                continue
             last  = recs[-1]
             prev  = recs[-2] if len(recs) >= 2 else last
             close = last.get("close")
-            vol   = last.get("volume")  # 股數
+            vol   = last.get("volume")
             if not close:
                 continue
-            vol_zhang = round(int(vol) / 1000) if vol else None
+            vol_zhang  = round(int(vol) / 1000) if vol else None
             change_pct = round((close - prev["close"]) / prev["close"] * 100, 2) if prev["close"] else None
-
-            # capital 篩選（從記憶體 dict）
-            capital_raw = _tw_stock_capital.get(ticker)          # 元
+            capital_raw = _tw_stock_capital.get(ticker)
             capital_yi  = round(capital_raw / 1e8, 2) if capital_raw else None
 
             if min_volume and (vol_zhang is None or vol_zhang < min_volume):
@@ -1098,14 +1080,14 @@ def scan_all_weekly_surge(min_weekly_change: float = 20.0,
                 continue
 
             results.append({
-                "ticker":           ticker,
-                "name":             _tw_stock_names.get(ticker, ""),
-                "price":            round(float(close), 2),
-                "change_pct":       change_pct,
-                "volume_zhang":     vol_zhang,
-                "capital_yi":       capital_yi,
+                "ticker":            ticker,
+                "name":              _tw_stock_names.get(ticker, ""),
+                "price":             round(float(close), 2),
+                "change_pct":        change_pct,
+                "volume_zhang":      vol_zhang,
+                "capital_yi":        capital_yi,
                 "weekly_change_pct": wchg,
-                "exchange":         _tw_stock_exchange.get(ticker, ""),
+                "exchange":          _tw_stock_exchange.get(ticker, ""),
             })
         except Exception:
             pass
