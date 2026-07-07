@@ -101,7 +101,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
     try {
       const tickers = f.custom_tickers
         ? f.custom_tickers.split(/[,\s]+/).filter(Boolean)
-        : DEFAULT_TICKERS;
+        : [];
 
       const n = (v) => v ? parseFloat(v) : null;
       const payload = {

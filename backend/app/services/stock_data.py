@@ -1256,17 +1256,60 @@ def _check_technical_signals(ticker: str) -> dict | None:
     }
 
 
+def _get_info_from_db(ticker: str) -> dict | None:
+    """從 DB candles + meta 取得基本資訊，不打外部 API。
+    price/volume 用最後一筆收盤，capital 用 _tw_stock_capital。
+    """
+    from app.db import get_candles, get_all_db_tickers_with_meta
+    from datetime import date, timedelta
+    _load_tw_stock_names()
+    from_date = (date.today() - timedelta(days=10)).strftime("%Y-%m-%d")
+    to_date   = date.today().strftime("%Y-%m-%d")
+    rows = get_candles(ticker, from_date, to_date)
+    if not rows:
+        return None
+    last = rows[-1]
+    price = last.get("close")
+    if not price:
+        return None
+    volume_raw   = last.get("volume") or 0       # 股數
+    volume_zhang = round(volume_raw / 1000)
+    capital_raw  = _tw_stock_capital.get(ticker)  # NT$元
+    capital_yi   = round(capital_raw / 1e8, 2) if capital_raw else None
+    name     = _tw_stock_names.get(ticker, ticker)
+    exchange = _tw_stock_exchange.get(ticker, "TW")
+    return {
+        "ticker":      ticker,
+        "name":        name,
+        "price":       round(float(price), 2),
+        "volume_zhang": volume_zhang,
+        "capital_yi":  capital_yi,
+        "exchange":    exchange,
+        "pe_ratio":    None,
+        "dividend_yield": None,
+        "market_cap_yi":  None,
+    }
+
+
 def screen_stocks(tickers: list, filters: dict) -> list:
-    """根據條件篩選股票"""
+    """根據條件篩選股票。tickers 為空時掃全部 DB 股票（使用 DB 資料，不打外部 API）。"""
+    from app.db import get_all_db_tickers_with_meta
     near_ma         = filters.get("near_ma")
     near_ma_pct     = filters.get("near_ma_pct", 3.0)
     pattern         = filters.get("pattern")
     min_weekly_chg  = filters.get("min_weekly_change")
 
+    use_db = not tickers
+    if use_db:
+        meta_list = get_all_db_tickers_with_meta()
+        tickers   = [m["ticker"] for m in meta_list]
+
     results = []
     for ticker in tickers:
         try:
-            info = get_stock_info(ticker)
+            info = _get_info_from_db(ticker) if use_db else get_stock_info(ticker)
+            if info is None:
+                continue
             if not _passes_basic_filters(info, filters):
                 continue
 
