@@ -12,6 +12,21 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "../.env"))
 
+import urllib.request, urllib.parse, json as _json
+
+def _tg_notify(text: str):
+    token   = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        return
+    try:
+        payload = urllib.parse.urlencode({"chat_id": chat_id, "text": text}).encode()
+        urllib.request.urlopen(
+            f"https://api.telegram.org/bot{token}/sendMessage", payload, timeout=10
+        )
+    except Exception as e:
+        print(f"[TG] 通知失敗: {e}")
+
 from app.db import init_db, save_candles, bulk_save_stock_meta, _conn
 from app.services.stock_data import (
     _fugle_candles, _load_tw_stock_names,
@@ -98,4 +113,6 @@ if __name__ == "__main__":
             print(f"  進度 {i}/{len(tickers)}，成功 {ok}，無資料 {skip}，失敗 {fail}")
         time.sleep(delay)
 
-    print(f"[daily_update] 完成：成功 {ok}，無資料 {skip}，失敗 {fail}")
+    msg = f"[股票更新] {'全量回填' if FULL_MODE else '每日更新'} 完成\n✅ 成功 {ok} 支 / ⏭ 無資料 {skip} / ❌ 失敗 {fail}"
+    print(msg)
+    _tg_notify(msg)
