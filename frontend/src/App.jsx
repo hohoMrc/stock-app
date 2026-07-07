@@ -9,6 +9,7 @@ import WatchNoteModal from "./components/WatchNoteModal";
 import TradeValueRanking from "./components/TradeValueRanking";
 import TradingTerminal from "./components/TradingTerminal";
 import AdminPage from "./components/AdminPage";
+import FuturesPage from "./components/FuturesPage";
 import { fetchWatchlist, addWatch, removeWatch, updateWatchNote } from "./api";
 
 const ADMIN_USERNAME = "hoholin";
@@ -165,6 +166,12 @@ export default function App() {
             看盤
           </button>
           <button
+            className={activePage === "futures" ? "active" : ""}
+            onClick={() => setActivePage("futures")}
+          >
+            台指期
+          </button>
+          <button
             className={activePage === "ranking" ? "active" : ""}
             onClick={() => setActivePage("ranking")}
           >
@@ -231,6 +238,10 @@ export default function App() {
               className={activePage === "ranking" ? "active" : ""}
               onClick={() => setActivePage("ranking")}
             >成交值排行</button>
+            <button
+              className={activePage === "futures" ? "active" : ""}
+              onClick={() => setActivePage("futures")}
+            >台指期</button>
             {username === ADMIN_USERNAME && (
               <button
                 className={activePage === "admin" ? "active" : ""}
@@ -286,6 +297,7 @@ export default function App() {
         {activePage === "terminal" && (
           <TradingTerminal watchlist={watchlist} onToggleWatch={toggleWatch} />
         )}
+        {activePage === "futures" && <FuturesPage />}
         {activePage === "admin" && username === ADMIN_USERNAME && (
           <AdminPage />
         )}

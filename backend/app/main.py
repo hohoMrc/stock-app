@@ -7,6 +7,7 @@ from app.routers import stocks
 from app.routers.auth import router as auth_router
 from app.routers.watchlist import router as watchlist_router
 from app.routers.admin import router as admin_router
+from app.routers.futures import router as futures_router
 
 load_dotenv()
 
@@ -36,6 +37,7 @@ app.include_router(stocks.router)
 app.include_router(auth_router)
 app.include_router(watchlist_router)
 app.include_router(admin_router)
+app.include_router(futures_router)
 
 
 @app.get("/")

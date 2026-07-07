@@ -1828,3 +1828,49 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   .ob-col { border-right: none; }
   .ob-ask-col { border-bottom: 1px solid var(--border); }
 }
+
+/* ── 台指期 ─────────────────────────────────── */
+.futures-page { padding: 16px; max-width: 1000px; margin: 0 auto; }
+
+.futures-quote { background: var(--card); border-radius: 10px; padding: 16px 20px; margin-bottom: 16px; }
+.futures-quote-main { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.futures-symbol { font-size: 13px; color: var(--text-muted); }
+.futures-name   { font-size: 13px; color: var(--text-muted); }
+.futures-price  { font-size: 32px; font-weight: 700; }
+.futures-change { font-size: 16px; font-weight: 600; }
+.futures-price.up, .futures-change.up { color: #ef4444; }
+.futures-price.down, .futures-change.down { color: #22c55e; }
+.futures-quote-detail { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--text-muted); }
+.futures-quote-detail b { color: var(--text); }
+.futures-quote-detail b.up   { color: #ef4444; }
+.futures-quote-detail b.down { color: #22c55e; }
+.futures-quote-loading { padding: 16px; color: var(--text-muted); }
+
+.futures-tf-bar { display: flex; gap: 6px; margin-bottom: 10px; }
+.futures-tf-btn { padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; font-size: 13px; }
+.futures-tf-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.futures-tf-btn:hover:not(.active) { background: var(--card); color: var(--text); }
+
+.futures-chart { width: 100%; border-radius: 8px; overflow: hidden; background: #1a1a2e; }
+.futures-chart-loading { height: 380px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); background: var(--card); border-radius: 8px; }
+
+/* 三大法人 */
+.futures-institutional { margin-top: 24px; background: var(--card); border-radius: 10px; padding: 16px 20px; }
+.futures-section-title { font-size: 14px; font-weight: 600; margin-bottom: 14px; color: var(--text); }
+.futures-inst-empty { color: var(--text-muted); font-size: 13px; margin-top: 16px; }
+
+.inst-today { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 16px; }
+.inst-date  { font-size: 12px; color: var(--text-muted); }
+.inst-card  { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 80px; }
+.inst-label { font-size: 12px; font-weight: 600; }
+.inst-value { font-size: 18px; font-weight: 700; }
+.inst-value.up   { color: #ef4444; }
+.inst-value.down { color: #22c55e; }
+
+.inst-bars { display: flex; flex-direction: column; gap: 4px; }
+.inst-bar-row  { display: flex; align-items: center; gap: 6px; }
+.inst-bar-date { font-size: 11px; color: var(--text-muted); width: 36px; flex-shrink: 0; }
+.inst-bar-wrap { flex: 1; height: 8px; background: #2a2a3e; border-radius: 4px; overflow: hidden; }
+.inst-bar      { height: 100%; border-radius: 4px; opacity: 0.8; transition: width 0.3s; }
+
+.inst-legend { display: flex; gap: 16px; margin-top: 10px; font-size: 12px; }
