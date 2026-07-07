@@ -116,3 +116,19 @@ if __name__ == "__main__":
     msg = f"[股票更新] {'全量回填' if FULL_MODE else '每日更新'} 完成\n✅ 成功 {ok} 支 / ⏭ 無資料 {skip} / ❌ 失敗 {fail}"
     print(msg)
     _tg_notify(msg)
+
+    # 全量模式不跑 MA 黏合（資料剛回填，不具參考性）
+    if not FULL_MODE:
+        print("[MA黏合] 開始掃描...")
+        try:
+            from app.services.stock_data import scan_ma_squeeze
+            hits = scan_ma_squeeze(500)
+            if hits:
+                lines = [f"  {s['ticker']} {s.get('name', '')}  {s.get('price', '')}元" for s in hits]
+                squeeze_msg = f"[MA黏合] 今日找到 {len(hits)} 支\n" + "\n".join(lines)
+            else:
+                squeeze_msg = "[MA黏合] 今日無符合條件的股票"
+            print(squeeze_msg)
+            _tg_notify(squeeze_msg)
+        except Exception as e:
+            print(f"[MA黏合] 掃描失敗: {e}")
