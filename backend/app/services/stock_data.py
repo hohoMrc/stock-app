@@ -1026,53 +1026,42 @@ def scan_all_weekly_surge(min_weekly_change: float = 20.0,
                           min_volume: float = None,
                           min_capital: float = None) -> list:
     """
-    全市場批次掃描週漲幅。
-    Step 1: yf.download 批次抓 1 個月收盤，計算週漲幅（批次快速）。
-    Step 2: 符合週漲幅門檻的股票，並行抓詳細資訊做 volume/capital 篩選。
+    全市場批次掃描週漲幅，全部從 DB 讀取（收盤後使用）。
+    Step 1: 從 DB 取近 50 天 K 線，計算週漲幅。
+    Step 2: 符合門檻者再從 DB 取 volume/capital 篩選，Fugle 補即時股價。
     """
-    _load_tw_stock_names()
+    from app.db import get_all_db_tickers_with_meta, get_candles
 
-    # 只保留 4~5 位純數字代號（排除權證、ETF 等）
     def is_regular(code: str) -> bool:
         return code.isdigit() and 4 <= len(code) <= 5
 
-    groups = {"TW": [], "TWO": []}
-    for ticker, ex in _tw_stock_exchange.items():
-        if is_regular(ticker):
-            groups[ex].append(ticker)
+    from_date = (date.today() - timedelta(days=50)).strftime("%Y-%m-%d")
+    to_date   = date.today().strftime("%Y-%m-%d")
 
+    all_tickers = get_all_db_tickers_with_meta()
     weekly_map: dict = {}
-    BATCH = 200
 
-    for suffix, tickers in [(".TW", groups["TW"]), (".TWO", groups["TWO"])]:
-        for i in range(0, len(tickers), BATCH):
-            batch = tickers[i:i + BATCH]
-            syms = [f"{t}{suffix}" for t in batch]
-            try:
-                raw = yf.download(
-                    syms, period="1mo",
-                    group_by="ticker", auto_adjust=True,
-                    progress=False, threads=True
-                )
-                if raw.empty:
-                    continue
-                single = len(syms) == 1
-                for ticker, sym in zip(batch, syms):
-                    try:
-                        col = raw["Close"] if single else raw[sym]["Close"]
-                        weekly = col.resample("W-FRI").last().dropna()
-                        if len(weekly) < 2:
-                            continue
-                        chg = (weekly.iloc[-1] - weekly.iloc[-2]) / weekly.iloc[-2] * 100
-                        if chg >= min_weekly_change:
-                            weekly_map[ticker] = round(float(chg), 2)
-                            _symbol_cache[ticker] = sym
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+    for row in all_tickers:
+        ticker = row["ticker"]
+        if not is_regular(ticker):
+            continue
+        records = get_candles(ticker, from_date, to_date)
+        if not records or len(records) < 5:
+            continue
+        try:
+            df = pd.DataFrame(records)
+            df["date"] = pd.to_datetime(df["date"])
+            df = df.set_index("date")
+            weekly = df["close"].resample("W-FRI").last().dropna()
+            if len(weekly) < 2:
+                continue
+            chg = (weekly.iloc[-1] - weekly.iloc[-2]) / weekly.iloc[-2] * 100
+            if chg >= min_weekly_change:
+                weekly_map[ticker] = round(float(chg), 2)
+        except Exception:
+            pass
 
-    # Step 2：並行抓個股詳細資訊
+    # Step 2：符合週漲幅門檻 → 再用 DB 最新 K 線做 volume/capital 篩選
     filters = {}
     if min_volume:
         filters["min_volume"] = min_volume
@@ -1080,6 +1069,8 @@ def scan_all_weekly_surge(min_weekly_change: float = 20.0,
         filters["min_capital"] = min_capital
 
     candidates = sorted(weekly_map.items(), key=lambda x: -x[1])
+
+    _load_tw_stock_names()
 
     def fetch_info(ticker_wchg):
         ticker, wchg = ticker_wchg
