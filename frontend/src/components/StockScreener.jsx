@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { screenStocks, scanWeeklySurge } from "../api";
+import { screenStocks, scanWeeklySurge, scanMaSqueeze } from "../api";
 
 const DEFAULT_TICKERS = [
   // 半導體
@@ -69,10 +69,26 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
     }
   };
 
-  const handlePattern = (pattern) => {
-    // 型態篩選：清除其他條件，保留自訂股票清單
+  const handlePattern = async (pattern) => {
     const newFilters = { ...EMPTY_FILTERS, pattern, custom_tickers: filters.custom_tickers };
     setFilters(newFilters);
+    // MA黏合：直接掃全市場 DB，不透過 screenStocks
+    if (pattern === "bird_beak" && !newFilters.custom_tickers) {
+      setLoading(true);
+      setError(null);
+      setResults([]);
+      try {
+        const res = await scanMaSqueeze(200);
+        setResults(res.data.stocks);
+        setSearched(true);
+      } catch (e) {
+        setError(e?.response?.data?.detail || e.message || "掃描失敗");
+        setSearched(true);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     runScreen(newFilters);
   };
 

@@ -1103,49 +1103,80 @@ def _calc_ma(ticker: str, ma_key: str):
     return {"price": current_price, "ma": ma_value, "deviation_pct": deviation_pct}
 
 
-def _detect_ma_pattern(ticker: str) -> dict:
+def _calc_ma_squeeze(closes_list: list) -> bool:
     """
-    偵測 MA 黏合型態（原鳥嘴＋分歧合一）：
-    近 15 天內 MA5/MA20 曾收斂至 3% 以內，且 MA5 目前上升中。
-    MA5 在 MA20 上下 15% 以內均觸發，由使用者人為判斷鳥嘴或分歧。
+    純計算：給一串收盤價，判斷是否符合 MA 黏合條件。
+    近 15 天內 MA5/MA20 gap 曾 < 3%，MA5 近 5 天上升，MA5 在 MA20 ±15% 以內。
     """
-    symbol = _get_symbol(ticker)
-    hist = yf.Ticker(symbol).history(period="3mo")
-
-    if hist.empty or len(hist) < 25:
-        return {"bird_beak": False, "divergence": False}
-
-    closes = pd.Series(hist["Close"].values)
+    if len(closes_list) < 25:
+        return False
+    closes  = pd.Series(closes_list)
     ma5_all  = closes.rolling(5).mean().dropna().values
     ma20_all = closes.rolling(20).mean().dropna().values
-
-    # 對齊：ma5_all[15:] 與 ma20_all[:] 為同一天
     if len(ma5_all) < 16 or len(ma20_all) < 10:
-        return {"bird_beak": False, "divergence": False}
-
+        return False
     ma5  = ma5_all[15:]
     ma20 = ma20_all
-    n = min(len(ma5), len(ma20))
+    n    = min(len(ma5), len(ma20))
     ma5, ma20 = ma5[-n:], ma20[-n:]
-
-    # gap 比例（正 = MA5 在 MA20 上方）
     gaps = (ma5 - ma20) / ma20
     cur  = gaps[-1]
+    recent      = gaps[-15:]
+    min_abs_gap = min(abs(g) for g in recent)
+    ma5_rising  = len(ma5) >= 5 and ma5[-1] > ma5[-5]
+    return min_abs_gap < 0.03 and ma5_rising and -0.15 < cur < 0.15
 
-    # ── MA 黏合（鳥嘴＋分歧共同條件）──────────────────────
-    # 1. 近 15 天內 MA5/MA20 gap 曾 < 3%（真的黏合過）
-    # 2. MA5 目前在上升（近 5 天）
-    # 3. 目前 MA5 在 MA20 ±15% 以內（排除已大幅乖離的情況）
-    WINDOW = 15
-    recent = gaps[-WINDOW:]
-    min_abs_gap  = min(abs(g) for g in recent)
-    ma5_rising   = len(ma5) >= 5 and ma5[-1] > ma5[-5]
-    in_range     = -0.15 < cur < 0.15
 
-    ma_squeeze = min_abs_gap < 0.03 and ma5_rising and in_range
+def _detect_ma_pattern(ticker: str) -> dict:
+    """偵測 MA 黏合型態（從 DB 優先，fallback yfinance）。"""
+    from app.db import get_candles
+    from datetime import date, timedelta
+    from_date = (date.today() - timedelta(days=100)).strftime("%Y-%m-%d")
+    to_date   = date.today().strftime("%Y-%m-%d")
+    records   = get_candles(ticker, from_date, to_date)
+    if records:
+        closes_list = [r["close"] for r in records if r["close"] is not None]
+    else:
+        # fallback yfinance
+        hist = yf.Ticker(_get_symbol(ticker)).history(period="3mo")
+        closes_list = list(hist["Close"].values) if not hist.empty else []
+    result = _calc_ma_squeeze(closes_list)
+    return {"bird_beak": result, "divergence": result}
 
-    # 相容舊 pattern key，兩個都回傳同一值讓前端過濾仍可用
-    return {"bird_beak": ma_squeeze, "divergence": ma_squeeze}
+
+def scan_ma_squeeze(limit: int = 200) -> list:
+    """掃全市場（DB 內所有有 K 線的股票），回傳符合 MA 黏合條件的股票清單。"""
+    from app.db import get_all_db_tickers_with_meta, get_candles
+    from datetime import date, timedelta
+    from_date = (date.today() - timedelta(days=100)).strftime("%Y-%m-%d")
+    to_date   = date.today().strftime("%Y-%m-%d")
+
+    all_tickers = get_all_db_tickers_with_meta()
+    results = []
+    for row in all_tickers:
+        ticker = row["ticker"]
+        records = get_candles(ticker, from_date, to_date)
+        if not records:
+            continue
+        closes_list = [r["close"] for r in records if r["close"] is not None]
+        if not _calc_ma_squeeze(closes_list):
+            continue
+        last = records[-1]
+        prev = records[-2] if len(records) >= 2 else last
+        close = last.get("close")
+        prev_close = prev.get("close")
+        change_pct = round((close - prev_close) / prev_close * 100, 2) if prev_close else None
+        results.append({
+            "ticker":      ticker,
+            "name":        row.get("name") or "",
+            "exchange":    row.get("exchange") or "",
+            "close":       round(float(close), 2) if close else None,
+            "change_pct":  change_pct,
+            "pattern":     "bird_beak",
+        })
+        if len(results) >= limit:
+            break
+    return results
 
 
 def _check_technical_signals(ticker: str) -> dict | None:

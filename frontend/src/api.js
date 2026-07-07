@@ -15,6 +15,7 @@ export const getHistory = (ticker, period = "3mo", interval = "1d") => api.get(`
 export const analyzeStock = (ticker) => api.get(`/api/stocks/${ticker}/analyze`);
 export const screenStocks = (filters) => api.post("/api/stocks/screen", filters);
 export const scanWeeklySurge = (params) => api.get("/api/stocks/scan/weekly-surge", { params });
+export const scanMaSqueeze   = (limit = 200) => api.get("/api/stocks/scan/ma-squeeze", { params: { limit } });
 export const getIndustryStocks = (industry, exclude) =>
   api.get(`/api/stocks/industry/${encodeURIComponent(industry)}`, { params: { exclude } });
 export const getTradeValueRanking = (limit = 50, force = false) => api.get("/api/stocks/ranking/trade-value", { params: { limit, force } });

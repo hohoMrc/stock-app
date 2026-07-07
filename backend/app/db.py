@@ -127,6 +127,27 @@ def _get_parent_from_industry(industry: str) -> str | None:
     return row["parent_industry"] if row else None
 
 
+def get_all_db_tickers() -> list[str]:
+    """回傳 stock_meta 中所有有 K 線資料的 ticker。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT ticker FROM candles ORDER BY ticker"
+        ).fetchall()
+    return [r["ticker"] for r in rows]
+
+
+def get_all_db_tickers_with_meta() -> list[dict]:
+    """回傳所有有 K 線的 ticker 及其 name、exchange。"""
+    with _conn() as conn:
+        rows = conn.execute("""
+            SELECT c.ticker, m.name, m.exchange
+            FROM (SELECT DISTINCT ticker FROM candles) c
+            LEFT JOIN stock_meta m ON c.ticker = m.ticker
+            ORDER BY c.ticker
+        """).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_tickers_by_industry(industry: str, exclude_ticker: str | None = None) -> list[str]:
     with _conn() as conn:
         rows = conn.execute(
