@@ -355,6 +355,30 @@ export default function FuturesPage() {
       .finally(() => setQuoteLoading(false));
   }, [product]);
 
+  // REST 輪詢報價（WebSocket 不穩定時的保底，每 5 秒）
+  useEffect(() => {
+    if (!isFuturesTradingHours()) return;
+    const timer = setInterval(() => {
+      getFuturesQuote(product).then(r => {
+        const p = r.data?.price;
+        if (!p) return;
+        const prev = prevPriceRef.current;
+        if (p !== prev) {
+          setPriceFlash(prev == null ? null : p >= prev ? "up" : "down");
+          setLivePrice(p);
+          prevPriceRef.current = p;
+          setTimeout(() => setPriceFlash(null), 400);
+          chartRef.current?.updateLastCandle(p);
+          setQuote(q => q ? { ...q, price: p,
+            change:     q.prev_close ? Math.round(p - q.prev_close) : q.change,
+            change_pct: q.prev_close ? Math.round((p - q.prev_close) / q.prev_close * 10000) / 100 : q.change_pct,
+          } : q);
+        }
+      }).catch(() => {});
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [product]);
+
   // WebSocket 即時更新（wsKey 遞增觸發重連）
   useEffect(() => {
     if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }

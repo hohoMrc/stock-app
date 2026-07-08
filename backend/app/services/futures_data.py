@@ -167,6 +167,14 @@ _ws_lock = threading.Lock()
 _ws_futopt = None   # Fubon WS futopt client（全域共用）
 
 
+def _reset_ws_futopt():
+    """Fubon WS 斷線時重置，讓下次呼叫重新建立連線。"""
+    global _ws_futopt
+    with _lock:
+        _ws_futopt = None
+    print("[Fubon WS] 連線已重置，等待下次請求重新建立")
+
+
 def _get_ws_futopt():
     """取得 Fubon WebSocket futopt client，確保已登入並連線。"""
     global _ws_futopt
@@ -196,7 +204,17 @@ def _get_ws_futopt():
                 except Exception:
                     pass
 
+        def _on_disconnect(msg=None):
+            print(f"[Fubon WS] 斷線: {msg}")
+            _reset_ws_futopt()
+
         futopt.on("message", _on_message)
+        # 有些版本提供 disconnect / error / close 事件
+        for evt in ("disconnect", "error", "close"):
+            try:
+                futopt.on(evt, _on_disconnect)
+            except Exception:
+                pass
         futopt.connect()
         _ws_futopt = futopt
     return _ws_futopt
