@@ -76,7 +76,8 @@ def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> lis
 
     if timeframe == "D":
         import yfinance as yf
-        hist = yf.Ticker("TXF=F").history(period="6mo", interval="1d")
+        # 用加權指數（^TWII）做日K，走勢與台指期高度一致
+        hist = yf.Ticker("^TWII").history(period="6mo", interval="1d")
         if hist.empty:
             return []
         result = []

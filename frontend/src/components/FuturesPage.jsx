@@ -282,7 +282,9 @@ export default function FuturesPage() {
 
       {candleLoading
         ? <div className="futures-chart-loading">K 線載入中...</div>
-        : <FuturesChart candles={candles} timeframe={timeframe} />
+        : candles.length === 0 && timeframe !== "D"
+          ? <div className="futures-chart-empty">盤中 K 線資料暫無（交易時段 08:45–13:45）</div>
+          : <FuturesChart candles={candles} timeframe={timeframe} />
       }
 
       <InstitutionalChart data={institutional} />

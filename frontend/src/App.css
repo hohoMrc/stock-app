@@ -1853,6 +1853,7 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 
 .futures-chart { width: 100%; border-radius: 8px; overflow: hidden; background: #1a1a2e; }
 .futures-chart-loading { height: 380px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); background: var(--card); border-radius: 8px; }
+.futures-chart-empty { height: 380px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); background: var(--card); border-radius: 8px; font-size: 14px; }
 
 /* 三大法人 */
 .futures-institutional { margin-top: 24px; background: var(--card); border-radius: 10px; padding: 16px 20px; }
