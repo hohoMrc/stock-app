@@ -97,17 +97,30 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
     updateLastCandle(price) {
       if (!candleSeriesRef.current || !lastBarRef.current) return;
       const bar = lastBarRef.current;
-      const updated = {
-        time:  bar.time,
-        open:  bar.open,
-        high:  Math.max(bar.high, price),
-        low:   Math.min(bar.low,  price),
-        close: price,
-      };
-      lastBarRef.current = updated;
-      candleSeriesRef.current.update(updated);
+
+      // 計算目前應屬於哪個 bucket（UTC 秒數對齊）
+      const nowSec     = Math.floor(Date.now() / 1000);
+      const bucketSecs = parseInt(timeframe, 10) * 60;
+      const bucket     = Math.floor(nowSec / bucketSecs) * bucketSecs;
+
+      let nextBar;
+      if (bucket > bar.time) {
+        // 跨越整數時間 → 開新一根 K 棒
+        nextBar = { time: bucket, open: price, high: price, low: price, close: price };
+      } else {
+        // 同一根 → 更新收盤/高低
+        nextBar = {
+          time:  bar.time,
+          open:  bar.open,
+          high:  Math.max(bar.high, price),
+          low:   Math.min(bar.low,  price),
+          close: price,
+        };
+      }
+      lastBarRef.current = nextBar;
+      candleSeriesRef.current.update(nextBar);
     },
-  }), []);
+  }), [timeframe]);
 
   useEffect(() => {
     if (!containerRef.current || !candles.length) return;
