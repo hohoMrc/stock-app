@@ -3,9 +3,11 @@ import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from "lig
 import { getFuturesQuote, getFuturesCandles, getFuturesInstitutional } from "../api";
 
 const MA_LINES = [
-  { key: "ma5",  period: 5,  label: "MA5",  color: "#f59e0b" },
-  { key: "ma20", period: 20, label: "MA20", color: "#facc15" },
-  { key: "ma60", period: 60, label: "MA60", color: "#34d399" },
+  { key: "ma5",   period: 5,  label: "MA5",   color: "#f59e0b" },
+  { key: "ma20",  period: 20, label: "MA20",  color: "#facc15" },
+  { key: "ma60",  period: 60, label: "MA60",  color: "#34d399" },
+  { key: "ema20", period: 20, label: "EMA20", color: "#38bdf8", ema: true },
+  { key: "ema60", period: 60, label: "EMA60", color: "#ef4444", ema: true },
 ];
 
 function calcMA(data, period) {
@@ -13,6 +15,22 @@ function calcMA(data, period) {
   for (let i = period - 1; i < data.length; i++) {
     const avg = data.slice(i - period + 1, i + 1).reduce((s, d) => s + d.close, 0) / period;
     result.push({ time: data[i].time ?? data[i].date, value: parseFloat(avg.toFixed(2)) });
+  }
+  return result;
+}
+
+function calcEMA(data, period) {
+  const k = 2 / (period + 1);
+  const result = [];
+  let ema = null;
+  for (let i = 0; i < data.length; i++) {
+    if (ema === null) {
+      if (i < period - 1) continue;
+      ema = data.slice(0, period).reduce((s, d) => s + d.close, 0) / period;
+    } else {
+      ema = data[i].close * k + ema * (1 - k);
+    }
+    result.push({ time: data[i].time ?? data[i].date, value: parseFloat(ema.toFixed(2)) });
   }
   return result;
 }
@@ -122,15 +140,16 @@ function FuturesChart({ candles, timeframe, activeMA }) {
       color: c.close >= c.open ? "#ef4444aa" : "#22c55eaa",
     })));
 
-    // MA 線
-    MA_LINES.forEach(({ key, period, color }) => {
+    // MA / EMA 線
+    MA_LINES.forEach(({ key, period, color, ema }) => {
       if (!activeMA[key]) return;
-      const maData = calcMA(candles, period);
-      if (!maData.length) return;
+      const lineData = ema ? calcEMA(candles, period) : calcMA(candles, period);
+      if (!lineData.length) return;
       const s = chart.addSeries(LineSeries, {
         color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
+        lineStyle: ema ? 1 : 0,  // EMA 用虛線，MA 用實線
       });
-      s.setData(maData);
+      s.setData(lineData);
     });
 
     chart.timeScale().fitContent();
@@ -214,7 +233,7 @@ export default function FuturesPage() {
   const [candleLoading, setCandleLoading] = useState(true);
   const [livePrice,    setLivePrice]    = useState(null);
   const [priceFlash,   setPriceFlash]   = useState(null); // "up" | "down"
-  const [activeMA,     setActiveMA]     = useState({ ma5: true, ma20: true, ma60: true });
+  const [activeMA,     setActiveMA]     = useState({ ma5: true, ma20: true, ma60: true, ema20: false, ema60: false });
   const [error, setError] = useState(null);
   const wsRef = useRef(null);
   const prevPriceRef = useRef(null);
