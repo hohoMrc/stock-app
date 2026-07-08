@@ -103,15 +103,16 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
       if (!candleSeriesRef.current || !lastBarRef.current) return;
       const bar = lastBarRef.current;
 
-      const nowSec     = Math.floor(Date.now() / 1000);
-      const bucketSecs = parseInt(timeframe, 10) * 60;
-      const bucket     = Math.floor(nowSec / bucketSecs) * bucketSecs;
-      const isNewBar   = bucket > bar.time;
+      const nowSec          = Math.floor(Date.now() / 1000);
+      const bucketSecs      = parseInt(timeframe, 10) * 60;
+      // 用「上一根時間 + 一個週期」判斷，對齊 Fubon 的盤中 K 棒邊界（不依賴 UTC 取整）
+      const expectedNext    = bar.time + bucketSecs;
+      const isNewBar        = nowSec >= expectedNext;
 
       // 更新 K 棒
       let nextBar;
       if (isNewBar) {
-        nextBar = { time: bucket, open: price, high: price, low: price, close: price };
+        nextBar = { time: expectedNext, open: price, high: price, low: price, close: price };
         // 舊 bar 確認收盤，把舊收盤 push 進 closes，再 push 新價
         closesRef.current.push(bar.close, price);
         if (closesRef.current.length > MAX_PERIOD + 2)
