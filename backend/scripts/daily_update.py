@@ -134,7 +134,7 @@ if __name__ == "__main__":
             hits = scan_ma_squeeze(500)
             if hits:
                 lines = [
-                    _stock_link(s["ticker"], s.get("name", ""), f"  {s.get('price', '')}元")
+                    _stock_link(s["ticker"], s.get("name", ""), f"  {s.get('close') or s.get('price', '')}元")
                     for s in hits
                 ]
                 squeeze_msg = f"[MA黏合] 今日找到 {len(hits)} 支\n" + "\n".join(lines)
