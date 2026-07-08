@@ -6,6 +6,7 @@ const MA_LINES = [
   { key: "ma5",   period: 5,  label: "MA5",   color: "#f59e0b" },
   { key: "ma20",  period: 20, label: "MA20",  color: "#facc15" },
   { key: "ma60",  period: 60, label: "MA60",  color: "#34d399" },
+  { key: "ema5",  period: 5,  label: "EMA5",  color: "#a78bfa", ema: true },
   { key: "ema20", period: 20, label: "EMA20", color: "#38bdf8", ema: true },
   { key: "ema60", period: 60, label: "EMA60", color: "#ef4444", ema: true },
 ];
@@ -233,7 +234,7 @@ export default function FuturesPage() {
   const [candleLoading, setCandleLoading] = useState(true);
   const [livePrice,    setLivePrice]    = useState(null);
   const [priceFlash,   setPriceFlash]   = useState(null); // "up" | "down"
-  const [activeMA,     setActiveMA]     = useState({ ma5: true, ma20: true, ma60: true, ema20: false, ema60: false });
+  const [activeMA,     setActiveMA]     = useState({ ma5: true, ma20: true, ma60: true, ema5: false, ema20: false, ema60: false });
   const [error, setError] = useState(null);
   const wsRef = useRef(null);
   const prevPriceRef = useRef(null);
