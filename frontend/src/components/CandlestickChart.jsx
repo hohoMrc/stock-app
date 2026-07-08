@@ -7,6 +7,7 @@ const MA_CONFIG = [
   { key: "ma20",  period: 20, label: "MA20",  color: "#facc15" },
   { key: "ma30",  period: 30, label: "MA30",  color: "#a78bfa" },
   { key: "ma60",  period: 60, label: "MA60",  color: "#34d399" },
+  { key: "ema10", period: 10, label: "EMA10", color: "#fb923c", ema: true },
   { key: "ema60", period: 60, label: "EMA60", color: "#ef4444", ema: true },
 ];
 
@@ -168,7 +169,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const volMapRef       = useRef(new Map());
   const macdMapRef      = useRef(new Map());
 
-  const [activeMA,    setActiveMA]    = useState({ ma5: true, ma10: true, ma20: true, ma30: true, ma60: true, ema60: true });
+  const [activeMA,    setActiveMA]    = useState({ ma5: true, ma10: true, ma20: true, ma30: true, ma60: true, ema10: false, ema60: true });
   const [showBOLL,    setShowBOLL]    = useState(false);
   const [hoveredBar,  setHoveredBar]  = useState(null);
   const [hoveredMACD, setHoveredMACD] = useState(null);
