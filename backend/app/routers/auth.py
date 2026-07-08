@@ -30,7 +30,7 @@ def _verify_password(password: str, hashed: str) -> bool:
 
 
 def _make_token(user_id: int) -> str:
-    expire = datetime.utcnow() + timedelta(days=TOKEN_DAYS)
+    expire = datetime.now() + timedelta(days=TOKEN_DAYS)
     return jwt.encode({"sub": str(user_id), "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
 
 

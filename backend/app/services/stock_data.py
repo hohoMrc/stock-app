@@ -822,10 +822,12 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
             hist = yf.Ticker(symbol).history(period=period, interval=interval)
             if not hist.empty:
                 if hist.index.tz is None:
-                    hist.index = hist.index.tz_localize("UTC")
+                    hist.index = hist.index.tz_localize("Asia/Taipei")
+                else:
+                    hist.index = hist.index.tz_convert("Asia/Taipei")
                 all_records = [
                     {
-                        "date":   int(d.timestamp()),  # 真正 UTC timestamp，前端本地時間(+8)顯示正確
+                        "date":   int(d.timestamp()),  # UTC+8 timestamp
                         "open":   round(float(r["Open"]),  2),
                         "high":   round(float(r["High"]),  2),
                         "low":    round(float(r["Low"]),   2),

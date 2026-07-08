@@ -82,6 +82,8 @@ def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> lis
         hist = yf.Ticker("^TWII").history(period="6mo", interval="1d")
         if hist.empty:
             return []
+        if hist.index.tz is not None:
+            hist.index = hist.index.tz_convert("Asia/Taipei")
         result = []
         for ts, row in hist.iterrows():
             result.append({
