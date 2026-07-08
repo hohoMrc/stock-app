@@ -14,18 +14,27 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "../.env"))
 
 import urllib.request, urllib.parse, json as _json
 
-def _tg_notify(text: str):
+SITE_URL = "https://stock-app-lilac-nine.vercel.app"
+
+def _tg_notify(text: str, html: bool = False):
     token   = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
     if not token or not chat_id:
         return
     try:
-        payload = urllib.parse.urlencode({"chat_id": chat_id, "text": text}).encode()
+        params = {"chat_id": chat_id, "text": text}
+        if html:
+            params["parse_mode"] = "HTML"
+        payload = urllib.parse.urlencode(params).encode()
         urllib.request.urlopen(
             f"https://api.telegram.org/bot{token}/sendMessage", payload, timeout=10
         )
     except Exception as e:
         print(f"[TG] 通知失敗: {e}")
+
+def _stock_link(ticker: str, name: str, extra: str = "") -> str:
+    url = f"{SITE_URL}/?ticker={ticker}"
+    return f'<a href="{url}">{ticker} {name}</a>{extra}'
 
 from app.db import init_db, save_candles, bulk_save_stock_meta, _conn
 from app.services.stock_data import (
@@ -124,11 +133,14 @@ if __name__ == "__main__":
             from app.services.stock_data import scan_ma_squeeze
             hits = scan_ma_squeeze(500)
             if hits:
-                lines = [f"  {s['ticker']} {s.get('name', '')}  {s.get('price', '')}元" for s in hits]
+                lines = [
+                    _stock_link(s["ticker"], s.get("name", ""), f"  {s.get('price', '')}元")
+                    for s in hits
+                ]
                 squeeze_msg = f"[MA黏合] 今日找到 {len(hits)} 支\n" + "\n".join(lines)
             else:
                 squeeze_msg = "[MA黏合] 今日無符合條件的股票"
             print(squeeze_msg)
-            _tg_notify(squeeze_msg)
+            _tg_notify(squeeze_msg, html=True)
         except Exception as e:
             print(f"[MA黏合] 掃描失敗: {e}")

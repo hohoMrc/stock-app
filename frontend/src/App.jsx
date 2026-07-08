@@ -38,8 +38,10 @@ const INIT_FILTERS = {
 };
 
 export default function App() {
-  const [activePage, setActivePage] = useState("ranking");
-  const [selectedTicker, setSelectedTicker] = useState(null);
+  // 支援 ?ticker=XXXX 深層連結（從 TG 通知點進來）
+  const urlTicker = new URLSearchParams(window.location.search).get("ticker");
+  const [activePage, setActivePage] = useState(urlTicker ? "detail" : "ranking");
+  const [selectedTicker, setSelectedTicker] = useState(urlTicker || null);
   const [selectedIndustry, setSelectedIndustry] = useState(null);
   const [pageHistory, setPageHistory] = useState([]);
 
