@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from "lightweight-charts";
 import { getFuturesQuote, getFuturesCandles, getFuturesInstitutional } from "../api";
-import { isTradingHours } from "../marketHours";
+import { isFuturesTradingHours } from "../marketHours";
 
 const MA_LINES = [
   { key: "ma5",   period: 5,  label: "MA5",   color: "#f59e0b" },
@@ -402,7 +402,7 @@ export default function FuturesPage() {
           const data = r.data.data || [];
           setCandles(data);
           // 交易時段若回空，15 秒後重試（開盤初期 API 需要一兩分鐘才有資料）
-          if (data.length === 0 && timeframe !== "D" && isTradingHours()) {
+          if (data.length === 0 && timeframe !== "D" && isFuturesTradingHours()) {
             retryTimer = setTimeout(load, 15000);
           }
         })
