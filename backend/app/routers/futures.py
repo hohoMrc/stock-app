@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Query, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from app.services.futures_data import get_futures_quote, get_futures_candles, get_institutional_positions, _current_symbol
 
 router = APIRouter(prefix="/api/futures", tags=["futures"])
@@ -12,7 +13,7 @@ async def futures_quote(product: str = Query(default="TXF")):
     if product not in VALID_PRODUCTS:
         raise HTTPException(status_code=400, detail="product 需為 TXF 或 TMF")
     try:
-        return get_futures_quote(_current_symbol(product))
+        return await run_in_threadpool(get_futures_quote, _current_symbol(product))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -28,7 +29,8 @@ async def futures_candles(
         raise HTTPException(status_code=400, detail="product 需為 TXF 或 TMF")
     try:
         symbol = _current_symbol(product)
-        return {"timeframe": timeframe, "data": get_futures_candles(symbol, timeframe)}
+        data   = await run_in_threadpool(get_futures_candles, symbol, timeframe)
+        return {"timeframe": timeframe, "data": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -36,6 +38,7 @@ async def futures_candles(
 @router.get("/institutional")
 async def institutional_positions():
     try:
-        return {"data": get_institutional_positions()}
+        data = await run_in_threadpool(get_institutional_positions)
+        return {"data": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

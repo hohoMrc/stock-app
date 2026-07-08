@@ -20,6 +20,12 @@ async def lifespan(app: FastAPI):
     def _bg_init():
         from app.services.stock_data import _get_fugle
         _get_fugle()
+        try:
+            from app.services.futures_data import _get_client
+            _get_client()
+            print("[Fubon] 期貨客戶端初始化完成")
+        except Exception as e:
+            print(f"[Fubon] 期貨客戶端初始化失敗: {e}")
     threading.Thread(target=_bg_init, daemon=True).start()
     yield
 
