@@ -16,9 +16,16 @@ async def futures_ws(websocket: WebSocket, product: str = "TXF"):
     add_ws_listener(symbol, queue)
     try:
         while True:
-            data = await asyncio.wait_for(queue.get(), timeout=30)
-            await websocket.send_json(data)
-    except (WebSocketDisconnect, asyncio.TimeoutError):
+            try:
+                data = await asyncio.wait_for(queue.get(), timeout=25)
+                await websocket.send_json(data)
+            except asyncio.TimeoutError:
+                # 無成交時送 keepalive，讓前端知道連線還活著
+                try:
+                    await websocket.send_json({"event": "keepalive"})
+                except Exception:
+                    break   # 送不出去代表前端已斷線
+    except WebSocketDisconnect:
         pass
     except Exception:
         pass

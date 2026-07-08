@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from "lightweight-charts";
 import { getFuturesQuote, getFuturesCandles, getFuturesInstitutional } from "../api";
+import { isTradingHours } from "../marketHours";
 
 const MA_LINES = [
   { key: "ma5",   period: 5,  label: "MA5",   color: "#f59e0b" },
@@ -174,6 +175,7 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
       height: 380,
       layout: { background: { color: "#1a1a2e" }, textColor: "#ccc" },
       grid:   { vertLines: { color: "#2a2a3e" }, horzLines: { color: "#2a2a3e" } },
+      localization: { timezone: "Asia/Taipei" },
       timeScale: {
         timeVisible:    timeframe !== "D",
         secondsVisible: false,
@@ -329,6 +331,7 @@ export default function FuturesPage() {
   const [priceFlash,   setPriceFlash]   = useState(null); // "up" | "down"
   const [activeMA,     setActiveMA]     = useState({ ma5: false, ma20: false, ma60: false, ema5: false, ema10: true, ema20: false, ema60: true });
   const [error, setError] = useState(null);
+  const [wsKey, setWsKey] = useState(0);   // 遞增觸發 WebSocket 重連
   const wsRef        = useRef(null);
   const prevPriceRef = useRef(null);
   const chartRef     = useRef(null);
@@ -345,7 +348,7 @@ export default function FuturesPage() {
       .finally(() => setQuoteLoading(false));
   }, [product]);
 
-  // WebSocket 即時更新
+  // WebSocket 即時更新（wsKey 遞增觸發重連）
   useEffect(() => {
     if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
     const ws = new WebSocket(`${WS_BASE}/ws/futures?product=${product}`);
@@ -353,6 +356,7 @@ export default function FuturesPage() {
     ws.onmessage = (e) => {
       try {
         const data  = JSON.parse(e.data);
+        if (data.event === "keepalive") return;   // 忽略心跳
         const trades = data.trades || [];
         if (!trades.length) return;
         const price = trades[trades.length - 1].price;
@@ -362,9 +366,7 @@ export default function FuturesPage() {
         setLivePrice(price);
         prevPriceRef.current = price;
         setTimeout(() => setPriceFlash(null), 400);
-        // 同步更新 K 線最後一根
         chartRef.current?.updateLastCandle(price);
-        // 同步更新 quote 的 change
         setQuote(q => q ? {
           ...q,
           price,
@@ -374,8 +376,16 @@ export default function FuturesPage() {
       } catch (_) {}
     };
     ws.onerror = () => {};
-    return () => { ws.close(); wsRef.current = null; };
-  }, [product]);
+    ws.onclose = () => {
+      // 斷線後 3 秒自動重連
+      setTimeout(() => setWsKey(k => k + 1), 3000);
+    };
+    return () => {
+      ws.onclose = null;   // 清掉 onclose 避免 cleanup 時觸發重連
+      ws.close();
+      wsRef.current = null;
+    };
+  }, [product, wsKey]);
 
   useEffect(() => {
     getFuturesInstitutional()
@@ -384,12 +394,24 @@ export default function FuturesPage() {
   }, []);
 
   useEffect(() => {
-    setCandleLoading(true);
+    let retryTimer = null;
+    const load = () => {
+      setCandleLoading(true);
+      getFuturesCandles(timeframe, product)
+        .then(r => {
+          const data = r.data.data || [];
+          setCandles(data);
+          // 交易時段若回空，15 秒後重試（開盤初期 API 需要一兩分鐘才有資料）
+          if (data.length === 0 && timeframe !== "D" && isTradingHours()) {
+            retryTimer = setTimeout(load, 15000);
+          }
+        })
+        .catch(e => setError(e?.response?.data?.detail || e.message))
+        .finally(() => setCandleLoading(false));
+    };
     setCandles([]);
-    getFuturesCandles(timeframe, product)
-      .then(r => setCandles(r.data.data || []))
-      .catch(e => setError(e?.response?.data?.detail || e.message))
-      .finally(() => setCandleLoading(false));
+    load();
+    return () => clearTimeout(retryTimer);
   }, [timeframe, product]);
 
   return (
