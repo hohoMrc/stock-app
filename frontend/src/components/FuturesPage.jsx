@@ -1,6 +1,21 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { createChart, CandlestickSeries, HistogramSeries } from "lightweight-charts";
+import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from "lightweight-charts";
 import { getFuturesQuote, getFuturesCandles, getFuturesInstitutional } from "../api";
+
+const MA_LINES = [
+  { key: "ma5",  period: 5,  label: "MA5",  color: "#f59e0b" },
+  { key: "ma20", period: 20, label: "MA20", color: "#facc15" },
+  { key: "ma60", period: 60, label: "MA60", color: "#34d399" },
+];
+
+function calcMA(data, period) {
+  const result = [];
+  for (let i = period - 1; i < data.length; i++) {
+    const avg = data.slice(i - period + 1, i + 1).reduce((s, d) => s + d.close, 0) / period;
+    result.push({ time: data[i].time ?? data[i].date, value: parseFloat(avg.toFixed(2)) });
+  }
+  return result;
+}
 
 const WS_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000")
   .replace(/^http/, "ws");
@@ -53,7 +68,7 @@ function QuoteHeader({ quote, loading, livePrice, priceFlash }) {
   );
 }
 
-function FuturesChart({ candles, timeframe }) {
+function FuturesChart({ candles, timeframe, activeMA }) {
   const containerRef = useRef(null);
   const chartRef     = useRef(null);
 
@@ -107,6 +122,17 @@ function FuturesChart({ candles, timeframe }) {
       color: c.close >= c.open ? "#ef4444aa" : "#22c55eaa",
     })));
 
+    // MA 線
+    MA_LINES.forEach(({ key, period, color }) => {
+      if (!activeMA[key]) return;
+      const maData = calcMA(candles, period);
+      if (!maData.length) return;
+      const s = chart.addSeries(LineSeries, {
+        color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
+      });
+      s.setData(maData);
+    });
+
     chart.timeScale().fitContent();
 
     const ro = new ResizeObserver(() => {
@@ -116,7 +142,7 @@ function FuturesChart({ candles, timeframe }) {
 
     chartRef.current = chart;
     return () => { ro.disconnect(); chart.remove(); chartRef.current = null; };
-  }, [candles, timeframe]);
+  }, [candles, timeframe, activeMA]);
 
   return <div ref={containerRef} className="futures-chart" />;
 }
@@ -188,6 +214,7 @@ export default function FuturesPage() {
   const [candleLoading, setCandleLoading] = useState(true);
   const [livePrice,    setLivePrice]    = useState(null);
   const [priceFlash,   setPriceFlash]   = useState(null); // "up" | "down"
+  const [activeMA,     setActiveMA]     = useState({ ma5: true, ma20: true, ma60: true });
   const [error, setError] = useState(null);
   const wsRef = useRef(null);
   const prevPriceRef = useRef(null);
@@ -268,23 +295,37 @@ export default function FuturesPage() {
 
       {error && <p className="error">❌ {error}</p>}
 
-      <div className="futures-tf-bar">
-        {TIMEFRAMES.map(tf => (
-          <button
-            key={tf.key}
-            className={`futures-tf-btn ${timeframe === tf.key ? "active" : ""}`}
-            onClick={() => setTimeframe(tf.key)}
-          >
-            {tf.label}
-          </button>
-        ))}
+      <div className="futures-tf-ma-row">
+        <div className="futures-tf-bar">
+          {TIMEFRAMES.map(tf => (
+            <button
+              key={tf.key}
+              className={`futures-tf-btn ${timeframe === tf.key ? "active" : ""}`}
+              onClick={() => setTimeframe(tf.key)}
+            >
+              {tf.label}
+            </button>
+          ))}
+        </div>
+        <div className="futures-ma-bar">
+          {MA_LINES.map(({ key, label, color }) => (
+            <button
+              key={key}
+              className={`futures-ma-btn ${activeMA[key] ? "active" : ""}`}
+              style={{ "--ma-color": color }}
+              onClick={() => setActiveMA(prev => ({ ...prev, [key]: !prev[key] }))}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {candleLoading
         ? <div className="futures-chart-loading">K 線載入中...</div>
         : candles.length === 0 && timeframe !== "D"
           ? <div className="futures-chart-empty">盤中 K 線資料暫無（交易時段 08:45–13:45）</div>
-          : <FuturesChart candles={candles} timeframe={timeframe} />
+          : <FuturesChart candles={candles} timeframe={timeframe} activeMA={activeMA} />
       }
 
       <InstitutionalChart data={institutional} />
