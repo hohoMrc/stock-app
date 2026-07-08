@@ -41,6 +41,11 @@ function calcEMA(data, period) {
 const WS_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000")
   .replace(/^http/, "ws");
 
+// lightweight-charts v5 不支援 timezone 選項，改在前端把 unix timestamp +8h
+// 讓圖表顯示台北時間（圖表以為是 UTC，實際上是 UTC+8 local time）
+const TW_OFFSET = 8 * 3600;
+const shiftTime = (t) => (typeof t === "number" ? t + TW_OFFSET : t);
+
 const TIMEFRAMES = [
   { key: "D",  label: "日K" },
   { key: "60", label: "60分" },
@@ -105,9 +110,9 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
       if (!candleSeriesRef.current || !lastBarRef.current) return;
       const bar = lastBarRef.current;
 
-      const nowSec          = Math.floor(Date.now() / 1000);
+      // nowSec 也用同樣的 +8h 偏移，與 bar.time（已 shift）比較
+      const nowSec          = Math.floor(Date.now() / 1000) + TW_OFFSET;
       const bucketSecs      = parseInt(timeframe, 10) * 60;
-      // 用「上一根時間 + 一個週期」判斷，對齊 Fubon 的盤中 K 棒邊界（不依賴 UTC 取整）
       const expectedNext    = bar.time + bucketSecs;
       const isNewBar        = nowSec >= expectedNext;
 
@@ -175,7 +180,6 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
       height: 380,
       layout: { background: { color: "#1a1a2e" }, textColor: "#ccc" },
       grid:   { vertLines: { color: "#2a2a3e" }, horzLines: { color: "#2a2a3e" } },
-      localization: { timezone: "Asia/Taipei" },
       timeScale: {
         timeVisible:    timeframe !== "D",
         secondsVisible: false,
@@ -199,8 +203,11 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
     });
     chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
 
-    const candleData = candles.map(c => ({
-      time:  c.time ?? c.date,
+    // 把 unix timestamp 偏移 +8h，讓圖表顯示台北時間
+    const shifted = candles.map(c => ({ ...c, time: shiftTime(c.time ?? c.date) }));
+
+    const candleData = shifted.map(c => ({
+      time:  c.time,
       open:  c.open,
       high:  c.high,
       low:   c.low,
@@ -208,8 +215,8 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
     }));
 
     candleSeries.setData(candleData);
-    volSeries.setData(candles.map(c => ({
-      time:  c.time ?? c.date,
+    volSeries.setData(shifted.map(c => ({
+      time:  c.time,
       value: c.volume,
       color: c.close >= c.open ? "#ef4444aa" : "#22c55eaa",
     })));
@@ -218,7 +225,7 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
     lastBarRef.current      = candleData[candleData.length - 1] ?? null;
 
     // 初始化 closes 滑動窗口與 EMA 狀態
-    const allCloses = candles.map(c => c.close);
+    const allCloses = shifted.map(c => c.close);
     closesRef.current = allCloses.slice(-(MAX_PERIOD + 2));
     emaStateRef.current = {};
     MA_LINES.filter(l => l.ema).forEach(({ key, period }) => {
@@ -235,10 +242,10 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
       emaStateRef.current[key] = ema;
     });
 
-    // MA / EMA 線
+    // MA / EMA 線（用 shifted 讓時間也對齊）
     MA_LINES.forEach(({ key, period, color, ema }) => {
       if (!activeMA[key]) return;
-      const lineData = ema ? calcEMA(candles, period) : calcMA(candles, period);
+      const lineData = ema ? calcEMA(shifted, period) : calcMA(shifted, period);
       if (!lineData.length) return;
       const s = chart.addSeries(LineSeries, {
         color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
