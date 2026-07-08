@@ -191,16 +191,27 @@ def _get_ws_futopt():
                 msg = _json.loads(raw) if isinstance(raw, str) else raw
             except Exception:
                 msg = raw
-            event = msg.get("event") if isinstance(msg, dict) else None
-            if event != "data":
+            if not isinstance(msg, dict):
                 return
-            sym  = (msg.get("data") or {}).get("symbol", "")
+            event = msg.get("event")
+            # 處理即時成交（data）和首次快照（snapshot 裡含 trades）
+            if event == "data":
+                payload = msg.get("data") or {}
+                sym = payload.get("symbol", "")
+            elif event == "snapshot":
+                payload = msg.get("data") or {}
+                # 只有帶 trades 的快照才轉發（報價快照），candles 快照略過
+                if not payload.get("trades"):
+                    return
+                sym = payload.get("symbol", "")
+            else:
+                return
             with _ws_lock:
                 queues = _ws_queues.get(sym, set()).copy()
             for q in queues:
                 try:
                     loop = q._loop
-                    asyncio.run_coroutine_threadsafe(q.put(msg["data"]), loop)
+                    asyncio.run_coroutine_threadsafe(q.put(payload), loop)
                 except Exception:
                     pass
 
@@ -226,8 +237,15 @@ def add_ws_listener(symbol: str, queue: asyncio.Queue):
     with _ws_lock:
         if symbol not in _ws_queues:
             _ws_queues[symbol] = set()
-            # 第一個 listener 才真正訂閱
-            futopt.subscribe({"channel": "trades", "symbol": symbol})
+            # 第一次才訂閱，重試 3 次（connect 可能還沒 ready）
+            for attempt in range(3):
+                try:
+                    futopt.subscribe({"channel": "trades", "symbol": symbol})
+                    futopt.subscribe({"channel": "quote",  "symbol": symbol})
+                    break
+                except Exception as e:
+                    print(f"[Fubon WS] subscribe attempt {attempt+1} failed: {e}")
+                    time.sleep(1)
         _ws_queues[symbol].add(queue)
 
 
