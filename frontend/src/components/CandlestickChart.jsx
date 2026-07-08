@@ -169,7 +169,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const volMapRef       = useRef(new Map());
   const macdMapRef      = useRef(new Map());
 
-  const [activeMA,    setActiveMA]    = useState({ ma5: true, ma10: true, ma20: true, ma30: true, ma60: true, ema10: false, ema60: true });
+  const [activeMA,    setActiveMA]    = useState({ ma5: false, ma10: false, ma20: false, ma30: false, ma60: false, ema10: true, ema60: true });
   const [showBOLL,    setShowBOLL]    = useState(false);
   const [hoveredBar,  setHoveredBar]  = useState(null);
   const [hoveredMACD, setHoveredMACD] = useState(null);
