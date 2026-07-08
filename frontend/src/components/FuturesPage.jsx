@@ -91,24 +91,32 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
   const containerRef    = useRef(null);
   const chartRef        = useRef(null);
   const candleSeriesRef = useRef(null);
-  const lastBarRef      = useRef(null);   // 最後一根 candle 的快照，供即時更新使用
+  const lastBarRef      = useRef(null);
+  const maSeriesMap     = useRef({});   // key → LineSeries
+  const closesRef       = useRef([]);   // 最近 closes（滑動窗口，最大長度 max period）
+  const emaStateRef     = useRef({});   // key → 上一根已確認的 EMA 值
+
+  const MAX_PERIOD = Math.max(...MA_LINES.map(l => l.period));
 
   useImperativeHandle(ref, () => ({
     updateLastCandle(price) {
       if (!candleSeriesRef.current || !lastBarRef.current) return;
       const bar = lastBarRef.current;
 
-      // 計算目前應屬於哪個 bucket（UTC 秒數對齊）
       const nowSec     = Math.floor(Date.now() / 1000);
       const bucketSecs = parseInt(timeframe, 10) * 60;
       const bucket     = Math.floor(nowSec / bucketSecs) * bucketSecs;
+      const isNewBar   = bucket > bar.time;
 
+      // 更新 K 棒
       let nextBar;
-      if (bucket > bar.time) {
-        // 跨越整數時間 → 開新一根 K 棒
+      if (isNewBar) {
         nextBar = { time: bucket, open: price, high: price, low: price, close: price };
+        // 舊 bar 確認收盤，把舊收盤 push 進 closes，再 push 新價
+        closesRef.current.push(bar.close, price);
+        if (closesRef.current.length > MAX_PERIOD + 2)
+          closesRef.current = closesRef.current.slice(-MAX_PERIOD - 2);
       } else {
-        // 同一根 → 更新收盤/高低
         nextBar = {
           time:  bar.time,
           open:  bar.open,
@@ -116,9 +124,35 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
           low:   Math.min(bar.low,  price),
           close: price,
         };
+        // 同一根：替換最後一個 close
+        closesRef.current[closesRef.current.length - 1] = price;
       }
       lastBarRef.current = nextBar;
       candleSeriesRef.current.update(nextBar);
+
+      // 更新 MA / EMA 線
+      const closes = closesRef.current;
+      MA_LINES.forEach(({ key, period, ema }) => {
+        const series = maSeriesMap.current[key];
+        if (!series) return;
+
+        let val;
+        if (ema) {
+          const k = 2 / (period + 1);
+          if (isNewBar) {
+            // 舊 bar 確認：先用舊 bar.close 推進 ema，再用新價算 display
+            const committed = bar.close * k + (emaStateRef.current[key] ?? bar.close) * (1 - k);
+            emaStateRef.current[key] = committed;
+            val = price * k + committed * (1 - k);
+          } else {
+            val = price * k + (emaStateRef.current[key] ?? price) * (1 - k);
+          }
+        } else {
+          if (closes.length < period) return;
+          val = closes.slice(-period).reduce((s, v) => s + v, 0) / period;
+        }
+        series.update({ time: nextBar.time, value: parseFloat(val.toFixed(2)) });
+      });
     },
   }), [timeframe]);
 
@@ -130,6 +164,7 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
       chartRef.current        = null;
       candleSeriesRef.current = null;
       lastBarRef.current      = null;
+      maSeriesMap.current     = {};
     }
 
     const chart = createChart(containerRef.current, {
@@ -175,9 +210,26 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
       color: c.close >= c.open ? "#ef4444aa" : "#22c55eaa",
     })));
 
-    // 記錄最後一根供即時更新
     candleSeriesRef.current = candleSeries;
     lastBarRef.current      = candleData[candleData.length - 1] ?? null;
+
+    // 初始化 closes 滑動窗口與 EMA 狀態
+    const allCloses = candles.map(c => c.close);
+    closesRef.current = allCloses.slice(-(MAX_PERIOD + 2));
+    emaStateRef.current = {};
+    MA_LINES.filter(l => l.ema).forEach(({ key, period }) => {
+      const k = 2 / (period + 1);
+      let ema = null;
+      for (let i = 0; i < allCloses.length; i++) {
+        if (ema === null) {
+          if (i < period - 1) continue;
+          ema = allCloses.slice(0, period).reduce((s, v) => s + v, 0) / period;
+        } else {
+          ema = allCloses[i] * k + ema * (1 - k);
+        }
+      }
+      emaStateRef.current[key] = ema;
+    });
 
     // MA / EMA 線
     MA_LINES.forEach(({ key, period, color, ema }) => {
@@ -189,6 +241,7 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
         lineStyle: ema ? 1 : 0,
       });
       s.setData(lineData);
+      maSeriesMap.current[key] = s;
     });
 
     chart.timeScale().fitContent();
