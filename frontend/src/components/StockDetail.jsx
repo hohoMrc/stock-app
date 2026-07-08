@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import CandlestickChart from "./CandlestickChart";
 import { getStock, getHistory, analyzeStock } from "../api";
+import { isTradingHours } from "../marketHours";
 
 const INTERVAL_CONFIG = {
   "60m": { fetchPeriod: "3mo", defaultPeriod: "5d",  periods: ["5d","1mo","3mo"] },
@@ -19,6 +20,8 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
   const [interval, setInterval] = useState("1d");       // "1d" | "1wk" | "1mo"
   const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [live, setLive] = useState(false);   // 是否正在即時刷新
+  const pollRef = useRef(null);
 
   useEffect(() => {
     const cfg = INTERVAL_CONFIG[interval];
@@ -37,6 +40,22 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
       }
     };
     load();
+
+    // 每 10 秒自動刷新報價（交易時段才啟動）
+    clearInterval(pollRef.current);
+    const startPoll = () => {
+      if (!isTradingHours()) { setLive(false); return; }
+      setLive(true);
+      pollRef.current = setInterval(async () => {
+        if (!isTradingHours()) { clearInterval(pollRef.current); setLive(false); return; }
+        try {
+          const res = await getStock(ticker);
+          setInfo(res.data);
+        } catch (_) {}
+      }, 10_000);
+    };
+    startPoll();
+    return () => clearInterval(pollRef.current);
   }, [ticker, interval]);
 
   const handleAnalyze = async () => {
@@ -64,6 +83,7 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
           <div className="stock-name-row">
             <h2>{info.name}</h2>
             <span className="price">{info.price} 元</span>
+            {live && <span className="live-dot" title="即時報價自動更新中">●</span>}
             {onToggleWatch && (
               <button
                 className={`watch-btn ${watchlist.includes(ticker) ? "watched" : ""}`}

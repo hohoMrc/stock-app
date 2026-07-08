@@ -1,26 +1,43 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getStock } from "../api";
+import { isTradingHours } from "../marketHours";
 
 export default function WatchList({ watchlist, watchNotes = {}, onRemove, onSelect, onUpdateNote }) {
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [live, setLive] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const pollRef = useRef(null);
   // 追蹤哪個 ticker 正在編輯備注
   const [editingTicker, setEditingTicker] = useState(null);
   const [editingNote, setEditingNote] = useState("");
 
-  useEffect(() => {
+  const fetchAll = async (silent = false) => {
     if (!watchlist.length) { setStocks([]); return; }
-    const fetchAll = async () => {
-      setLoading(true);
-      const results = await Promise.allSettled(watchlist.map((t) => getStock(t)));
-      setStocks(
-        results
-          .map((r, i) => r.status === "fulfilled" ? r.value.data : { ticker: watchlist[i], name: "—", price: null })
-          .filter(Boolean)
-      );
-      setLoading(false);
-    };
+    if (!silent) setLoading(true);
+    const results = await Promise.allSettled(watchlist.map((t) => getStock(t)));
+    setStocks(
+      results
+        .map((r, i) => r.status === "fulfilled" ? r.value.data : { ticker: watchlist[i], name: "—", price: null })
+        .filter(Boolean)
+    );
+    setUpdatedAt(new Date().toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+    if (!silent) setLoading(false);
+  };
+
+  useEffect(() => {
     fetchAll();
+    clearInterval(pollRef.current);
+    if (isTradingHours()) {
+      setLive(true);
+      pollRef.current = setInterval(() => {
+        if (!isTradingHours()) { clearInterval(pollRef.current); setLive(false); return; }
+        fetchAll(true);
+      }, 30_000);
+    } else {
+      setLive(false);
+    }
+    return () => clearInterval(pollRef.current);
   }, [watchlist]);
 
   const startEdit = (ticker) => {
@@ -35,7 +52,11 @@ export default function WatchList({ watchlist, watchNotes = {}, onRemove, onSele
 
   return (
     <div className="page">
-      <h2>自選清單</h2>
+      <div className="watchlist-header-row">
+        <h2>自選清單</h2>
+        {live && <span className="live-dot" title="即時自動更新中">● 即時</span>}
+        {updatedAt && <span className="watchlist-updated">更新 {updatedAt}</span>}
+      </div>
 
       {watchlist.length === 0 ? (
         <div className="empty-watchlist">

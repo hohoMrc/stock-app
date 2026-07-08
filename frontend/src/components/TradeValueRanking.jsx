@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { getTradeValueRanking, getTurnoverRanking } from "../api";
+import { isTradingHours } from "../marketHours";
 
 const TABS = [
   { key: "value",    label: "成交值" },
@@ -34,10 +35,23 @@ export default function TradeValueRanking({ onSelect }) {
     }
   };
 
+  const pollRef = useRef(null);
+
   useEffect(() => { load("value"); }, []);
 
   useEffect(() => {
     if (!loaded.current[activeTab]) load(activeTab);
+  }, [activeTab]);
+
+  // 交易時段每 60 秒自動刷新成交值排行
+  useEffect(() => {
+    clearInterval(pollRef.current);
+    if (!isTradingHours()) return;
+    pollRef.current = setInterval(() => {
+      if (!isTradingHours()) { clearInterval(pollRef.current); return; }
+      load(activeTab, true);
+    }, 60_000);
+    return () => clearInterval(pollRef.current);
   }, [activeTab]);
 
   const stocks   = data[activeTab];
