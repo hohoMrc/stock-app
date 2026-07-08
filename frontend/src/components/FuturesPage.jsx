@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from "lightweight-charts";
 import { getFuturesQuote, getFuturesCandles, getFuturesInstitutional } from "../api";
 
@@ -87,16 +87,36 @@ function QuoteHeader({ quote, loading, livePrice, priceFlash }) {
   );
 }
 
-function FuturesChart({ candles, timeframe, activeMA }) {
-  const containerRef = useRef(null);
-  const chartRef     = useRef(null);
+const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, activeMA }, ref) {
+  const containerRef    = useRef(null);
+  const chartRef        = useRef(null);
+  const candleSeriesRef = useRef(null);
+  const lastBarRef      = useRef(null);   // 最後一根 candle 的快照，供即時更新使用
+
+  useImperativeHandle(ref, () => ({
+    updateLastCandle(price) {
+      if (!candleSeriesRef.current || !lastBarRef.current) return;
+      const bar = lastBarRef.current;
+      const updated = {
+        time:  bar.time,
+        open:  bar.open,
+        high:  Math.max(bar.high, price),
+        low:   Math.min(bar.low,  price),
+        close: price,
+      };
+      lastBarRef.current = updated;
+      candleSeriesRef.current.update(updated);
+    },
+  }), []);
 
   useEffect(() => {
     if (!containerRef.current || !candles.length) return;
 
     if (chartRef.current) {
       chartRef.current.remove();
-      chartRef.current = null;
+      chartRef.current        = null;
+      candleSeriesRef.current = null;
+      lastBarRef.current      = null;
     }
 
     const chart = createChart(containerRef.current, {
@@ -127,19 +147,24 @@ function FuturesChart({ candles, timeframe, activeMA }) {
     });
     chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
 
-    candleSeries.setData(candles.map(c => ({
+    const candleData = candles.map(c => ({
       time:  c.time ?? c.date,
       open:  c.open,
       high:  c.high,
       low:   c.low,
       close: c.close,
-    })));
+    }));
 
+    candleSeries.setData(candleData);
     volSeries.setData(candles.map(c => ({
       time:  c.time ?? c.date,
       value: c.volume,
       color: c.close >= c.open ? "#ef4444aa" : "#22c55eaa",
     })));
+
+    // 記錄最後一根供即時更新
+    candleSeriesRef.current = candleSeries;
+    lastBarRef.current      = candleData[candleData.length - 1] ?? null;
 
     // MA / EMA 線
     MA_LINES.forEach(({ key, period, color, ema }) => {
@@ -148,7 +173,7 @@ function FuturesChart({ candles, timeframe, activeMA }) {
       if (!lineData.length) return;
       const s = chart.addSeries(LineSeries, {
         color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
-        lineStyle: ema ? 1 : 0,  // EMA 用虛線，MA 用實線
+        lineStyle: ema ? 1 : 0,
       });
       s.setData(lineData);
     });
@@ -165,7 +190,7 @@ function FuturesChart({ candles, timeframe, activeMA }) {
   }, [candles, timeframe, activeMA]);
 
   return <div ref={containerRef} className="futures-chart" />;
-}
+});
 
 function InstitutionalChart({ data }) {
   if (!data.length) return <div className="futures-inst-empty">暫無法人資料</div>;
@@ -236,8 +261,9 @@ export default function FuturesPage() {
   const [priceFlash,   setPriceFlash]   = useState(null); // "up" | "down"
   const [activeMA,     setActiveMA]     = useState({ ma5: true, ma20: true, ma60: true, ema5: false, ema20: false, ema60: false });
   const [error, setError] = useState(null);
-  const wsRef = useRef(null);
+  const wsRef        = useRef(null);
   const prevPriceRef = useRef(null);
+  const chartRef     = useRef(null);
 
   // 初始報價
   useEffect(() => {
@@ -268,6 +294,8 @@ export default function FuturesPage() {
         setLivePrice(price);
         prevPriceRef.current = price;
         setTimeout(() => setPriceFlash(null), 400);
+        // 同步更新 K 線最後一根
+        chartRef.current?.updateLastCandle(price);
         // 同步更新 quote 的 change
         setQuote(q => q ? {
           ...q,
@@ -345,7 +373,7 @@ export default function FuturesPage() {
         ? <div className="futures-chart-loading">K 線載入中...</div>
         : candles.length === 0 && timeframe !== "D"
           ? <div className="futures-chart-empty">盤中 K 線資料暫無（交易時段 08:45–13:45）</div>
-          : <FuturesChart candles={candles} timeframe={timeframe} activeMA={activeMA} />
+          : <FuturesChart ref={chartRef} candles={candles} timeframe={timeframe} activeMA={activeMA} />
       }
 
       <InstitutionalChart data={institutional} />
