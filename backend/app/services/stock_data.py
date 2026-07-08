@@ -979,7 +979,7 @@ def _get_closes_from_db(ticker: str, min_days: int = 20) -> list | None:
     return closes if len(closes) >= min_days else None
 
 
-def _get_weekly_change(ticker: str):
+def _get_weekly_change(ticker: str, db_only: bool = False):
     """計算週漲幅：本週收盤 vs 上週五收盤。優先 DB → Fugle → yfinance。"""
     # 1) DB
     closes = _get_closes_from_db(ticker, min_days=10)
@@ -995,6 +995,9 @@ def _get_weekly_change(ticker: str):
             weekly = df["close"].resample("W-FRI").last().dropna()
             if len(weekly) >= 2:
                 return round((weekly.iloc[-1] - weekly.iloc[-2]) / weekly.iloc[-2] * 100, 2)
+
+    if db_only:
+        return None
 
     # 2) Fugle
     to_dt   = date.today()
@@ -1103,7 +1106,7 @@ def scan_all_weekly_surge(min_weekly_change: float = 20.0,
     return sorted(results, key=lambda x: x.get("weekly_change_pct", 0), reverse=True)
 
 
-def _calc_ma(ticker: str, ma_key: str):
+def _calc_ma(ticker: str, ma_key: str, db_only: bool = False):
     """計算指定均線，回傳 (目前股價, MA值, 偏離%) 或 None。優先 DB（MA≤60），MA240 用 yfinance。"""
     cfg = MA_PERIODS[ma_key]
     days = cfg["days"]
@@ -1121,6 +1124,9 @@ def _calc_ma(ticker: str, ma_key: str):
             current_price = round(float(closes.values[-1]), 2)
             deviation_pct = round((current_price - ma_value) / ma_value * 100, 2)
             return {"price": current_price, "ma": ma_value, "deviation_pct": deviation_pct}
+
+    if db_only:
+        return None
 
     # 2) yfinance fallback（MA240 或 DB 不足）
     needed_period = "1y" if days <= 60 else "2y"
@@ -1216,7 +1222,7 @@ def scan_ma_squeeze(limit: int = 200) -> list:
     return results
 
 
-def _check_technical_signals(ticker: str) -> dict | None:
+def _check_technical_signals(ticker: str, db_only: bool = False) -> dict | None:
     """計算技術訊號（前日漲幅、MA20方向、收盤與MA5/MA60相對位置）。優先 DB → yfinance。"""
     # 1) DB（需 ≥65 筆，約 3 個月）
     closes_list = _get_closes_from_db(ticker, min_days=65)
@@ -1233,6 +1239,9 @@ def _check_technical_signals(ticker: str) -> dict | None:
             "price_above_ma5":     prev_close > float(ma5.iloc[-1]),
             "price_above_ma60":    prev_close > float(ma60.iloc[-1]),
         }
+
+    if db_only:
+        return None
 
     # 2) yfinance fallback
     symbol = _get_symbol(ticker)
@@ -1315,14 +1324,14 @@ def screen_stocks(tickers: list, filters: dict) -> list:
 
             # 週漲幅篩選（需額外抓 10d 歷史，但比均線快）
             if min_weekly_chg is not None:
-                wchg = _get_weekly_change(ticker)
+                wchg = _get_weekly_change(ticker, db_only=use_db)
                 if wchg is None or wchg < min_weekly_chg:
                     continue
                 info["weekly_change_pct"] = wchg
 
             # 均線位置篩選
             if near_ma and near_ma in MA_PERIODS:
-                ma_data = _calc_ma(ticker, near_ma)
+                ma_data = _calc_ma(ticker, near_ma, db_only=use_db)
                 if ma_data is None:
                     continue
                 if not (0 <= ma_data["deviation_pct"] <= near_ma_pct):
@@ -1338,7 +1347,7 @@ def screen_stocks(tickers: list, filters: dict) -> list:
                 or filters.get("price_above_ma5_ma60")
             )
             if needs_tech:
-                tech = _check_technical_signals(ticker)
+                tech = _check_technical_signals(ticker, db_only=use_db)
                 if tech is None:
                     continue
                 if filters.get("min_prev_day_change") is not None:

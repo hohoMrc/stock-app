@@ -1,5 +1,6 @@
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from app.services.stock_data import get_stock_info, get_stock_history, screen_stocks, get_stocks_by_industry, scan_all_weekly_surge, scan_ma_squeeze, search_stocks, get_trade_value_ranking, get_turnover_ranking, get_stock_orderbook, get_stock_trades
 from app.services.ai_analysis import analyze_stock
@@ -86,7 +87,7 @@ async def turnover_ranking(limit: int = Query(default=50, le=100), force: bool =
 @router.post("/screen")
 async def screen(filters: ScreenFilter):
     try:
-        results = screen_stocks(filters.tickers, filters.model_dump(exclude={"tickers"}))
+        results = await run_in_threadpool(screen_stocks, filters.tickers, filters.model_dump(exclude={"tickers"}))
         return {"count": len(results), "stocks": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
