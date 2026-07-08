@@ -2,7 +2,9 @@ import os
 import threading
 import calendar
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timezone, timedelta
+
+TZ_TAIPEI = timezone(timedelta(hours=8))
 import requests
 
 _sdk         = None
@@ -96,6 +98,8 @@ def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> lis
     result = []
     for c in data.get("data", []):
         dt = datetime.fromisoformat(c["date"])
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=TZ_TAIPEI)
         result.append({
             "time":   int(dt.timestamp()),
             "open":   c["open"],
