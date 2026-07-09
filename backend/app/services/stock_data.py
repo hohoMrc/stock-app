@@ -1169,6 +1169,9 @@ def _calc_ma_squeeze(closes_list: list) -> bool:
         return False
     if min(recent) < 0:
         return False
+    # 收盤價必須在 MA5 之上（排除股價跌穿 MA5 導致的假性黏合）
+    if closes_list[-1] < ma5[-1]:
+        return False
     return True
 
 
