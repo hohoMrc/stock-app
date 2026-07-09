@@ -471,10 +471,11 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const clrC    = bar?.change > 0 ? "#dc2626" : bar?.change < 0 ? "#16a34a" : "#64748b";
   const sign    = (v) => v > 0 ? "+" : "";
 
+  const kPaneHeight      = height;
   const totalChartHeight = height + VOL_PANE_HEIGHT + MACD_PANE_HEIGHT;
 
   return (
-    <div style={{ position: "relative", height: totalChartHeight, display: "flex", flexDirection: "column" }}>
+    <div style={{ position: "relative" }}>
 
       {/* MA 切換列 */}
       <div className="ma-toggle-bar">
@@ -542,8 +543,8 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
         )}
       </div>
 
-      {/* 圖表本體：flex:1 填滿 MA 列 + 資訊列以外的空間 */}
-      <div ref={containerRef} style={{ flex: 1, minHeight: 0, position: "relative" }}>
+      {/* 圖表本體：固定高度確保 lightweight-charts 可以正確測量 */}
+      <div ref={containerRef} style={{ height: totalChartHeight, position: "relative" }}>
         {/* VOL 副圖標籤 */}
         <div className="kd-label-bar" style={{ top: volTop }}>
           <span className="kd-label-title">VOL(5,10,20)</span>
