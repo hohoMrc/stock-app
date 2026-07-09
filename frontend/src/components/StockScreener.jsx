@@ -44,6 +44,7 @@ const MA_OPTIONS = [
 export default function StockScreener({ onSelect, filters, setFilters, results, setResults, searched, setSearched }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [resultMode, setResultMode] = useState(""); // "weekly_surge" | ""
 
   // 週漲幅急漲固定條件
   const WEEKLY_SURGE_PRESET = {
@@ -53,6 +54,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
   };
 
   const handleWeeklySurge = async () => {
+    setResultMode("weekly_surge");
     setLoading(true);
     setError(null);
     setResults([]);
@@ -70,6 +72,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
   };
 
   const handlePattern = async (pattern) => {
+    setResultMode("");
     const newFilters = { ...EMPTY_FILTERS, pattern, custom_tickers: filters.custom_tickers };
     setFilters(newFilters);
     // MA黏合：直接掃全市場 DB，不透過 screenStocks
@@ -95,6 +98,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
   const handleScreen = () => runScreen(filters);
 
   const runScreen = async (f) => {
+    setResultMode("");
     setLoading(true);
     setError(null);
     setResults([]);
@@ -369,9 +373,8 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                   <th>名稱</th>
                   <th>股價</th>
                   <th>漲跌幅</th>
-                  {!hasPattern && <th>週漲幅</th>}
+                  {resultMode === "weekly_surge" && <th>週漲幅</th>}
                   <th>成交量(張)</th>
-                  {!hasPattern && <th>殖利率</th>}
                   {hasMA && <th>{MA_OPTIONS.find(o => o.value === filters.near_ma)?.label}</th>}
                   {hasMA && <th>偏離</th>}
                   {hasPattern && <th>型態</th>}
@@ -387,13 +390,12 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                     <td className={s.change_pct > 0 ? "deviation-up" : s.change_pct < 0 ? "deviation-down" : ""}>
                       {s.change_pct != null ? `${s.change_pct > 0 ? "+" : ""}${s.change_pct}%` : "—"}
                     </td>
-                    {!hasPattern && (
+                    {resultMode === "weekly_surge" && (
                       <td className={s.weekly_change_pct > 0 ? "deviation-up" : s.weekly_change_pct < 0 ? "deviation-down" : ""}>
                         {s.weekly_change_pct != null ? `${s.weekly_change_pct > 0 ? "+" : ""}${s.weekly_change_pct}%` : "—"}
                       </td>
                     )}
                     <td>{s.volume_zhang != null ? s.volume_zhang.toLocaleString() : "—"}</td>
-                    {!hasPattern && <td>{s.dividend_yield ? `${s.dividend_yield}%` : "—"}</td>}
                     {hasMA && <td>{s.ma_value ?? "—"}</td>}
                     {hasMA && (
                       <td className={
