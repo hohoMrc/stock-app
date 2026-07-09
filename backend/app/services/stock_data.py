@@ -1218,12 +1218,13 @@ def scan_ma_squeeze(limit: int = 200) -> list:
         prev_close = prev.get("close")
         change_pct = round((close - prev_close) / prev_close * 100, 2) if prev_close else None
         results.append({
-            "ticker":      ticker,
-            "name":        row.get("name") or "",
-            "exchange":    row.get("exchange") or "",
-            "close":       round(float(close), 2) if close else None,
-            "change_pct":  change_pct,
-            "pattern":     "bird_beak",
+            "ticker":       ticker,
+            "name":         row.get("name") or "",
+            "exchange":     row.get("exchange") or "",
+            "close":        round(float(close), 2) if close else None,
+            "change_pct":   change_pct,
+            "volume_zhang": round(vol_shares / 1000),
+            "pattern":      "bird_beak",
         })
         if len(results) >= limit:
             break
