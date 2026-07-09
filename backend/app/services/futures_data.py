@@ -227,7 +227,9 @@ def _get_ws_futopt():
             except Exception:
                 pass
         futopt.connect()
+        time.sleep(2)   # 等連線建立後再 return（connect() 是非同步啟動）
         _ws_futopt = futopt
+        print("[Fubon WS] 連線已建立")
     return _ws_futopt
 
 
@@ -237,15 +239,17 @@ def add_ws_listener(symbol: str, queue: asyncio.Queue):
     with _ws_lock:
         if symbol not in _ws_queues:
             _ws_queues[symbol] = set()
-            # 第一次才訂閱，重試 3 次（connect 可能還沒 ready）
-            for attempt in range(3):
+            # 訂閱兩個 channel；已連線時通常第一次就成功
+            for attempt in range(2):
                 try:
                     futopt.subscribe({"channel": "trades", "symbol": symbol})
                     futopt.subscribe({"channel": "quote",  "symbol": symbol})
+                    print(f"[Fubon WS] 訂閱 {symbol} 成功")
                     break
                 except Exception as e:
-                    print(f"[Fubon WS] subscribe attempt {attempt+1} failed: {e}")
-                    time.sleep(1)
+                    print(f"[Fubon WS] subscribe {symbol} attempt {attempt+1} failed: {e}")
+                    if attempt == 0:
+                        time.sleep(0.5)
         _ws_queues[symbol].add(queue)
 
 

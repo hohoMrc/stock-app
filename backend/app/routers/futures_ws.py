@@ -13,7 +13,11 @@ async def futures_ws(websocket: WebSocket, product: str = "TXF"):
     queue  = asyncio.Queue()
     queue._loop = loop   # 讓 callback thread 可以拿到 loop
 
-    add_ws_listener(symbol, queue)
+    # Fubon 訂閱失敗不關閉 WS；前端仍可透過 REST 輪詢取得資料
+    try:
+        await asyncio.to_thread(add_ws_listener, symbol, queue)
+    except Exception as e:
+        print(f"[WS] add_ws_listener 失敗（{symbol}）: {e}")
     try:
         while True:
             try:
