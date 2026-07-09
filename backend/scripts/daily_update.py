@@ -145,6 +145,23 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[MA黏合] 掃描失敗: {e}")
 
+        print("[EMA60近線] 開始掃描...")
+        try:
+            from app.services.stock_data import scan_near_ema60
+            ema_hits = scan_near_ema60(500)
+            if ema_hits:
+                lines = [
+                    _stock_link(s["ticker"], s.get("name", ""), f"  {s['close']}元 (+{s['dev_pct']}%)")
+                    for s in ema_hits
+                ]
+                ema_msg = f"[EMA60近線] 今日找到 {len(ema_hits)} 支\n" + "\n".join(lines)
+            else:
+                ema_msg = "[EMA60近線] 今日無符合條件的股票"
+            print(ema_msg)
+            _tg_notify(ema_msg, html=True)
+        except Exception as e:
+            print(f"[EMA60近線] 掃描失敗: {e}")
+
     # 儲存台指期當日各 timeframe 盤中 K 棒到 DB
     print("[期貨K線] 儲存當日各 timeframe K 棒...")
     try:

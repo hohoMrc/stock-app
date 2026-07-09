@@ -1175,6 +1175,56 @@ def _calc_ma_squeeze(closes_list: list) -> bool:
     return True
 
 
+def scan_near_ema60(limit: int = 500) -> list:
+    """掃全市場，回傳收盤價在 EMA60 上方 0~3% 內、日量 ≥ 2000 張、非金融保險的股票。"""
+    from app.db import get_all_db_tickers_with_meta, get_candles
+    from datetime import date, timedelta
+
+    from_date = (date.today() - timedelta(days=120)).strftime("%Y-%m-%d")
+    to_date   = date.today().strftime("%Y-%m-%d")
+
+    all_tickers = get_all_db_tickers_with_meta()
+    results = []
+    for row in all_tickers:
+        ticker = row["ticker"]
+        if row.get("parent_industry") == "金融保險":
+            continue
+        records = get_candles(ticker, from_date, to_date)
+        if not records or len(records) < 62:
+            continue
+        last = records[-1]
+        vol_shares = last.get("volume") or 0
+        if vol_shares < 2_000_000:
+            continue
+        closes = [r["close"] for r in records if r["close"] is not None]
+        # 計算 EMA60
+        k, ema = 2 / 61, None
+        for c in closes:
+            ema = c if ema is None else c * k + ema * (1 - k)
+        close = last.get("close")
+        if not close or not ema:
+            continue
+        dev = (close - ema) / ema
+        if not (0 <= dev <= 0.03):
+            continue
+        prev = records[-2] if len(records) >= 2 else last
+        prev_close = prev.get("close")
+        change_pct = round((close - prev_close) / prev_close * 100, 2) if prev_close else None
+        results.append({
+            "ticker":       ticker,
+            "name":         row.get("name") or "",
+            "exchange":     row.get("exchange") or "",
+            "close":        round(float(close), 2),
+            "change_pct":   change_pct,
+            "volume_zhang": round(vol_shares / 1000),
+            "ema60":        round(float(ema), 2),
+            "dev_pct":      round(dev * 100, 2),
+        })
+        if len(results) >= limit:
+            break
+    return results
+
+
 def _detect_ma_pattern(ticker: str) -> dict:
     """偵測 MA 黏合型態（從 DB 優先，fallback yfinance）。"""
     from app.db import get_candles
