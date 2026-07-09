@@ -17,7 +17,7 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
   const [analysis, setAnalysis] = useState("");
   const [period, setPeriod] = useState("3mo");
   const [chartType, setChartType] = useState("candle"); // "candle" | "line"
-  const [interval, setInterval] = useState("1d");       // "1d" | "1wk" | "1mo"
+  const [interval, setIntervalKey] = useState("1d");     // "1d" | "1wk" | "1mo"
   const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState(false);   // 是否正在即時刷新
@@ -138,7 +138,7 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
                 <button
                   key={label}
                   className={(chartType === type && (type === "line" || interval === iv)) ? "active" : ""}
-                  onClick={() => { setChartType(type); if (type === "candle") setInterval(iv); }}
+                  onClick={() => { setChartType(type); if (type === "candle") setIntervalKey(iv); }}
                 >
                   {label}
                 </button>
