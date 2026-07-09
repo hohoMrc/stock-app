@@ -368,6 +368,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                   <th>代號</th>
                   <th>名稱</th>
                   <th>股價</th>
+                  <th>漲跌幅</th>
                   {!hasPattern && <th>週漲幅</th>}
                   <th>成交量(張)</th>
                   {!hasPattern && <th>殖利率</th>}
@@ -383,6 +384,9 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                     <td className="col-ticker">{s.ticker}</td>
                     <td className="col-name">{s.name}</td>
                     <td>{s.close ?? s.price ?? "—"}</td>
+                    <td className={s.change_pct > 0 ? "deviation-up" : s.change_pct < 0 ? "deviation-down" : ""}>
+                      {s.change_pct != null ? `${s.change_pct > 0 ? "+" : ""}${s.change_pct}%` : "—"}
+                    </td>
                     {!hasPattern && (
                       <td className={s.weekly_change_pct > 0 ? "deviation-up" : s.weekly_change_pct < 0 ? "deviation-down" : ""}>
                         {s.weekly_change_pct != null ? `${s.weekly_change_pct > 0 ? "+" : ""}${s.weekly_change_pct}%` : "—"}
