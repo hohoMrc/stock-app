@@ -96,21 +96,35 @@ def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> lis
             })
         return result
 
-    data   = _get_client().futopt.intraday.candles(symbol=symbol, timeframe=timeframe)
-    result = []
-    for c in data.get("data", []):
-        dt = datetime.fromisoformat(c["date"])
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=TZ_TAIPEI)
-        result.append({
-            "time":   int(dt.timestamp()),
-            "open":   c["open"],
-            "high":   c["high"],
-            "low":    c["low"],
-            "close":  c["close"],
-            "volume": c.get("volume", 0),
-        })
-    return result
+    from app.db import get_futures_candles_db
+    product = symbol[:3]  # "TXF" or "MTX"
+
+    # 今日盤中即時資料
+    today_candles = []
+    try:
+        data = _get_client().futopt.intraday.candles(symbol=symbol, timeframe=timeframe)
+        for c in data.get("data", []):
+            dt = datetime.fromisoformat(c["date"])
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=TZ_TAIPEI)
+            today_candles.append({
+                "time":   int(dt.timestamp()),
+                "open":   c["open"],
+                "high":   c["high"],
+                "low":    c["low"],
+                "close":  c["close"],
+                "volume": c.get("volume", 0),
+            })
+    except Exception as e:
+        print(f"[futures] intraday.candles 失敗: {e}")
+
+    # DB 歷史資料（過去各交易日）
+    hist = get_futures_candles_db(product, timeframe)
+    if today_candles:
+        today_min_time = min(c["time"] for c in today_candles)
+        hist = [c for c in hist if c["time"] < today_min_time]
+
+    return hist + today_candles
 
 
 def get_institutional_positions() -> list:

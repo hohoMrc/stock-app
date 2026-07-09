@@ -60,6 +60,21 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_candles_ticker
             ON candles(ticker, date DESC);
+
+        CREATE TABLE IF NOT EXISTS futures_candles (
+            symbol    TEXT NOT NULL,
+            timeframe TEXT NOT NULL,
+            time      INTEGER NOT NULL,
+            open      REAL,
+            high      REAL,
+            low       REAL,
+            close     REAL,
+            volume    INTEGER,
+            PRIMARY KEY (symbol, timeframe, time)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_futures_candles
+            ON futures_candles(symbol, timeframe, time DESC);
         """)
         # Migration: 舊版 DB 沒有 parent_industry 欄位
         try:
@@ -242,6 +257,36 @@ def is_candles_fresh(ticker: str, from_date: str, to_date: str) -> bool:
         return False
     latest = datetime.strptime(row["latest"], "%Y-%m-%d").date()
     return (datetime.now().date() - latest).days <= 3
+
+
+# ── futures_candles ─────────────────────────────────────
+
+def save_futures_candles(symbol: str, timeframe: str, candles: list[dict]):
+    """存入期貨盤中 K 棒（INSERT OR REPLACE）。"""
+    if not candles:
+        return
+    with _conn() as conn:
+        conn.executemany(
+            "INSERT OR REPLACE INTO futures_candles"
+            "(symbol, timeframe, time, open, high, low, close, volume) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (symbol, timeframe, c["time"],
+                 c.get("open"), c.get("high"), c.get("low"), c.get("close"), c.get("volume", 0))
+                for c in candles
+            ]
+        )
+
+
+def get_futures_candles_db(symbol: str, timeframe: str, limit: int = 3000) -> list[dict]:
+    """從 DB 取期貨歷史 K 棒，由舊到新排序。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT time, open, high, low, close, volume FROM futures_candles "
+            "WHERE symbol=? AND timeframe=? ORDER BY time DESC LIMIT ?",
+            (symbol, timeframe, limit)
+        ).fetchall()
+    return [dict(r) for r in reversed(rows)]
 
 
 # ── users ────────────────────────────────────────────────
