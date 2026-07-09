@@ -118,12 +118,6 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
         </div>
       </div>
 
-      <div className="info-grid">
-        <InfoItem label="殖利率" value={info.dividend_yield ? `${info.dividend_yield}%` : "—"} />
-        <InfoItem label="52週高" value={info.week_52_high ?? "—"} />
-        <InfoItem label="52週低" value={info.week_52_low ?? "—"} />
-      </div>
-
       <div className="chart-section">
         <div className="chart-header">
           <div className="chart-header-left">
