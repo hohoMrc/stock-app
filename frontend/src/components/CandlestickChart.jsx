@@ -147,7 +147,7 @@ function getFromDate(period, asUnix = false) {
 const VOL_PANE_HEIGHT  = 80;
 const MACD_PANE_HEIGHT = 120;
 
-export default function CandlestickChart({ data, period = "3mo", interval = "1d" }) {
+export default function CandlestickChart({ data, period = "3mo", interval = "1d", height = 320 }) {
   const containerRef    = useRef(null);
   const chartRef        = useRef(null);
   const candleSeriesRef = useRef(null);
@@ -311,7 +311,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     const ro = new ResizeObserver(([entry]) => {
       if (!chartRef.current) return;
       const newW = entry.contentRect.width;
-      const newH = entry.contentRect.height;
+      const newH = entry.contentRect.height || totalHeight;
       chartRef.current.applyOptions({ width: newW, height: newH });
       const newKH = Math.max(120, newH - VOL_PANE_HEIGHT - MACD_PANE_HEIGHT);
       chartRef.current.panes()[0]?.setStretchFactor(newKH);
@@ -471,8 +471,10 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const clrC    = bar?.change > 0 ? "#dc2626" : bar?.change < 0 ? "#16a34a" : "#64748b";
   const sign    = (v) => v > 0 ? "+" : "";
 
+  const totalChartHeight = height + VOL_PANE_HEIGHT + MACD_PANE_HEIGHT;
+
   return (
-    <div style={{ position: "relative", height: "100%", display: "flex", flexDirection: "column" }}>
+    <div style={{ position: "relative", height: totalChartHeight, display: "flex", flexDirection: "column" }}>
 
       {/* MA 切換列 */}
       <div className="ma-toggle-bar">
