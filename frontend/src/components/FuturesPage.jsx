@@ -98,7 +98,9 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
   const containerRef    = useRef(null);
   const chartRef        = useRef(null);
   const candleSeriesRef = useRef(null);
+  const volSeriesRef    = useRef(null);
   const lastBarRef      = useRef(null);
+  const lastBarVolumeRef = useRef(0);
   const maSeriesMap     = useRef({});   // key → LineSeries
   const closesRef       = useRef([]);   // 最近 closes（滑動窗口，最大長度 max period）
   const emaStateRef     = useRef({});   // key → 上一根已確認的 EMA 值
@@ -106,7 +108,7 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
   const MAX_PERIOD = Math.max(...MA_LINES.map(l => l.period));
 
   useImperativeHandle(ref, () => ({
-    updateLastCandle(price) {
+    updateLastCandle(price, volumeDelta = 0) {
       if (!candleSeriesRef.current || !lastBarRef.current) return;
       const bar = lastBarRef.current;
 
@@ -124,6 +126,7 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
         closesRef.current.push(bar.close, price);
         if (closesRef.current.length > MAX_PERIOD + 2)
           closesRef.current = closesRef.current.slice(-MAX_PERIOD - 2);
+        lastBarVolumeRef.current = volumeDelta;
       } else {
         nextBar = {
           time:  bar.time,
@@ -134,9 +137,19 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
         };
         // 同一根：替換最後一個 close
         closesRef.current[closesRef.current.length - 1] = price;
+        lastBarVolumeRef.current += volumeDelta;
       }
       lastBarRef.current = nextBar;
       candleSeriesRef.current.update(nextBar);
+
+      // 更新成交量柱
+      if (volSeriesRef.current) {
+        volSeriesRef.current.update({
+          time:  nextBar.time,
+          value: lastBarVolumeRef.current,
+          color: nextBar.close >= nextBar.open ? "#ef4444aa" : "#22c55eaa",
+        });
+      }
 
       // 更新 MA / EMA 線
       const closes = closesRef.current;
@@ -171,7 +184,9 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
       chartRef.current.remove();
       chartRef.current        = null;
       candleSeriesRef.current = null;
+      volSeriesRef.current    = null;
       lastBarRef.current      = null;
+      lastBarVolumeRef.current = 0;
       maSeriesMap.current     = {};
     }
 
@@ -221,8 +236,10 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
       color: c.close >= c.open ? "#ef4444aa" : "#22c55eaa",
     })));
 
-    candleSeriesRef.current = candleSeries;
-    lastBarRef.current      = candleData[candleData.length - 1] ?? null;
+    candleSeriesRef.current  = candleSeries;
+    volSeriesRef.current     = volSeries;
+    lastBarRef.current       = candleData[candleData.length - 1] ?? null;
+    lastBarVolumeRef.current = shifted.length ? (shifted[shifted.length - 1].volume ?? 0) : 0;
 
     // 初始化 closes 滑動窗口與 EMA 狀態
     const allCloses = shifted.map(c => c.close);
@@ -392,12 +409,13 @@ export default function FuturesPage() {
         if (!trades.length) return;
         const price = trades[trades.length - 1].price;
         if (!price) return;
+        const volumeDelta = trades.reduce((s, t) => s + (t.size || 0), 0);
         const prev = prevPriceRef.current;
         setPriceFlash(prev == null ? null : price >= prev ? "up" : "down");
         setLivePrice(price);
         prevPriceRef.current = price;
         setTimeout(() => setPriceFlash(null), 400);
-        chartRef.current?.updateLastCandle(price);
+        chartRef.current?.updateLastCandle(price, volumeDelta);
         setQuote(q => q ? {
           ...q,
           price,
