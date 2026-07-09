@@ -1374,9 +1374,11 @@ def screen_stocks(tickers: list, filters: dict) -> list:
     min_weekly_chg  = filters.get("min_weekly_change")
 
     use_db = not tickers
+    meta_name_db = {}
     if use_db:
-        meta_list = get_all_db_tickers_with_meta()
-        tickers   = [m["ticker"] for m in meta_list]
+        meta_list    = get_all_db_tickers_with_meta()
+        tickers      = [m["ticker"] for m in meta_list]
+        meta_name_db = {m["ticker"]: m.get("name") for m in meta_list if m.get("name")}
 
     results = []
     for ticker in tickers:
@@ -1384,6 +1386,9 @@ def screen_stocks(tickers: list, filters: dict) -> list:
             info = _get_info_from_db(ticker) if use_db else get_stock_info(ticker)
             if info is None:
                 continue
+            # 用 stock_meta DB 的名字補正（避免 _tw_stock_names API 載入失敗時顯示代號）
+            if use_db and meta_name_db.get(ticker):
+                info["name"] = meta_name_db[ticker]
             if not _passes_basic_filters(info, filters):
                 continue
 
