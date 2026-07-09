@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { screenStocks, scanWeeklySurge, scanMaSqueeze } from "../api";
+import { screenStocks, scanWeeklySurge, scanMaSqueeze, scanNearEma60 } from "../api";
 
 const DEFAULT_TICKERS = [
   // 半導體
@@ -71,6 +71,24 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
     }
   };
 
+  const handleNearEma60 = async () => {
+    setResultMode("near_ema60");
+    setLoading(true);
+    setError(null);
+    setResults([]);
+    setFilters({ ...EMPTY_FILTERS });
+    try {
+      const res = await scanNearEma60(500);
+      setResults(res.data.stocks);
+      setSearched(true);
+    } catch (e) {
+      setError(e?.response?.data?.detail || e.message || "掃描失敗");
+      setSearched(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handlePattern = async (pattern) => {
     setResultMode("");
     const newFilters = { ...EMPTY_FILTERS, pattern, custom_tickers: filters.custom_tickers };
@@ -98,7 +116,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
   const handleScreen = () => runScreen(filters);
 
   const runScreen = async (f) => {
-    setResultMode("");
+    setResultMode(""); // clear special modes
     setLoading(true);
     setError(null);
     setResults([]);
@@ -139,6 +157,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
 
   const hasMA = !!filters.near_ma;
   const hasPattern = !!filters.pattern;
+  const isEma60Mode = resultMode === "near_ema60";
   const PATTERN_LABEL = { bird_beak: "⚡ MA黏合", divergence: "⚡ MA黏合" };
 
   return (
@@ -163,6 +182,14 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
           title="近 15 天 MA5/MA20 曾黏合，MA5 上升中（含鳥嘴與分歧）"
         >
           ⚡ MA黏合
+        </button>
+        <button
+          className="preset-btn preset-btn--pattern"
+          onClick={handleNearEma60}
+          disabled={loading}
+          title="收盤在 EMA60 上方 0~3%，近一個月持續站上 EMA60，日量 ≥ 2000 張"
+        >
+          📈 EMA60近線
         </button>
       </div>
 
@@ -375,6 +402,8 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                   <th>漲跌幅</th>
                   {resultMode === "weekly_surge" && <th>週漲幅</th>}
                   <th>成交量(張)</th>
+                  {isEma60Mode && <th>EMA60</th>}
+                  {isEma60Mode && <th>偏離</th>}
                   {hasMA && <th>{MA_OPTIONS.find(o => o.value === filters.near_ma)?.label}</th>}
                   {hasMA && <th>偏離</th>}
                   {hasPattern && <th>型態</th>}
@@ -396,6 +425,12 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                       </td>
                     )}
                     <td>{s.volume_zhang != null ? s.volume_zhang.toLocaleString() : "—"}</td>
+                    {isEma60Mode && <td>{s.ema60 ?? "—"}</td>}
+                    {isEma60Mode && (
+                      <td className="deviation-up">
+                        {s.dev_pct != null ? `+${s.dev_pct}%` : "—"}
+                      </td>
+                    )}
                     {hasMA && <td>{s.ma_value ?? "—"}</td>}
                     {hasMA && (
                       <td className={

@@ -2,7 +2,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
-from app.services.stock_data import get_stock_info, get_stock_history, screen_stocks, get_stocks_by_industry, scan_all_weekly_surge, scan_ma_squeeze, search_stocks, get_trade_value_ranking, get_turnover_ranking, get_stock_orderbook, get_stock_trades
+from app.services.stock_data import get_stock_info, get_stock_history, screen_stocks, get_stocks_by_industry, scan_all_weekly_surge, scan_ma_squeeze, scan_near_ema60, search_stocks, get_trade_value_ranking, get_turnover_ranking, get_stock_orderbook, get_stock_trades
 from app.services.ai_analysis import analyze_stock
 
 router = APIRouter(prefix="/api/stocks", tags=["stocks"])
@@ -61,6 +61,15 @@ async def weekly_surge_scan(
 async def ma_squeeze_scan(limit: int = Query(default=200, le=500)):
     try:
         results = scan_ma_squeeze(limit)
+        return {"count": len(results), "stocks": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/scan/near-ema60")
+async def near_ema60_scan(limit: int = Query(default=500, le=500)):
+    try:
+        results = await run_in_threadpool(scan_near_ema60, limit)
         return {"count": len(results), "stocks": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
