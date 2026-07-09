@@ -159,10 +159,10 @@ def get_all_db_tickers() -> list[str]:
 
 
 def get_all_db_tickers_with_meta() -> list[dict]:
-    """回傳所有有 K 線的 ticker 及其 name、exchange。"""
+    """回傳所有有 K 線的 ticker 及其 name、exchange、parent_industry。"""
     with _conn() as conn:
         rows = conn.execute("""
-            SELECT c.ticker, m.name, m.exchange
+            SELECT c.ticker, m.name, m.exchange, m.parent_industry
             FROM (SELECT DISTINCT ticker FROM candles) c
             LEFT JOIN stock_meta m ON c.ticker = m.ticker
             ORDER BY c.ticker

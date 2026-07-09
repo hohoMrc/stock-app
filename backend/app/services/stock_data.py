@@ -1200,6 +1200,8 @@ def scan_ma_squeeze(limit: int = 200) -> list:
     results = []
     for row in all_tickers:
         ticker = row["ticker"]
+        if row.get("parent_industry") == "金融保險":
+            continue
         records = get_candles(ticker, from_date, to_date)
         if not records:
             continue
