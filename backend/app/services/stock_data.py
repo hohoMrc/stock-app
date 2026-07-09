@@ -1197,15 +1197,22 @@ def scan_near_ema60(limit: int = 500) -> list:
         if vol_shares < 2_000_000:
             continue
         closes = [r["close"] for r in records if r["close"] is not None]
-        # 計算 EMA60
+        # 逐日計算 EMA60，保留最後 20 個交易日的 EMA 值
         k, ema = 2 / 61, None
+        ema_series = []
         for c in closes:
             ema = c if ema is None else c * k + ema * (1 - k)
+            ema_series.append(ema)
         close = last.get("close")
         if not close or not ema:
             continue
         dev = (close - ema) / ema
         if not (0 <= dev <= 0.03):
+            continue
+        # 近 20 個交易日（約一個月）的收盤都必須在當日 EMA60 上方
+        recent_closes = closes[-20:]
+        recent_emas   = ema_series[-20:]
+        if any(c < e for c, e in zip(recent_closes, recent_emas)):
             continue
         prev = records[-2] if len(records) >= 2 else last
         prev_close = prev.get("close")
