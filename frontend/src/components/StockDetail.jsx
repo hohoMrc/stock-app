@@ -5,6 +5,7 @@ import { getStock, getHistory, analyzeStock } from "../api";
 import { isTradingHours } from "../marketHours";
 
 const INTERVAL_CONFIG = {
+  "15m": { fetchPeriod: "1mo", defaultPeriod: "5d",  periods: ["5d","1mo"] },
   "60m": { fetchPeriod: "3mo", defaultPeriod: "5d",  periods: ["5d","1mo","3mo"] },
   "1d":  { fetchPeriod: "1y",  defaultPeriod: "3mo", periods: ["1mo","3mo","6mo","1y"] },
   "1wk": { fetchPeriod: "2y",  defaultPeriod: "1y",  periods: ["3mo","6mo","1y","2y"] },
@@ -129,6 +130,7 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
             <h3>股價走勢</h3>
             <div className="chart-type-btns">
               {[
+                { label: "15分K", type: "candle", iv: "15m" },
                 { label: "60分K", type: "candle", iv: "60m" },
                 { label: "日K",   type: "candle", iv: "1d" },
                 { label: "週K",   type: "candle", iv: "1wk" },
