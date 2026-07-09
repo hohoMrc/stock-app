@@ -1207,6 +1207,10 @@ def scan_ma_squeeze(limit: int = 200) -> list:
         if not _calc_ma_squeeze(closes_list):
             continue
         last = records[-1]
+        # 日成交量 < 2000 張略過
+        vol_shares = last.get("volume") or 0
+        if vol_shares < 2_000_000:
+            continue
         prev = records[-2] if len(records) >= 2 else last
         close = last.get("close")
         prev_close = prev.get("close")
