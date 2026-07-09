@@ -1296,10 +1296,13 @@ def _get_info_from_db(ticker: str) -> dict | None:
     capital_yi   = round(capital_raw / 1e8, 2) if capital_raw else None
     name     = _tw_stock_names.get(ticker, ticker)
     exchange = _tw_stock_exchange.get(ticker, "TW")
+    prev_close = rows[-2].get("close") if len(rows) >= 2 else None
+    change_pct = round((price - prev_close) / prev_close * 100, 2) if prev_close else None
     return {
         "ticker":      ticker,
         "name":        name,
         "price":       round(float(price), 2),
+        "change_pct":  change_pct,
         "volume_zhang": volume_zhang,
         "capital_yi":  capital_yi,
         "exchange":    exchange,
