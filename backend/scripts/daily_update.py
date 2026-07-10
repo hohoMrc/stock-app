@@ -103,7 +103,7 @@ if __name__ == "__main__":
     tickers = get_all_tickers()
     days    = 90 if FULL_MODE else 7
     mode    = "回填 3 個月" if FULL_MODE else "更新 7 天"
-    delay   = 1.0 if FULL_MODE else 0.5   # full 模式放慢避免 rate limit
+    delay   = 1.5 if FULL_MODE else 1.5   # 至少 1.5s 避免 Fugle rate limit (100 req/min)
 
     print(f"[daily_update] {mode}，共 {len(tickers)} 支股票（間隔 {delay}s）...")
     ok = fail = skip = 0
