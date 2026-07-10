@@ -42,6 +42,7 @@ export default function App() {
   const urlTicker = new URLSearchParams(window.location.search).get("ticker");
   const [activePage, setActivePage] = useState(urlTicker ? "detail" : "ranking");
   const [selectedTicker, setSelectedTicker] = useState(urlTicker || null);
+  const [selectedTickerContext, setSelectedTickerContext] = useState(null);
   const [selectedIndustry, setSelectedIndustry] = useState(null);
   const [pageHistory, setPageHistory] = useState([]);
 
@@ -132,8 +133,9 @@ export default function App() {
     });
   };
 
-  const handleSelectStock = (ticker) => {
+  const handleSelectStock = (ticker, context = null) => {
     setSelectedTicker(ticker);
+    setSelectedTickerContext(context);
     setPageHistory((prev) => [...prev, activePage]);
     setActivePage("detail");
   };
@@ -270,6 +272,7 @@ export default function App() {
         {activePage === "detail" && selectedTicker && (
           <StockDetail
             ticker={selectedTicker}
+            scanContext={selectedTickerContext}
             onBack={goBack}
             onIndustry={handleSelectIndustry}
             watchlist={watchlist}
@@ -313,7 +316,7 @@ export default function App() {
             setResults={setScreenerResults}
             searched={screenerSearched}
             setSearched={setScreenerSearched}
-            onSelect={(t) => handleSelectStock(t, "screener")}
+            onSelect={handleSelectStock}
           />
         </div>
       </main>

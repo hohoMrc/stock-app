@@ -147,7 +147,9 @@ function getFromDate(period, asUnix = false) {
 const VOL_PANE_HEIGHT  = 80;
 const MACD_PANE_HEIGHT = 120;
 
-export default function CandlestickChart({ data, period = "3mo", interval = "1d", height = 320 }) {
+const DEFAULT_ACTIVE_MA = { ma5: false, ma10: false, ma20: false, ma30: false, ma60: false, ema10: true, ema60: true };
+
+export default function CandlestickChart({ data, period = "3mo", interval = "1d", height = 320, defaultMA = null }) {
   const containerRef    = useRef(null);
   const chartRef        = useRef(null);
   const candleSeriesRef = useRef(null);
@@ -169,7 +171,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const volMapRef       = useRef(new Map());
   const macdMapRef      = useRef(new Map());
 
-  const [activeMA,    setActiveMA]    = useState({ ma5: false, ma10: false, ma20: false, ma30: false, ma60: false, ema10: true, ema60: true });
+  const [activeMA,    setActiveMA]    = useState(() => defaultMA ?? DEFAULT_ACTIVE_MA);
   const [showBOLL,    setShowBOLL]    = useState(false);
   const [hoveredBar,  setHoveredBar]  = useState(null);
   const [hoveredMACD, setHoveredMACD] = useState(null);

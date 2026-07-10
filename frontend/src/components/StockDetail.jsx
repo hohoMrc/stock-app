@@ -12,7 +12,12 @@ const INTERVAL_CONFIG = {
   "1mo": { fetchPeriod: "5y",  defaultPeriod: "2y",  periods: ["1y","2y","5y"] },
 };
 
-export default function StockDetail({ ticker, onBack, onIndustry, watchlist = [], onToggleWatch }) {
+const SCAN_DEFAULT_MA = {
+  bird_beak: { ma5: true,  ma10: false, ma20: true,  ma30: false, ma60: false, ema10: false, ema60: false },
+  near_ema60: { ma5: false, ma10: false, ma20: false, ma30: false, ma60: false, ema10: false, ema60: true  },
+};
+
+export default function StockDetail({ ticker, scanContext = null, onBack, onIndustry, watchlist = [], onToggleWatch }) {
   const [info, setInfo] = useState(null);
   const [history, setHistory] = useState([]);
   const [analysis, setAnalysis] = useState("");
@@ -156,7 +161,7 @@ export default function StockDetail({ ticker, onBack, onIndustry, watchlist = []
 
         {history.length > 0 ? (
           chartType === "candle" ? (
-            <CandlestickChart data={history} period={period} interval={interval} height={320} />
+            <CandlestickChart data={history} period={period} interval={interval} height={320} defaultMA={SCAN_DEFAULT_MA[scanContext] ?? null} />
           ) : (
             <ResponsiveContainer width="100%" height={320}>
               <LineChart data={history}>

@@ -90,11 +90,11 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
   };
 
   const handlePattern = async (pattern) => {
-    setResultMode("");
     const newFilters = { ...EMPTY_FILTERS, pattern, custom_tickers: filters.custom_tickers };
     setFilters(newFilters);
-    // MA黏合：直接掃全市場 DB，不透過 screenStocks
+    // 鳥嘴與分歧：直接掃全市場 DB，不透過 screenStocks
     if (pattern === "bird_beak" && !newFilters.custom_tickers) {
+      setResultMode("bird_beak");
       setLoading(true);
       setError(null);
       setResults([]);
@@ -110,6 +110,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
       }
       return;
     }
+    setResultMode("");
     runScreen(newFilters);
   };
 
@@ -450,7 +451,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                       </td>
                     )}
                     <td>
-                      <button className="view-btn" onClick={() => onSelect(s.ticker)}>
+                      <button className="view-btn" onClick={() => onSelect(s.ticker, resultMode)}>
                         查看
                       </button>
                     </td>
