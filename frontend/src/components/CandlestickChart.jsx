@@ -105,6 +105,23 @@ function calcMACD(data, fast = 12, slow = 26, signal = 9) {
   return { difArr, deaArr, histArr };
 }
 
+function calcKD(data, n = 9) {
+  const kArr = [], dArr = [];
+  let prevK = 50, prevD = 50;
+  for (let i = 0; i < data.length; i++) {
+    const slice = data.slice(Math.max(0, i - n + 1), i + 1);
+    const low   = Math.min(...slice.map((d) => d.low));
+    const high  = Math.max(...slice.map((d) => d.high));
+    const rsv   = high === low ? 50 : ((data[i].close - low) / (high - low)) * 100;
+    const k = (2 / 3) * prevK + (1 / 3) * rsv;
+    const d = (2 / 3) * prevD + (1 / 3) * k;
+    kArr.push({ time: data[i].date, value: parseFloat(k.toFixed(2)) });
+    dArr.push({ time: data[i].date, value: parseFloat(d.toFixed(2)) });
+    prevK = k; prevD = d;
+  }
+  return { kArr, dArr };
+}
+
 function calcVolMA(data, period) {
   const result = [];
   for (let i = period - 1; i < data.length; i++) {
@@ -145,7 +162,8 @@ function getFromDate(period, asUnix = false) {
 }
 
 const VOL_PANE_HEIGHT  = 80;
-const MACD_PANE_HEIGHT = 120;
+const MACD_PANE_HEIGHT = 100;
+const KD_PANE_HEIGHT   = 100;
 
 const DEFAULT_ACTIVE_MA = { ma5: false, ma10: false, ma20: false, ma30: false, ma60: false, ema10: true, ema60: true };
 
@@ -164,45 +182,52 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const difSeriesRef    = useRef(null);
   const deaSeriesRef    = useRef(null);
   const macdHistRef     = useRef(null);
+  const kSeriesRef      = useRef(null);
+  const dSeriesRef      = useRef(null);
   const dataRef         = useRef([]);
   const dataIndexRef    = useRef(new Map());
   const maMapRef        = useRef(new Map());
   const bollMapRef      = useRef(new Map());
   const volMapRef       = useRef(new Map());
   const macdMapRef      = useRef(new Map());
+  const kdMapRef        = useRef(new Map());
 
   const [activeMA,    setActiveMA]    = useState(() => defaultMA ?? DEFAULT_ACTIVE_MA);
   const [showBOLL,    setShowBOLL]    = useState(false);
   const [hoveredBar,  setHoveredBar]  = useState(null);
   const [hoveredMACD, setHoveredMACD] = useState(null);
+  const [hoveredKD,   setHoveredKD]   = useState(null);
   const [lastBar,     setLastBar]     = useState(null);
   const [lastMACD,    setLastMACD]    = useState(null);
+  const [lastKD,      setLastKD]      = useState(null);
 
   // 動態 label top 定位（pane 被拖動時更新）
   const [volTop,  setVolTop]  = useState(0);
   const [macdTop, setMacdTop] = useState(0);
+  const [kdTop,   setKdTop]   = useState(0);
   const paneRORef = useRef(null);
 
   const syncLabelOffsets = useCallback(() => {
     const panes = chartRef.current?.panes();
-    if (!panes || panes.length < 3 || !containerRef.current) return;
+    if (!panes || panes.length < 4 || !containerRef.current) return;
     const totalH = containerRef.current.clientHeight;
     if (!totalH) return;
     const f = panes.map(p => (typeof p.getStretchFactor === "function" ? p.getStretchFactor() : 80));
     const sum = f.reduce((a, b) => a + b, 0);
     if (!sum) return;
-    const kH    = Math.round((f[0] / sum) * totalH);  // K 線 pane 高度
-    const macdH = Math.round((f[2] / sum) * totalH);  // MACD pane 高度
-    const volH  = Math.round((f[1] / sum) * totalH);  // VOL pane 高度
-    setVolTop(kH - 20);                // VOL label：K 線 pane 底部往上 20px
-    setMacdTop(kH + volH + 2);        // MACD label：VOL pane 結束後 2px
+    const kH    = Math.round((f[0] / sum) * totalH);
+    const volH  = Math.round((f[1] / sum) * totalH);
+    const macdH = Math.round((f[2] / sum) * totalH);
+    setVolTop(kH - 20);
+    setMacdTop(kH + volH + 2);
+    setKdTop(kH + volH + macdH + 2);
   }, []);
 
   // ── 建立圖表實例 ──────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
-    const totalHeight = containerRef.current.clientHeight || (VOL_PANE_HEIGHT + MACD_PANE_HEIGHT + 320);
-    const kLineH = Math.max(120, totalHeight - VOL_PANE_HEIGHT - MACD_PANE_HEIGHT);
+    const totalHeight = containerRef.current.clientHeight || (VOL_PANE_HEIGHT + MACD_PANE_HEIGHT + KD_PANE_HEIGHT + 320);
+    const kLineH = Math.max(120, totalHeight - VOL_PANE_HEIGHT - MACD_PANE_HEIGHT - KD_PANE_HEIGHT);
     const chart = createChart(containerRef.current, {
       width:  containerRef.current.clientWidth,
       height: totalHeight,
@@ -282,19 +307,31 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       priceScaleId: 'right',
     });
 
+    // pane 3: KD (Stochastic 9)
+    const kdPane = chart.addPane();
+    kSeriesRef.current = kdPane.addSeries(LineSeries, {
+      color: "#f59e0b", lineWidth: 1.5,
+      priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+    });
+    dSeriesRef.current = kdPane.addSeries(LineSeries, {
+      color: "#3b82f6", lineWidth: 1.5,
+      priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+    });
+
     const panes = chart.panes();
     panes[0].setStretchFactor(kLineH);
     panes[1].setStretchFactor(VOL_PANE_HEIGHT);
     panes[2].setStretchFactor(MACD_PANE_HEIGHT);
+    panes[3].setStretchFactor(KD_PANE_HEIGHT);
 
     chart.subscribeCrosshairMove((param) => {
       if (!param.time || param.point === undefined ||
           param.point.x < 0 || param.point.y < 0) {
-        setHoveredBar(null); setHoveredMACD(null);
+        setHoveredBar(null); setHoveredMACD(null); setHoveredKD(null);
         return;
       }
       const candle = param.seriesData.get(candleSeriesRef.current);
-      if (!candle) { setHoveredBar(null); setHoveredMACD(null); return; }
+      if (!candle) { setHoveredBar(null); setHoveredMACD(null); setHoveredKD(null); return; }
 
       const key     = String(param.time);
       const idx     = dataIndexRef.current.get(key) ?? -1;
@@ -308,6 +345,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
         volMa: volMapRef.current.get(key),
       });
       setHoveredMACD(macdMapRef.current.get(key) ?? null);
+      setHoveredKD(kdMapRef.current.get(key) ?? null);
     });
 
     const ro = new ResizeObserver(([entry]) => {
@@ -315,7 +353,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       const newW = entry.contentRect.width;
       const newH = entry.contentRect.height || totalHeight;
       chartRef.current.applyOptions({ width: newW, height: newH });
-      const newKH = Math.max(120, newH - VOL_PANE_HEIGHT - MACD_PANE_HEIGHT);
+      const newKH = Math.max(120, newH - VOL_PANE_HEIGHT - MACD_PANE_HEIGHT - KD_PANE_HEIGHT);
       chartRef.current.panes()[0]?.setStretchFactor(newKH);
       syncLabelOffsets();
     });
@@ -343,6 +381,8 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       difSeriesRef.current    = null;
       deaSeriesRef.current    = null;
       macdHistRef.current     = null;
+      kSeriesRef.current      = null;
+      dSeriesRef.current      = null;
       maSeriesRefs.current    = {};
     };
   }, []);
@@ -433,6 +473,16 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     });
     macdMapRef.current = macdMap;
 
+    // KD (Stochastic 9) + kdMap
+    const { kArr, dArr } = calcKD(data);
+    kSeriesRef.current?.setData(kArr);
+    dSeriesRef.current?.setData(dArr);
+    const kdMap = new Map();
+    kArr.forEach((item, i) => {
+      kdMap.set(String(item.time), { k: item.value, d: dArr[i]?.value });
+    });
+    kdMapRef.current = kdMap;
+
     // lastBar（無 hover 時顯示最後一根）
     const last    = data[data.length - 1];
     const prev    = data.length > 1 ? data[data.length - 2] : null;
@@ -447,6 +497,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       volMa: volMap.get(lastKey),
     });
     setLastMACD(macdMap.get(lastKey) ?? null);
+    setLastKD(kdMap.get(lastKey) ?? null);
 
     applyVisibleRange(period);
   }, [data]);
@@ -470,11 +521,12 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const isUnix  = data?.length > 0 && typeof data[0].date === "number";
   const bar     = hoveredBar  ?? lastBar;
   const mac     = hoveredMACD ?? lastMACD;
+  const kd      = hoveredKD   ?? lastKD;
   const clrC    = bar?.change > 0 ? "#dc2626" : bar?.change < 0 ? "#16a34a" : "#64748b";
   const sign    = (v) => v > 0 ? "+" : "";
 
   const kPaneHeight      = height;
-  const totalChartHeight = height + VOL_PANE_HEIGHT + MACD_PANE_HEIGHT;
+  const totalChartHeight = height + VOL_PANE_HEIGHT + MACD_PANE_HEIGHT + KD_PANE_HEIGHT;
 
   return (
     <div style={{ position: "relative" }}>
@@ -570,6 +622,17 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
               <span style={{ color: mac.hist >= 0 ? "#dc2626" : "#16a34a" }}>
                 MACD: {mac.hist?.toFixed(4)}
               </span>
+            </>
+          ) : null}
+        </div>
+
+        {/* KD 副圖標籤 */}
+        <div className="kd-label-bar" style={{ top: kdTop }}>
+          <span className="kd-label-title">KD(9)</span>
+          {kd ? (
+            <>
+              <span className="kd-k-val">K: {kd.k?.toFixed(2)}</span>
+              <span className="kd-d-val">D: {kd.d?.toFixed(2)}</span>
             </>
           ) : null}
         </div>
