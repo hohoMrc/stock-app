@@ -108,6 +108,8 @@ def _fugle_quote(ticker: str) -> dict:
             "open":   round(float(data["openPrice"]),  2) if data.get("openPrice")  else None,
             "high":   round(float(data["highPrice"]),  2) if data.get("highPrice")  else None,
             "low":    round(float(data["lowPrice"]),   2) if data.get("lowPrice")   else None,
+            # Fugle quote 所屬日期（非交易日時會是最後一個交易日，用來排除假日補棒）
+            "quote_date": data.get("date"),
         }
     except Exception as e:
         print(f"[Fugle] quote {ticker} 失敗: {e}")
@@ -863,10 +865,10 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
                         db_records.extend(_new)
                         db_records.sort(key=lambda x: x["date"])
                         save_candles(ticker, _new)
-                # 盤中即時 K 棒
+                # 盤中即時 K 棒（quote_date 必須等於今天，避免颱風假日補假棒）
                 if date.today().weekday() < 5 and db_records[-1]["date"] != today_str:
                     q = _fugle_quote(ticker)
-                    if q.get("open") and q.get("price"):
+                    if q.get("open") and q.get("price") and q.get("quote_date") == today_str:
                         db_records.append({
                             "date":   today_str,
                             "open":   q["open"],
@@ -955,7 +957,8 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
         today_str = date.today().strftime("%Y-%m-%d")
         if all_records[-1]["date"] != today_str:
             q = _fugle_quote(ticker)
-            if q.get("open") and q.get("price"):
+            # 颱風假日或休市日：Fugle 回傳的 quote_date 是上一個交易日，不補今日假 K 棒
+            if q.get("open") and q.get("price") and q.get("quote_date") == today_str:
                 all_records.append({
                     "date":   today_str,
                     "open":   q["open"],
