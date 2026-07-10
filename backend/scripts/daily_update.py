@@ -128,7 +128,7 @@ if __name__ == "__main__":
 
     # 全量模式不跑 MA 黏合（資料剛回填，不具參考性）
     if not FULL_MODE:
-        print("[MA黏合] 開始掃描...")
+        print("[鳥嘴與分歧] 開始掃描（日K 5MA/20MA）...")
         try:
             from app.services.stock_data import scan_ma_squeeze
             hits = scan_ma_squeeze(500)
@@ -137,13 +137,13 @@ if __name__ == "__main__":
                     _stock_link(s["ticker"], s.get("name", ""), f"  {s.get('close') or s.get('price', '')}元")
                     for s in hits
                 ]
-                squeeze_msg = f"[MA黏合] 今日找到 {len(hits)} 支\n" + "\n".join(lines)
+                squeeze_msg = f"[鳥嘴與分歧] 日K 5MA/20MA，今日找到 {len(hits)} 支\n" + "\n".join(lines)
             else:
-                squeeze_msg = "[MA黏合] 今日無符合條件的股票"
+                squeeze_msg = "[鳥嘴與分歧] 日K 5MA/20MA，今日無符合條件的股票"
             print(squeeze_msg)
             _tg_notify(squeeze_msg, html=True)
         except Exception as e:
-            print(f"[MA黏合] 掃描失敗: {e}")
+            print(f"[鳥嘴與分歧] 掃描失敗: {e}")
 
         print("[EMA60近線] 開始掃描...")
         try:

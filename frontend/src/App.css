@@ -642,6 +642,15 @@
   border-color: var(--pattern-green);
 }
 
+.preset-btn-sub {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.75;
+  letter-spacing: 0;
+  margin-top: 1px;
+}
+
 /* ── Screener Form ── */
 .filter-form {
   background: var(--bg-card);
