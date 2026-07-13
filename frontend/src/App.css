@@ -1910,6 +1910,7 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 /* ── 模擬下單 ── */
 .paper-page-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .paper-page-header h2 { margin: 0; }
+.paper-page-actions { display: flex; align-items: center; gap: 8px; }
 .deposit-btn { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 13px; }
 .deposit-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .deposit-btn:disabled { opacity: 0.6; cursor: default; }

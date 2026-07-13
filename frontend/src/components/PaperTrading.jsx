@@ -137,9 +137,14 @@ export default function PaperTrading({ username, onRequireLogin }) {
     <div className="page paper-page">
       <div className="paper-page-header">
         <h2>模擬下單</h2>
-        <button className="deposit-btn" onClick={handleDeposit} disabled={depositing}>
-          {depositing ? "入金中..." : "入金 10 萬"}
-        </button>
+        <div className="paper-page-actions">
+          <button className="refresh-btn" onClick={() => loadAll()} disabled={loading}>
+            {loading ? "更新中..." : "↻ 重新整理"}
+          </button>
+          <button className="deposit-btn" onClick={handleDeposit} disabled={depositing}>
+            {depositing ? "入金中..." : "入金 10 萬"}
+          </button>
+        </div>
       </div>
 
       {account && (
