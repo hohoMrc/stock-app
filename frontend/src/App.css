@@ -1910,9 +1910,9 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 /* ── 模擬下單 ── */
 .paper-page-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
 .paper-page-header h2 { margin: 0; }
-.reset-btn { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 13px; }
-.reset-btn:hover:not(:disabled) { border-color: var(--up); color: var(--up); }
-.reset-btn:disabled { opacity: 0.6; cursor: default; }
+.deposit-btn { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 13px; }
+.deposit-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.deposit-btn:disabled { opacity: 0.6; cursor: default; }
 .paper-summary { margin-bottom: 20px; }
 .paper-order-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 24px; }
 .paper-order-form { margin-top: 14px; display: flex; flex-direction: column; gap: 12px; }

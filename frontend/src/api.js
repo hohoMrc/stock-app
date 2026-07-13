@@ -49,4 +49,4 @@ export const getPaperAccount   = ()                          => api.get("/api/pa
 export const getPaperPositions = ()                          => api.get("/api/paper/positions");
 export const getPaperOrders    = (limit = 50)                => api.get("/api/paper/orders", { params: { limit } });
 export const placePaperOrder   = (ticker, side, lots)         => api.post("/api/paper/order", { ticker, side, lots });
-export const resetPaperAccount = ()                          => api.post("/api/paper/reset");
+export const depositPaperCash  = ()                          => api.post("/api/paper/deposit");

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { searchStocks, getStock, getPaperAccount, getPaperPositions, getPaperOrders, placePaperOrder, resetPaperAccount } from "../api";
+import { searchStocks, getStock, getPaperAccount, getPaperPositions, getPaperOrders, placePaperOrder, depositPaperCash } from "../api";
 
 export default function PaperTrading({ username, onRequireLogin }) {
   const [account, setAccount]     = useState(null);
@@ -17,7 +17,7 @@ export default function PaperTrading({ username, onRequireLogin }) {
   const [submitting, setSubmitting]   = useState(false);
   const [formError, setFormError]     = useState("");
   const [formMsg, setFormMsg]         = useState("");
-  const [resetting, setResetting]     = useState(false);
+  const [depositing, setDepositing]   = useState(false);
 
   const debounceRef = useRef(null);
   const wrapperRef  = useRef(null);
@@ -104,18 +104,17 @@ export default function PaperTrading({ username, onRequireLogin }) {
     }
   };
 
-  const handleReset = async () => {
-    if (!confirm("確定要重設模擬帳戶？現金會恢復為 100,000 元，所有持股與歷史紀錄都會清空。")) return;
-    setResetting(true);
+  const handleDeposit = async () => {
+    setDepositing(true);
     try {
-      await resetPaperAccount();
-      setFormMsg("帳戶已重設");
+      await depositPaperCash();
+      setFormMsg("已入金 100,000 元");
       setFormError("");
       loadAll();
     } catch (e) {
-      setFormError(e.response?.data?.detail || "重設失敗");
+      setFormError(e.response?.data?.detail || "入金失敗");
     } finally {
-      setResetting(false);
+      setDepositing(false);
     }
   };
 
@@ -138,8 +137,8 @@ export default function PaperTrading({ username, onRequireLogin }) {
     <div className="page paper-page">
       <div className="paper-page-header">
         <h2>模擬下單</h2>
-        <button className="reset-btn" onClick={handleReset} disabled={resetting}>
-          {resetting ? "重設中..." : "重設帳戶"}
+        <button className="deposit-btn" onClick={handleDeposit} disabled={depositing}>
+          {depositing ? "入金中..." : "入金 10 萬"}
         </button>
       </div>
 
@@ -274,23 +273,27 @@ export default function PaperTrading({ username, onRequireLogin }) {
             <thead>
               <tr>
                 <th>時間</th><th>代號</th><th>名稱</th><th>買賣</th><th>股數</th>
-                <th>成交價</th><th>手續費</th><th>證交稅</th><th>已實現損益</th>
+                <th>成交價</th><th>手續費</th><th>證交稅</th><th>金額</th><th>已實現損益</th>
               </tr>
             </thead>
             <tbody>
-              {orders.map((o, i) => (
-                <tr key={i}>
-                  <td>{new Date(o.created_at * 1000).toLocaleString("zh-TW", { hour12: false })}</td>
-                  <td className="col-ticker">{o.ticker}</td>
-                  <td className="col-name">{o.name ?? "—"}</td>
-                  <td>{o.side === "buy" ? "買進" : "賣出"}</td>
-                  <td>{o.qty.toLocaleString()}</td>
-                  <td>{o.price}</td>
-                  <td>{o.fee}</td>
-                  <td>{o.tax}</td>
-                  <td>{o.realized_pl != null ? o.realized_pl.toLocaleString() : "—"}</td>
-                </tr>
-              ))}
+              {orders.map((o, i) => {
+                const isDeposit = o.side === "deposit";
+                return (
+                  <tr key={i}>
+                    <td>{new Date(o.created_at * 1000).toLocaleString("zh-TW", { hour12: false })}</td>
+                    <td className="col-ticker">{isDeposit ? "—" : o.ticker}</td>
+                    <td className="col-name">{isDeposit ? "入金" : (o.name ?? "—")}</td>
+                    <td>{isDeposit ? "入金" : o.side === "buy" ? "買進" : "賣出"}</td>
+                    <td>{isDeposit ? "—" : o.qty.toLocaleString()}</td>
+                    <td>{isDeposit ? "—" : o.price}</td>
+                    <td>{isDeposit ? "—" : o.fee}</td>
+                    <td>{isDeposit ? "—" : o.tax}</td>
+                    <td>{o.net_amount.toLocaleString()}</td>
+                    <td>{o.realized_pl != null ? o.realized_pl.toLocaleString() : "—"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

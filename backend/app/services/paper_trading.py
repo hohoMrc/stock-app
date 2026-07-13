@@ -2,13 +2,13 @@ from app.db import (
     get_or_create_paper_account, update_paper_cash,
     get_paper_position, upsert_paper_position, get_paper_positions,
     insert_paper_order, get_paper_orders, get_paper_realized_pl_total,
-    reset_paper_account,
 )
 from app.services.stock_data import get_stock_info
 
 COMMISSION_RATE = 0.001425
 COMMISSION_MIN  = 20
 TAX_RATE        = 0.003  # 現股賣出證交稅
+DEPOSIT_AMOUNT  = 100_000  # 入金金額
 
 
 class PaperTradingError(Exception):
@@ -120,6 +120,9 @@ def get_order_history(user_id: int, limit: int = 50) -> list[dict]:
     return get_paper_orders(user_id, limit)
 
 
-def reset_account(user_id: int) -> dict:
-    reset_paper_account(user_id)
+def deposit_cash(user_id: int) -> dict:
+    """入金：現金加上固定金額，並在歷史紀錄留一筆入金記錄，不動持股。"""
+    account = get_or_create_paper_account(user_id)
+    update_paper_cash(user_id, account["cash"] + DEPOSIT_AMOUNT)
+    insert_paper_order(user_id, "CASH", "入金", "deposit", 0, 0, 0, 0, DEPOSIT_AMOUNT, None)
     return get_account_summary(user_id)
