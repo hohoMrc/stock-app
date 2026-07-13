@@ -1022,6 +1022,24 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   background: rgba(245, 158, 11, 0.08);
 }
 
+.paper-trade-btn {
+  padding: 7px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.paper-trade-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-glow2);
+}
+
 .watch-count {
   display: inline-flex;
   align-items: center;

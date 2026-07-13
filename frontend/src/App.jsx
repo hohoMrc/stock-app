@@ -46,6 +46,7 @@ export default function App() {
   const [selectedTickerContext, setSelectedTickerContext] = useState(null);
   const [selectedIndustry, setSelectedIndustry] = useState(null);
   const [pageHistory, setPageHistory] = useState([]);
+  const [paperPrefillTicker, setPaperPrefillTicker] = useState(null);
 
   // 篩選頁狀態提升，切頁後不遺失
   const [screenerFilters, setScreenerFilters] = useState(INIT_FILTERS);
@@ -147,6 +148,12 @@ export default function App() {
     setActivePage("industry");
   };
 
+  // ticker 為 null 時代表從導覽列直接進入，不帶入任何股票
+  const goToPaperTrading = (ticker = null) => {
+    setPaperPrefillTicker(ticker);
+    setActivePage("paper");
+  };
+
   return (
     <div className="app">
       <header className="header">
@@ -205,7 +212,7 @@ export default function App() {
           </button>
           <button
             className={activePage === "paper" ? "active" : ""}
-            onClick={() => setActivePage("paper")}
+            onClick={() => goToPaperTrading()}
           >
             模擬下單
           </button>
@@ -255,7 +262,7 @@ export default function App() {
             >台指期</button>
             <button
               className={activePage === "paper" ? "active" : ""}
-              onClick={() => setActivePage("paper")}
+              onClick={() => goToPaperTrading()}
             >模擬下單</button>
             {username === ADMIN_USERNAME && (
               <button
@@ -288,6 +295,7 @@ export default function App() {
             onIndustry={handleSelectIndustry}
             watchlist={watchlist}
             onToggleWatch={toggleWatch}
+            onPaperTrade={goToPaperTrading}
           />
         )}
         {activePage === "industry" && selectedIndustry && (
@@ -315,7 +323,11 @@ export default function App() {
         )}
         {activePage === "futures" && <FuturesPage />}
         {activePage === "paper" && (
-          <PaperTrading username={username} onRequireLogin={() => setShowAuth(true)} />
+          <PaperTrading
+            username={username}
+            onRequireLogin={() => setShowAuth(true)}
+            prefillTicker={paperPrefillTicker}
+          />
         )}
         {activePage === "admin" && username === ADMIN_USERNAME && (
           <AdminPage />

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { searchStocks, getStock, getPaperAccount, getPaperPositions, getPaperOrders, placePaperOrder, depositPaperCash } from "../api";
 
-export default function PaperTrading({ username, onRequireLogin }) {
+export default function PaperTrading({ username, onRequireLogin, prefillTicker = null }) {
   const [account, setAccount]     = useState(null);
   const [positions, setPositions] = useState([]);
   const [orders, setOrders]       = useState([]);
@@ -79,6 +79,12 @@ export default function PaperTrading({ username, onRequireLogin }) {
       setFormError("查詢股價失敗，請確認代號");
     }
   };
+
+  // 從股價走勢頁按「模擬下單」帶過來的股票代號，進頁面時自動帶入下單表單
+  useEffect(() => {
+    if (prefillTicker) pickTicker(prefillTicker);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillTicker]);
 
   const handleSubmit = async () => {
     if (!username) { onRequireLogin(); return; }

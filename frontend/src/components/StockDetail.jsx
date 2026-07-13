@@ -17,7 +17,7 @@ const SCAN_DEFAULT_MA = {
   near_ema60: { ma5: false, ma10: false, ma20: false, ma30: false, ma60: false, ema10: false, ema60: true  },
 };
 
-export default function StockDetail({ ticker, scanContext = null, onBack, onIndustry, watchlist = [], onToggleWatch }) {
+export default function StockDetail({ ticker, scanContext = null, onBack, onIndustry, watchlist = [], onToggleWatch, onPaperTrade }) {
   const [info, setInfo] = useState(null);
   const [history, setHistory] = useState([]);
   const [analysis, setAnalysis] = useState("");
@@ -97,6 +97,11 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
                 title={watchlist.includes(ticker) ? "從自選清單移除" : "加入自選清單"}
               >
                 {watchlist.includes(ticker) ? "★ 已加入" : "☆ 加入自選"}
+              </button>
+            )}
+            {onPaperTrade && (
+              <button className="paper-trade-btn" onClick={() => onPaperTrade(ticker)}>
+                模擬下單
               </button>
             )}
           </div>

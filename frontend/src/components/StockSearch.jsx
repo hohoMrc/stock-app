@@ -3,7 +3,6 @@ import { getStock, searchStocks } from "../api";
 
 export default function StockSearch({ onSelect }) {
   const [input, setInput] = useState("");
-  const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -48,7 +47,8 @@ export default function StockSearch({ onSelect }) {
     setInput(ticker);
     setSuggestions([]);
     setShowSuggestions(false);
-    fetchStock(ticker);
+    // 建議清單來的代號已確定有效，直接跳轉到股價走勢頁，不用再多按一次
+    onSelect(ticker);
   };
 
   const handleSearch = () => {
@@ -66,10 +66,10 @@ export default function StockSearch({ onSelect }) {
   const fetchStock = async (ticker) => {
     setLoading(true);
     setError("");
-    setResult(null);
     try {
       const res = await getStock(ticker);
-      setResult(res.data);
+      // 驗證代號有效後直接跳轉到股價走勢頁
+      onSelect(res.data.ticker);
     } catch (e) {
       setError(e.response?.data?.detail || "查詢失敗，請確認股票代號");
     } finally {
@@ -107,40 +107,6 @@ export default function StockSearch({ onSelect }) {
       </div>
 
       {error && <p className="error">{error}</p>}
-
-      {result && (
-        <div className="stock-card">
-          <div className="stock-header">
-            <div>
-              <h3>{result.name}</h3>
-              <span className="ticker-badge">{result.ticker}</span>
-            </div>
-            <div className="price-block">
-              <span className="price">{result.price} 元</span>
-            </div>
-          </div>
-
-          <div className="info-grid">
-            <InfoItem label="殖利率" value={result.dividend_yield ? `${result.dividend_yield}%` : "—"} />
-            <InfoItem label="產業" value={result.industry ?? "—"} />
-            <InfoItem label="52週高" value={result.week_52_high ?? "—"} />
-            <InfoItem label="52週低" value={result.week_52_low ?? "—"} />
-          </div>
-
-          <button className="detail-btn" onClick={() => onSelect(result.ticker)}>
-            查看詳細分析
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function InfoItem({ label, value }) {
-  return (
-    <div className="info-item">
-      <span className="info-label">{label}</span>
-      <span className="info-value">{value}</span>
     </div>
   );
 }
