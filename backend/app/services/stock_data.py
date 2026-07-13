@@ -169,6 +169,8 @@ def _fugle_candles(ticker: str, from_date: str, to_date: str) -> list:
             except ValueError:
                 continue
             vol_shares = c.get("volume", 0) or 0   # Fugle 歷史 K 線 volume 實際單位為股數
+            if vol_shares <= 0:
+                continue  # 成交量 0 代表當天沒開盤，不算 K 棒
             result.append({
                 "date":   d,
                 "open":   round(float(c.get("open",  c["close"])), 2),
@@ -716,14 +718,16 @@ def _fill_recent_gap(ticker: str, last_date: str) -> list:
                 print(f"[gap fill] yfinance dates={yf_dates}")
                 for d, r in hist.iterrows():
                     d_str = d.strftime("%Y-%m-%d")
-                    if d_str > last_date:
+                    vol = int(r["Volume"])
+                    # 成交量 0 代表當天沒有真正開盤交易（假日佔位資料），不算 K 棒
+                    if d_str > last_date and vol > 0:
                         bars.append({
                             "date":   d_str,
                             "open":   round(float(r["Open"]),  2),
                             "high":   round(float(r["High"]),  2),
                             "low":    round(float(r["Low"]),   2),
                             "close":  round(float(r["Close"]), 2),
-                            "volume": int(r["Volume"]),
+                            "volume": vol,
                         })
         except Exception as e:
             print(f"[gap fill] yfinance 失敗: {e}")
@@ -939,6 +943,7 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
                         "volume": int(r["Volume"]),
                     }
                     for d, r in hist.iterrows()
+                    if int(r["Volume"]) > 0  # 成交量 0 代表當天沒開盤，不算 K 棒
                 ]
                 print(f"[yfinance] history fallback {ticker}: {len(all_records)} 筆")
         except Exception as e:
