@@ -402,6 +402,13 @@ export default function App() {
             自選{watchlist.length > 0 && <span className="watch-count">{watchlist.length}</span>}
           </span>
         </button>
+        <button
+          className={activePage === "paper" ? "active" : ""}
+          onClick={() => goToPaperTrading()}
+        >
+          <span className="bottom-nav-icon">💰</span>
+          <span className="bottom-nav-label">下單</span>
+        </button>
       </nav>
     </div>
   );
