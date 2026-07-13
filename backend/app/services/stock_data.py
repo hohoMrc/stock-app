@@ -707,9 +707,10 @@ def _fill_recent_gap(ticker: str, last_date: str) -> list:
             sym  = _get_symbol(ticker)
             hist = yf.Ticker(sym).history(period="5d", interval="1d")
             if not hist.empty:
+                # 注意：須用 tz_localize(None) 保留台北本地日期，
+                # 若用 tz_convert(None) 會先轉 UTC 再去時區，午夜 00:00+08:00
+                # 會變成前一天 16:00，日期整個錯位一天
                 if hist.index.tz is not None:
-                    hist.index = hist.index.tz_convert(None)
-                else:
                     hist.index = hist.index.tz_localize(None)
                 yf_dates = [d.strftime("%Y-%m-%d") for d in hist.index]
                 print(f"[gap fill] yfinance dates={yf_dates}")
