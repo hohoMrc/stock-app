@@ -327,6 +327,7 @@ export default function App() {
             username={username}
             onRequireLogin={() => setShowAuth(true)}
             prefillTicker={paperPrefillTicker}
+            onSelectStock={(t) => handleSelectStock(t)}
           />
         )}
         {activePage === "admin" && username === ADMIN_USERNAME && (

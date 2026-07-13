@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { searchStocks, getStock, getPaperAccount, getPaperPositions, getPaperOrders, placePaperOrder, depositPaperCash } from "../api";
 
-export default function PaperTrading({ username, onRequireLogin, prefillTicker = null }) {
+export default function PaperTrading({ username, onRequireLogin, prefillTicker = null, onSelectStock }) {
   const [account, setAccount]     = useState(null);
   const [positions, setPositions] = useState([]);
   const [orders, setOrders]       = useState([]);
@@ -259,7 +259,12 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
             </thead>
             <tbody>
               {positions.map((p) => (
-                <tr key={p.ticker} className={p.unrealized_pl > 0 ? "row-up" : p.unrealized_pl < 0 ? "row-down" : ""}>
+                <tr
+                  key={p.ticker}
+                  className={`paper-position-row ${p.unrealized_pl > 0 ? "row-up" : p.unrealized_pl < 0 ? "row-down" : ""}`}
+                  onClick={() => onSelectStock && onSelectStock(p.ticker)}
+                  title="查看股價走勢"
+                >
                   <td className="col-ticker">{p.ticker}</td>
                   <td className="col-name">{p.name ?? "—"}</td>
                   <td>{p.lots}</td>

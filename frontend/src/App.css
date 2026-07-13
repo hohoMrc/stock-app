@@ -1945,5 +1945,6 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .paper-order-preview { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--text-secondary); }
 .paper-form-msg { color: var(--down); margin-top: 8px; }
 .paper-section-title { margin: 18px 0 10px; }
+.paper-position-row { cursor: pointer; }
 .info-value.up   { color: var(--up); }
 .info-value.down { color: var(--down); }
