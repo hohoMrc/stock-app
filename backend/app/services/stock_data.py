@@ -160,9 +160,17 @@ def _fugle_candles(ticker: str, from_date: str, to_date: str) -> list:
         for c in candles:
             if not c.get("close"):
                 continue
+            d = str(c["date"])[:10]
+            # Fugle 偶爾會把當日盤中資料誤標到隔壁的非交易日（例：週一資料標成週日），
+            # 台股週六日絕不開盤，直接濾掉避免圖表出現假 K 棒
+            try:
+                if datetime.strptime(d, "%Y-%m-%d").weekday() >= 5:
+                    continue
+            except ValueError:
+                continue
             vol_shares = c.get("volume", 0) or 0   # Fugle 歷史 K 線 volume 實際單位為股數
             result.append({
-                "date":   str(c["date"])[:10],
+                "date":   d,
                 "open":   round(float(c.get("open",  c["close"])), 2),
                 "high":   round(float(c.get("high",  c["close"])), 2),
                 "low":    round(float(c.get("low",   c["close"])), 2),
