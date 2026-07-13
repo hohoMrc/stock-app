@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import CandlestickChart from "./CandlestickChart";
-import { getTradeValueRanking, getTurnoverRanking, getHistory, getOrderbook, getTrades } from "../api";
+import { getTradeValueRanking, getTurnoverRanking, getHistory, getOrderbook, getTrades, getPaperPositions } from "../api";
 
 const INTERVAL_CONFIG = {
   "1m":  { fetchPeriod: "5d",  defaultPeriod: "1d",  periods: ["1d", "3d", "5d"] },
@@ -23,12 +23,16 @@ const INTERVAL_LABELS = {
   "60m": "60分", "1d": "日K", "1wk": "週K", "1mo": "月K",
 };
 
-export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
+export default function TradingTerminal({ watchlist = [], onToggleWatch, username }) {
   const [activeTab, setActiveTab]       = useState("value");
   const [listData, setListData]         = useState({ value: [], turnover: [] });
   const [listLoading, setListLoading]   = useState({ value: false, turnover: false });
   const [listUpdatedAt, setListUpdatedAt] = useState({ value: null, turnover: null });
   const loaded = useRef({ value: false, turnover: false });
+
+  const [holdings, setHoldings]               = useState([]);
+  const [holdingsLoading, setHoldingsLoading] = useState(false);
+  const holdingsLoaded = useRef(false);
 
   const [selected, setSelected]         = useState(null); // { ticker, name, close, change, change_pct }
   const [chartData, setChartData]       = useState([]);
@@ -103,8 +107,24 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
 
   useEffect(() => { loadList("value"); }, []);
   useEffect(() => {
-    if (!loaded.current[activeTab] && activeTab !== "watch") loadList(activeTab);
+    if (!loaded.current[activeTab] && activeTab !== "watch" && activeTab !== "holdings") loadList(activeTab);
   }, [activeTab]);
+
+  // ── 持股（模擬下單）──────────────────────────────────────────────────
+  const loadHoldings = async () => {
+    if (!username) return;
+    setHoldingsLoading(true);
+    try {
+      const res = await getPaperPositions();
+      setHoldings(res.data.positions);
+      holdingsLoaded.current = true;
+    } catch { /* ignore */ }
+    finally { setHoldingsLoading(false); }
+  };
+
+  useEffect(() => {
+    if (activeTab === "holdings" && username && !holdingsLoaded.current) loadHoldings();
+  }, [activeTab, username]);
 
   // ── K 線資料 ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -149,6 +169,12 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
 
   const stocks = activeTab === "watch"
     ? watchlist.map((t) => ({ ticker: t, name: "" }))
+    : activeTab === "holdings"
+    ? holdings.map((p) => ({
+        ticker: p.ticker, name: p.name,
+        close: p.price, change: p.change, change_pct: p.change_pct,
+        trade_volume_zhang: p.volume_zhang,
+      }))
     : listData[activeTab];
 
   return (
@@ -177,6 +203,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
             { key: "value",    label: "成交值" },
             { key: "turnover", label: "週轉率" },
             { key: "watch",    label: "自選" },
+            { key: "holdings", label: "持股" },
           ].map(({ key, label }) => (
             <button
               key={key}
@@ -188,7 +215,10 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
           ))}
           <button
             className="tl-refresh"
-            onClick={() => { if (activeTab !== "watch") loadList(activeTab); }}
+            onClick={() => {
+              if (activeTab === "holdings") loadHoldings();
+              else if (activeTab !== "watch") loadList(activeTab);
+            }}
             title="重新整理"
           >
             ↻
@@ -198,7 +228,9 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
           <div className="tl-updated">更新 {listUpdatedAt[activeTab]}</div>
         )}
         <div className="tl-table-wrap">
-          {listLoading[activeTab] && <div className="tl-loading">載入中...</div>}
+          {(activeTab === "holdings" ? holdingsLoading : listLoading[activeTab]) && (
+            <div className="tl-loading">載入中...</div>
+          )}
           <table className="tl-table">
             <thead>
               <tr>
@@ -267,7 +299,13 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch }) {
               })}
             </tbody>
           </table>
-          {!listLoading[activeTab] && stocks.length === 0 && (
+          {activeTab === "holdings" && !username && (
+            <div className="tl-empty">請先登入才能查看模擬下單持股</div>
+          )}
+          {activeTab === "holdings" && username && !holdingsLoading && stocks.length === 0 && (
+            <div className="tl-empty">尚無持股</div>
+          )}
+          {activeTab !== "holdings" && !listLoading[activeTab] && stocks.length === 0 && (
             <div className="tl-empty">暫無資料</div>
           )}
         </div>

@@ -319,7 +319,7 @@ export default function App() {
           <TradeValueRanking onSelect={(t) => handleSelectStock(t)} />
         )}
         {activePage === "terminal" && (
-          <TradingTerminal watchlist={watchlist} onToggleWatch={toggleWatch} />
+          <TradingTerminal watchlist={watchlist} onToggleWatch={toggleWatch} username={username} />
         )}
         {activePage === "futures" && <FuturesPage />}
         {activePage === "paper" && (
