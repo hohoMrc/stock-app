@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { searchStocks, getStock, getPaperAccount, getPaperPositions, getPaperOrders, placePaperOrder } from "../api";
+import { searchStocks, getStock, getPaperAccount, getPaperPositions, getPaperOrders, placePaperOrder, resetPaperAccount } from "../api";
 
 export default function PaperTrading({ username, onRequireLogin }) {
   const [account, setAccount]     = useState(null);
@@ -17,6 +17,7 @@ export default function PaperTrading({ username, onRequireLogin }) {
   const [submitting, setSubmitting]   = useState(false);
   const [formError, setFormError]     = useState("");
   const [formMsg, setFormMsg]         = useState("");
+  const [resetting, setResetting]     = useState(false);
 
   const debounceRef = useRef(null);
   const wrapperRef  = useRef(null);
@@ -103,6 +104,21 @@ export default function PaperTrading({ username, onRequireLogin }) {
     }
   };
 
+  const handleReset = async () => {
+    if (!confirm("確定要重設模擬帳戶？現金會恢復為 100,000 元，所有持股與歷史紀錄都會清空。")) return;
+    setResetting(true);
+    try {
+      await resetPaperAccount();
+      setFormMsg("帳戶已重設");
+      setFormError("");
+      loadAll();
+    } catch (e) {
+      setFormError(e.response?.data?.detail || "重設失敗");
+    } finally {
+      setResetting(false);
+    }
+  };
+
   if (!username) {
     return (
       <div className="page">
@@ -120,7 +136,12 @@ export default function PaperTrading({ username, onRequireLogin }) {
 
   return (
     <div className="page paper-page">
-      <h2>模擬下單</h2>
+      <div className="paper-page-header">
+        <h2>模擬下單</h2>
+        <button className="reset-btn" onClick={handleReset} disabled={resetting}>
+          {resetting ? "重設中..." : "重設帳戶"}
+        </button>
+      </div>
 
       {account && (
         <div className="info-grid paper-summary">

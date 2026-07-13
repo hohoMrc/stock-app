@@ -2,6 +2,7 @@ from app.db import (
     get_or_create_paper_account, update_paper_cash,
     get_paper_position, upsert_paper_position, get_paper_positions,
     insert_paper_order, get_paper_orders, get_paper_realized_pl_total,
+    reset_paper_account,
 )
 from app.services.stock_data import get_stock_info
 
@@ -117,3 +118,8 @@ def get_account_summary(user_id: int) -> dict:
 
 def get_order_history(user_id: int, limit: int = 50) -> list[dict]:
     return get_paper_orders(user_id, limit)
+
+
+def reset_account(user_id: int) -> dict:
+    reset_paper_account(user_id)
+    return get_account_summary(user_id)

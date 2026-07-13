@@ -48,3 +48,9 @@ async def place_order(body: OrderBody, authorization: str | None = Header(None))
         return await run_in_threadpool(svc.place_market_order, user_id, body.ticker, body.side, body.lots)
     except svc.PaperTradingError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/reset")
+async def reset(authorization: str | None = Header(None)):
+    user_id = _get_user(authorization)
+    return await run_in_threadpool(svc.reset_account, user_id)

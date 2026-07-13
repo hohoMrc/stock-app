@@ -494,3 +494,15 @@ def get_paper_realized_pl_total(user_id: int) -> float:
             (user_id,)
         ).fetchone()
     return row["total"]
+
+
+def reset_paper_account(user_id: int):
+    """清空持股與歷史紀錄，現金重設回初始本金。"""
+    with _conn() as conn:
+        conn.execute("DELETE FROM paper_positions WHERE user_id=?", (user_id,))
+        conn.execute("DELETE FROM paper_orders WHERE user_id=?", (user_id,))
+        conn.execute(
+            "INSERT INTO paper_accounts(user_id, cash, created_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(user_id) DO UPDATE SET cash=excluded.cash",
+            (user_id, PAPER_INITIAL_CASH, time.time())
+        )
