@@ -1,7 +1,10 @@
+from datetime import date, datetime
+
 from app.db import (
     get_or_create_paper_account, update_paper_cash,
     get_paper_position, upsert_paper_position, get_paper_positions,
     insert_paper_order, get_paper_orders, get_paper_realized_pl_total,
+    get_paper_bought_qty_since,
 )
 from app.services.stock_data import get_stock_info
 
@@ -21,6 +24,10 @@ def _fee(amount: float) -> float:
 
 def _tax(amount: float) -> float:
     return round(amount * TAX_RATE)
+
+
+def _today_start_ts() -> float:
+    return datetime.combine(date.today(), datetime.min.time()).timestamp()
 
 
 def place_market_order(user_id: int, ticker: str, side: str, lots: int) -> dict:
@@ -55,6 +62,11 @@ def place_market_order(user_id: int, ticker: str, side: str, lots: int) -> dict:
         held = position["qty"] if position else 0
         if qty > held:
             raise PaperTradingError("持股不足")
+
+        bought_today = get_paper_bought_qty_since(user_id, ticker, _today_start_ts())
+        sellable = max(0, held - bought_today)
+        if qty > sellable:
+            raise PaperTradingError("現股不可當沖：今日買進的部位不可當日賣出")
 
         fee = _fee(gross)
         tax = _tax(gross)

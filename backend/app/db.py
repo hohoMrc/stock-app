@@ -496,3 +496,14 @@ def get_paper_realized_pl_total(user_id: int) -> float:
     return row["total"]
 
 
+def get_paper_bought_qty_since(user_id: int, ticker: str, since_ts: float) -> int:
+    """回傳某股票自 since_ts（通常是今日 00:00）以來累計買進的股數，供禁止當沖判斷用。"""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(qty), 0) AS total FROM paper_orders "
+            "WHERE user_id=? AND ticker=? AND side='buy' AND created_at>=?",
+            (user_id, ticker, since_ts)
+        ).fetchone()
+    return row["total"]
+
+
