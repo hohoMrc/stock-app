@@ -75,6 +75,41 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_futures_candles
             ON futures_candles(symbol, timeframe, time DESC);
+
+        CREATE TABLE IF NOT EXISTS paper_accounts (
+            user_id    INTEGER PRIMARY KEY,
+            cash       REAL NOT NULL,
+            created_at REAL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS paper_positions (
+            user_id  INTEGER NOT NULL,
+            ticker   TEXT NOT NULL,
+            qty      INTEGER NOT NULL,
+            avg_cost REAL NOT NULL,
+            PRIMARY KEY (user_id, ticker),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS paper_orders (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            ticker      TEXT NOT NULL,
+            name        TEXT,
+            side        TEXT NOT NULL,
+            qty         INTEGER NOT NULL,
+            price       REAL NOT NULL,
+            fee         REAL NOT NULL,
+            tax         REAL NOT NULL,
+            net_amount  REAL NOT NULL,
+            realized_pl REAL,
+            created_at  REAL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_paper_orders_user
+            ON paper_orders(user_id, created_at DESC);
         """)
         # Migration: 舊版 DB 沒有 parent_industry 欄位
         try:
@@ -370,3 +405,92 @@ def remove_from_watchlist(user_id: int, ticker: str):
         conn.execute(
             "DELETE FROM watchlists WHERE user_id=? AND ticker=?", (user_id, ticker)
         )
+
+
+# ── paper trading（模擬下單）──────────────────────────────
+
+PAPER_INITIAL_CASH = 100_000
+
+
+def get_or_create_paper_account(user_id: int) -> dict:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT user_id, cash FROM paper_accounts WHERE user_id=?", (user_id,)
+        ).fetchone()
+        if row:
+            return dict(row)
+        conn.execute(
+            "INSERT INTO paper_accounts(user_id, cash, created_at) VALUES (?, ?, ?)",
+            (user_id, PAPER_INITIAL_CASH, time.time())
+        )
+        return {"user_id": user_id, "cash": PAPER_INITIAL_CASH}
+
+
+def update_paper_cash(user_id: int, cash: float):
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE paper_accounts SET cash=? WHERE user_id=?", (cash, user_id)
+        )
+
+
+def get_paper_position(user_id: int, ticker: str) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT ticker, qty, avg_cost FROM paper_positions WHERE user_id=? AND ticker=?",
+            (user_id, ticker)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def upsert_paper_position(user_id: int, ticker: str, qty: int, avg_cost: float):
+    with _conn() as conn:
+        if qty <= 0:
+            conn.execute(
+                "DELETE FROM paper_positions WHERE user_id=? AND ticker=?", (user_id, ticker)
+            )
+        else:
+            conn.execute(
+                "INSERT INTO paper_positions(user_id, ticker, qty, avg_cost) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(user_id, ticker) DO UPDATE SET qty=excluded.qty, avg_cost=excluded.avg_cost",
+                (user_id, ticker, qty, avg_cost)
+            )
+
+
+def get_paper_positions(user_id: int) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker, qty, avg_cost FROM paper_positions WHERE user_id=? ORDER BY ticker",
+            (user_id,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def insert_paper_order(user_id: int, ticker: str, name: str | None, side: str, qty: int,
+                        price: float, fee: float, tax: float, net_amount: float,
+                        realized_pl: float | None):
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO paper_orders"
+            "(user_id, ticker, name, side, qty, price, fee, tax, net_amount, realized_pl, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (user_id, ticker, name, side, qty, price, fee, tax, net_amount, realized_pl, time.time())
+        )
+
+
+def get_paper_orders(user_id: int, limit: int = 50) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker, name, side, qty, price, fee, tax, net_amount, realized_pl, created_at "
+            "FROM paper_orders WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
+            (user_id, limit)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_paper_realized_pl_total(user_id: int) -> float:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(realized_pl), 0) AS total FROM paper_orders WHERE user_id=?",
+            (user_id,)
+        ).fetchone()
+    return row["total"]

@@ -1906,3 +1906,20 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .watchlist-header-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
 .watchlist-header-row h2 { margin: 0; }
 .watchlist-updated { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+
+/* ── 模擬下單 ── */
+.paper-summary { margin-bottom: 20px; }
+.paper-order-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 24px; }
+.paper-order-form { margin-top: 14px; display: flex; flex-direction: column; gap: 12px; }
+.paper-order-quote { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+.paper-order-quote .price { color: var(--accent); font-weight: 600; }
+.paper-side-tabs { display: flex; gap: 8px; }
+.paper-side-tabs button { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; font-weight: 600; }
+.paper-side-tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.paper-lots-label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-secondary); }
+.paper-lots-label input { padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text-primary); }
+.paper-order-preview { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--text-secondary); }
+.paper-form-msg { color: var(--down); margin-top: 8px; }
+.paper-section-title { margin: 18px 0 10px; }
+.info-value.up   { color: var(--up); }
+.info-value.down { color: var(--down); }

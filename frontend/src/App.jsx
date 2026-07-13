@@ -10,6 +10,7 @@ import TradeValueRanking from "./components/TradeValueRanking";
 import TradingTerminal from "./components/TradingTerminal";
 import AdminPage from "./components/AdminPage";
 import FuturesPage from "./components/FuturesPage";
+import PaperTrading from "./components/PaperTrading";
 import { fetchWatchlist, addWatch, removeWatch, updateWatchNote } from "./api";
 
 const ADMIN_USERNAME = "hoholin";
@@ -202,6 +203,12 @@ export default function App() {
               <span className="watch-count">{watchlist.length}</span>
             )}
           </button>
+          <button
+            className={activePage === "paper" ? "active" : ""}
+            onClick={() => setActivePage("paper")}
+          >
+            模擬下單
+          </button>
           {username === ADMIN_USERNAME && (
             <button
               className={activePage === "admin" ? "active" : ""}
@@ -246,6 +253,10 @@ export default function App() {
               className={activePage === "futures" ? "active" : ""}
               onClick={() => setActivePage("futures")}
             >台指期</button>
+            <button
+              className={activePage === "paper" ? "active" : ""}
+              onClick={() => setActivePage("paper")}
+            >模擬下單</button>
             {username === ADMIN_USERNAME && (
               <button
                 className={activePage === "admin" ? "active" : ""}
@@ -303,6 +314,9 @@ export default function App() {
           <TradingTerminal watchlist={watchlist} onToggleWatch={toggleWatch} />
         )}
         {activePage === "futures" && <FuturesPage />}
+        {activePage === "paper" && (
+          <PaperTrading username={username} onRequireLogin={() => setShowAuth(true)} />
+        )}
         {activePage === "admin" && username === ADMIN_USERNAME && (
           <AdminPage />
         )}

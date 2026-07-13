@@ -43,3 +43,9 @@ export const fetchWatchlist   = ()                => api.get("/api/watchlist");
 export const addWatch         = (ticker)          => api.post(`/api/watchlist/${ticker}`);
 export const removeWatch      = (ticker)          => api.delete(`/api/watchlist/${ticker}`);
 export const updateWatchNote  = (ticker, note)    => api.patch(`/api/watchlist/${ticker}/note`, { note });
+
+// 模擬下單
+export const getPaperAccount   = ()                          => api.get("/api/paper/account");
+export const getPaperPositions = ()                          => api.get("/api/paper/positions");
+export const getPaperOrders    = (limit = 50)                => api.get("/api/paper/orders", { params: { limit } });
+export const placePaperOrder   = (ticker, side, lots)         => api.post("/api/paper/order", { ticker, side, lots });
