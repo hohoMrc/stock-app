@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { getStock } from "../api";
 import { isTradingHours } from "../marketHours";
 
-export default function WatchList({ watchlist, watchNotes = {}, onRemove, onSelect, onUpdateNote }) {
+export default function WatchList({ watchlist, watchNotes = {}, watchAddedAt = {}, onRemove, onSelect, onUpdateNote }) {
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [live, setLive] = useState(false);
@@ -72,9 +72,9 @@ export default function WatchList({ watchlist, watchNotes = {}, onRemove, onSele
               <th>代號</th>
               <th>名稱</th>
               <th>股價</th>
-              <th>殖利率</th>
               <th>52週高</th>
               <th>52週低</th>
+              <th>加入日期</th>
               <th>備注</th>
               <th>操作</th>
             </tr>
@@ -85,9 +85,13 @@ export default function WatchList({ watchlist, watchNotes = {}, onRemove, onSele
                 <td>{s.ticker}</td>
                 <td>{s.name}</td>
                 <td>{s.price ?? "—"}</td>
-                <td>{s.dividend_yield ? `${s.dividend_yield}%` : "—"}</td>
                 <td>{s.week_52_high ?? "—"}</td>
                 <td>{s.week_52_low ?? "—"}</td>
+                <td>
+                  {watchAddedAt[s.ticker]
+                    ? new Date(watchAddedAt[s.ticker] * 1000).toLocaleDateString("zh-TW")
+                    : "—"}
+                </td>
                 <td className="note-cell">
                   {editingTicker === s.ticker ? (
                     <input

@@ -378,10 +378,10 @@ def delete_user(user_id: int):
 def get_watchlist(user_id: int) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT ticker, note FROM watchlists WHERE user_id=? ORDER BY added_at DESC",
+            "SELECT ticker, note, added_at FROM watchlists WHERE user_id=? ORDER BY added_at DESC",
             (user_id,)
         ).fetchall()
-    return [{"ticker": r["ticker"], "note": r["note"] or ""} for r in rows]
+    return [{"ticker": r["ticker"], "note": r["note"] or "", "added_at": r["added_at"]} for r in rows]
 
 
 def update_watchlist_note(user_id: int, ticker: str, note: str):

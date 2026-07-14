@@ -73,6 +73,7 @@ export default function App() {
     catch { return []; }
   });
   const [watchNotes, setWatchNotes] = useState({});
+  const [watchAddedAt, setWatchAddedAt] = useState({});
 
   useEffect(() => {
     if (username) {
@@ -80,6 +81,7 @@ export default function App() {
         .then((res) => {
           setWatchlist(res.data.tickers);
           setWatchNotes(res.data.notes || {});
+          setWatchAddedAt(res.data.added_at || {});
         })
         .catch(() => {});
     } else {
@@ -111,6 +113,7 @@ export default function App() {
   const confirmAddWatch = async (ticker, note) => {
     setPendingWatch(null);
     setWatchlist((prev) => [...prev, ticker]);
+    setWatchAddedAt((prev) => ({ ...prev, [ticker]: Date.now() / 1000 }));
     if (note) setWatchNotes((prev) => ({ ...prev, [ticker]: note }));
     try {
       await addWatch(ticker);
@@ -310,6 +313,7 @@ export default function App() {
           <WatchList
             watchlist={watchlist}
             watchNotes={watchNotes}
+            watchAddedAt={watchAddedAt}
             onRemove={toggleWatch}
             onSelect={(t) => handleSelectStock(t)}
             onUpdateNote={handleUpdateNote}

@@ -19,6 +19,7 @@ def list_watchlist(authorization: str | None = Header(None)):
     return {
         "tickers": [i["ticker"] for i in items],
         "notes": {i["ticker"]: i["note"] for i in items},
+        "added_at": {i["ticker"]: i["added_at"] for i in items},
     }
 
 
