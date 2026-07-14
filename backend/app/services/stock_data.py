@@ -205,7 +205,11 @@ _tw_stock_names: dict = {}
 _tw_stock_industry: dict = {}   # ticker → 中文產業別
 _tw_stock_exchange: dict = {}   # ticker → "TW" 或 "TWO"
 _tw_stock_capital: dict = {}    # ticker → 實收資本額（千元）
-_tw_stock_names_attempted = False  # 避免每次請求都重試失敗的 TWSE 連線
+_twse_names_loaded = False   # 上市清單是否已成功載入
+_tpex_names_loaded = False   # 上櫃清單是否已成功載入（跟上市分開，其中一個失敗不影響另一個重試）
+_twse_names_last_try = 0.0
+_tpex_names_last_try = 0.0
+_NAMES_RETRY_COOLDOWN = 300  # 失敗後至少間隔 5 分鐘才重試，避免對方持續異常時被打爆
 
 # TWSE 產業別代碼對照
 TWSE_INDUSTRY_CODE_MAP = {
@@ -323,58 +327,68 @@ DEFAULT_TICKERS = [
 
 
 def _load_tw_stock_names():
-    """從證交所與櫃買中心抓股票中文名稱、產業別、實收資本額（每次程序生命週期只嘗試一次）"""
-    global _tw_stock_names, _tw_stock_industry, _tw_stock_exchange, _tw_stock_capital, _tw_stock_names_attempted
-    if _tw_stock_names or _tw_stock_names_attempted:
-        return
-    _tw_stock_names_attempted = True
+    """從證交所與櫃買中心抓股票中文名稱、產業別、實收資本額。
+    上市／上櫃分開追蹤成功狀態：哪個失敗了，哪個就在冷卻時間過後重試，
+    不會因為其中一個掛掉就永遠連累另一個（也不會無限重試打爆對方 API）。
+    """
+    global _tw_stock_names, _tw_stock_industry, _tw_stock_exchange, _tw_stock_capital
+    global _twse_names_loaded, _tpex_names_loaded, _twse_names_last_try, _tpex_names_last_try
+
+    now = time.time()
+
     # 上市（TWSE）
-    try:
-        rows = requests.get("https://openapi.twse.com.tw/v1/opendata/t187ap03_L", timeout=10).json()
-        if rows:
-            print(f"[TWSE] t187ap03_L sample keys: {list(rows[0].keys())}")
-        for row in rows:
-            code = row.get("公司代號", "").strip()
-            name = row.get("公司簡稱", "").strip()
-            industry_code = row.get("產業別", "").strip()
-            capital_str = row.get("實收資本額", "").replace(",", "").strip()
-            if code and name:
-                _tw_stock_names[code] = name
-                _tw_stock_exchange[code] = "TW"
-            if code and industry_code:
-                _tw_stock_industry[code] = TWSE_INDUSTRY_CODE_MAP.get(industry_code, industry_code)
-            if code and capital_str:
-                try:
-                    _tw_stock_capital[code] = float(capital_str)
-                except ValueError:
-                    pass
-        print(f"[TWSE] 上市股票清單載入 {len(_tw_stock_names)} 筆，資本額 {len(_tw_stock_capital)} 筆")
-    except Exception as e:
-        print(f"[TWSE] 上市股票清單載入失敗: {e}")
+    if not _twse_names_loaded and now - _twse_names_last_try >= _NAMES_RETRY_COOLDOWN:
+        _twse_names_last_try = now
+        try:
+            rows = requests.get("https://openapi.twse.com.tw/v1/opendata/t187ap03_L", timeout=10).json()
+            for row in rows:
+                code = row.get("公司代號", "").strip()
+                name = row.get("公司簡稱", "").strip()
+                industry_code = row.get("產業別", "").strip()
+                capital_str = row.get("實收資本額", "").replace(",", "").strip()
+                if code and name:
+                    _tw_stock_names[code] = name
+                    _tw_stock_exchange[code] = "TW"
+                if code and industry_code:
+                    _tw_stock_industry[code] = TWSE_INDUSTRY_CODE_MAP.get(industry_code, industry_code)
+                if code and capital_str:
+                    try:
+                        _tw_stock_capital[code] = float(capital_str)
+                    except ValueError:
+                        pass
+            _twse_names_loaded = True
+            print(f"[TWSE] 上市股票清單載入 {len(_tw_stock_names)} 筆，資本額 {len(_tw_stock_capital)} 筆")
+        except Exception as e:
+            print(f"[TWSE] 上市股票清單載入失敗，{_NAMES_RETRY_COOLDOWN}秒後重試: {e}")
+
     # 上櫃（TPEx）
-    try:
-        rows = requests.get("https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O", timeout=10).json()
-        if rows:
-            print(f"[TPEx] t187ap03_O sample keys: {list(rows[0].keys())}")
-        for row in rows:
-            code = row.get("SecuritiesCompanyCode", "").strip()
-            name = row.get("CompanyAbbreviation", "").strip()
-            industry_code = row.get("SecuritiesIndustryCode", "").strip()
-            # TPEx 資本額欄位嘗試多個可能名稱
-            capital_raw = (row.get("PaidInCapitalNTD") or row.get("實收資本額") or row.get("Capital") or "")
-            capital_str = str(capital_raw).replace(",", "").strip()
-            if code and name and code not in _tw_stock_names:
-                _tw_stock_names[code] = name
-                _tw_stock_exchange[code] = "TWO"
-            if code and industry_code and code not in _tw_stock_industry:
-                _tw_stock_industry[code] = TWSE_INDUSTRY_CODE_MAP.get(industry_code, industry_code)
-            if code and capital_str and code not in _tw_stock_capital:
-                try:
-                    _tw_stock_capital[code] = float(capital_str)
-                except ValueError:
-                    pass
-    except Exception:
-        pass
+    if not _tpex_names_loaded and now - _tpex_names_last_try >= _NAMES_RETRY_COOLDOWN:
+        _tpex_names_last_try = now
+        try:
+            rows = requests.get("https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O", timeout=10).json()
+            tpex_count = 0
+            for row in rows:
+                code = row.get("SecuritiesCompanyCode", "").strip()
+                name = row.get("CompanyAbbreviation", "").strip()
+                industry_code = row.get("SecuritiesIndustryCode", "").strip()
+                # TPEx 資本額欄位嘗試多個可能名稱
+                capital_raw = (row.get("PaidInCapitalNTD") or row.get("實收資本額") or row.get("Capital") or "")
+                capital_str = str(capital_raw).replace(",", "").strip()
+                if code and name and code not in _tw_stock_names:
+                    _tw_stock_names[code] = name
+                    _tw_stock_exchange[code] = "TWO"
+                    tpex_count += 1
+                if code and industry_code and code not in _tw_stock_industry:
+                    _tw_stock_industry[code] = TWSE_INDUSTRY_CODE_MAP.get(industry_code, industry_code)
+                if code and capital_str and code not in _tw_stock_capital:
+                    try:
+                        _tw_stock_capital[code] = float(capital_str)
+                    except ValueError:
+                        pass
+            _tpex_names_loaded = True
+            print(f"[TPEx] 上櫃股票清單載入 {tpex_count} 筆")
+        except Exception as e:
+            print(f"[TPEx] 上櫃股票清單載入失敗，{_NAMES_RETRY_COOLDOWN}秒後重試: {e}")
 
 
 _TWSE_HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
