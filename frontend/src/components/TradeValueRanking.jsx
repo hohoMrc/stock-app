@@ -1,27 +1,31 @@
 import { useState, useEffect, useRef } from "react";
-import { getTradeValueRanking, getTurnoverRanking } from "../api";
+import { getTradeValueRanking, getTurnoverRanking, getMoversRanking } from "../api";
 import { isTradingHours } from "../marketHours";
 
 const TABS = [
   { key: "value",    label: "成交值" },
   { key: "turnover", label: "週轉率" },
+  { key: "up",       label: "漲幅" },
+  { key: "down",     label: "跌幅" },
 ];
+
+const INIT_STATE = { value: [], turnover: [], up: [], down: [] };
 
 export default function TradeValueRanking({ onSelect }) {
   const [activeTab, setActiveTab]   = useState("value");
-  const [data, setData]             = useState({ value: [], turnover: [] });
-  const [loading, setLoading]       = useState({ value: false, turnover: false });
-  const [error, setError]           = useState({ value: null, turnover: null });
-  const [updatedAt, setUpdatedAt]   = useState({ value: null, turnover: null });
-  const loaded = useRef({ value: false, turnover: false });
+  const [data, setData]             = useState(INIT_STATE);
+  const [loading, setLoading]       = useState({ value: false, turnover: false, up: false, down: false });
+  const [error, setError]           = useState({ value: null, turnover: null, up: null, down: null });
+  const [updatedAt, setUpdatedAt]   = useState({ value: null, turnover: null, up: null, down: null });
+  const loaded = useRef({ value: false, turnover: false, up: false, down: false });
 
   const load = async (tab, force = false) => {
     setLoading((p) => ({ ...p, [tab]: true }));
     setError((p) => ({ ...p, [tab]: null }));
     try {
-      const res = tab === "value"
-        ? await getTradeValueRanking(50, force)
-        : await getTurnoverRanking(50, force);
+      const res = tab === "value"    ? await getTradeValueRanking(50, force)
+                : tab === "turnover" ? await getTurnoverRanking(50, force)
+                : await getMoversRanking(tab, 50, force); // tab === "up" | "down"
       setData((p) => ({ ...p, [tab]: res.data.stocks }));
       setUpdatedAt((p) => ({
         ...p,
@@ -62,6 +66,8 @@ export default function TradeValueRanking({ onSelect }) {
   const HINTS = {
     value:    "盤中即時排行（Fugle）；非交易時段自動退回 TWSE／TPEx 收盤資料。快取 5 分鐘。",
     turnover: "週轉率 = 成交量 ÷ 在外流通股數（以實收資本額 ÷ 面額 10 元估算）。快取 5 分鐘。",
+    up:       "盤中即時漲幅排行（Fugle snapshot/movers），合併上市＋上櫃。快取 5 分鐘。",
+    down:     "盤中即時跌幅排行（Fugle snapshot/movers），合併上市＋上櫃。快取 5 分鐘。",
   };
 
   return (
@@ -97,10 +103,10 @@ export default function TradeValueRanking({ onSelect }) {
 
       {stocks.length > 0 && (
         <div className="ranking-table-wrap">
-          {activeTab === "value" ? (
-            <ValueTable stocks={stocks} onSelect={onSelect} />
-          ) : (
+          {activeTab === "turnover" ? (
             <TurnoverTable stocks={stocks} onSelect={onSelect} />
+          ) : (
+            <ValueTable stocks={stocks} onSelect={onSelect} />
           )}
         </div>
       )}

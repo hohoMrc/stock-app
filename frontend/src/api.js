@@ -21,6 +21,7 @@ export const getIndustryStocks = (industry, exclude) =>
   api.get(`/api/stocks/industry/${encodeURIComponent(industry)}`, { params: { exclude } });
 export const getTradeValueRanking = (limit = 50, force = false) => api.get("/api/stocks/ranking/trade-value", { params: { limit, force } });
 export const getTurnoverRanking   = (limit = 50, force = false) => api.get("/api/stocks/ranking/turnover",     { params: { limit, force } });
+export const getMoversRanking     = (direction = "up", limit = 50, force = false) => api.get("/api/stocks/ranking/movers", { params: { direction, limit, force } });
 export const getOrderbook         = (ticker)     => api.get(`/api/stocks/${ticker}/orderbook`);
 
 // 台指期

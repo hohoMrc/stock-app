@@ -1866,6 +1866,54 @@ def get_turnover_ranking(limit: int = 50, force: bool = False) -> list:
     return results[:limit]
 
 
+def get_movers_ranking(direction: str = "up", limit: int = 50, force: bool = False) -> list:
+    """漲跌幅排行（合併上市 + 上櫃），direction: "up" 漲幅榜 / "down" 跌幅榜。
+    直接用 Fugle snapshot/movers，該端點本身就是照漲跌幅排序好的，不用像成交值/週轉率
+    那樣自己抓全市場再排序。
+    """
+    cache_key = f"movers_{direction}"
+    if not force:
+        cached = _cache_get(_ranking_cache, cache_key, RANKING_TTL)
+        if cached is not None:
+            return cached[:limit]
+
+    client = _get_fugle()
+    results = []
+    if client:
+        for market in ("TSE", "OTC"):
+            try:
+                resp = client.stock.snapshot.movers(
+                    market=market, direction=direction, change="percent", type="ALLBUT0999"
+                )
+                data = resp.get("data", []) if isinstance(resp, dict) else []
+                label = "上市" if market == "TSE" else "上櫃"
+                for item in data:
+                    close   = item.get("closePrice")
+                    chg     = item.get("change")
+                    chg_pct = item.get("changePercent")
+                    vol     = item.get("tradeVolume", 0) or 0
+                    tv      = item.get("tradeValue", 0) or 0
+                    results.append({
+                        "ticker":             item.get("symbol", ""),
+                        "name":               item.get("name", ""),
+                        "close":              round(float(close), 2) if close is not None else None,
+                        "change":             round(float(chg), 2) if chg is not None else None,
+                        "change_pct":         round(float(chg_pct), 2) if chg_pct is not None else None,
+                        "trade_value_yi":     round(float(tv) / 1e8, 2) if tv else None,
+                        "trade_volume_zhang": round(int(vol) / 1000) if vol else None,
+                        "exchange":           label,
+                    })
+            except Exception as e:
+                print(f"[Fugle] snapshot movers {market} {direction} 失敗: {e}")
+
+    results = [r for r in results if r.get("change_pct") is not None]
+    results.sort(key=lambda x: x["change_pct"], reverse=(direction == "up"))
+    results = _enrich_with_intraday(results[:limit])
+
+    _cache_set(_ranking_cache, cache_key, results)
+    return results[:limit]
+
+
 # 委買委賣快照快取（盤中更新，盤後繼續顯示最後快照，保留 24 小時）
 _orderbook_snapshot: dict = {}  # ticker → (ts, bids, asks)
 
