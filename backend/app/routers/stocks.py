@@ -2,7 +2,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
-from app.services.stock_data import get_stock_info, get_stock_history, screen_stocks, get_stocks_by_industry, scan_all_weekly_surge, scan_ma_squeeze, scan_near_ema60, search_stocks, get_trade_value_ranking, get_turnover_ranking, get_movers_ranking, get_stock_orderbook, get_stock_trades
+from app.services.stock_data import get_stock_info, get_stock_history, screen_stocks, get_stocks_by_industry, scan_all_weekly_surge, scan_ma_squeeze, scan_near_ema60, scan_volume_breakout, scan_institutional_buying, search_stocks, get_trade_value_ranking, get_turnover_ranking, get_movers_ranking, get_stock_orderbook, get_stock_trades
 from app.services.ai_analysis import analyze_stock
 
 router = APIRouter(prefix="/api/stocks", tags=["stocks"])
@@ -70,6 +70,27 @@ async def ma_squeeze_scan(limit: int = Query(default=200, le=500)):
 async def near_ema60_scan(limit: int = Query(default=500, le=500)):
     try:
         results = await run_in_threadpool(scan_near_ema60, limit)
+        return {"count": len(results), "stocks": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/scan/volume-breakout")
+async def volume_breakout_scan(limit: int = Query(default=200, le=500)):
+    try:
+        results = await run_in_threadpool(scan_volume_breakout, limit)
+        return {"count": len(results), "stocks": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/scan/institutional-buying")
+async def institutional_buying_scan(
+    min_days: int = Query(default=3, ge=1, le=20),
+    limit: int = Query(default=200, le=500),
+):
+    try:
+        results = await run_in_threadpool(scan_institutional_buying, min_days, limit)
         return {"count": len(results), "stocks": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

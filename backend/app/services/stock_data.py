@@ -1280,6 +1280,166 @@ def scan_near_ema60(limit: int = 500) -> list:
     return results
 
 
+def scan_volume_breakout(limit: int = 200) -> list:
+    """掃全市場，回傳今日爆量（≥近5日均量3倍）且收盤價創近20日新高、日量 ≥ 2000 張、非金融保險的股票。"""
+    from app.db import get_all_db_tickers_with_meta, get_candles
+    from datetime import date, timedelta
+
+    from_date = (date.today() - timedelta(days=45)).strftime("%Y-%m-%d")
+    to_date   = date.today().strftime("%Y-%m-%d")
+
+    all_tickers = get_all_db_tickers_with_meta()
+    results = []
+    for row in all_tickers:
+        ticker = row["ticker"]
+        if row.get("parent_industry") == "金融保險":
+            continue
+        records = get_candles(ticker, from_date, to_date)
+        if not records or len(records) < 21:
+            continue
+        last = records[-1]
+        today_vol = last.get("volume") or 0
+        if today_vol < 2_000_000:
+            continue
+        recent5 = records[-6:-1]  # 今天以外最近 5 天
+        if len(recent5) < 5:
+            continue
+        vols5 = [r.get("volume") or 0 for r in recent5]
+        avg_vol_5d = sum(vols5) / 5
+        if avg_vol_5d <= 0:
+            continue
+        vol_ratio = today_vol / avg_vol_5d
+        if vol_ratio < 3.0:
+            continue
+        close = last.get("close")
+        closes20 = [r["close"] for r in records[-20:] if r["close"] is not None]
+        if not close or not closes20 or close < max(closes20):
+            continue
+        prev = records[-2] if len(records) >= 2 else last
+        prev_close = prev.get("close")
+        change_pct = round((close - prev_close) / prev_close * 100, 2) if prev_close else None
+        results.append({
+            "ticker":       ticker,
+            "name":         row.get("name") or "",
+            "exchange":     row.get("exchange") or "",
+            "close":        round(float(close), 2),
+            "change_pct":   change_pct,
+            "volume_zhang": round(today_vol / 1000),
+            "vol_ratio":    round(vol_ratio, 2),
+        })
+        if len(results) >= limit:
+            break
+    return results
+
+
+def fetch_institutional_trades_today() -> list[dict]:
+    """抓當天全市場三大法人買賣超（上市 TWSE T86 + 上櫃 TPEx），供 daily_update.py 存 DB 用。"""
+    today_str = date.today().strftime("%Y%m%d")
+    today_iso = date.today().strftime("%Y-%m-%d")
+    results: list[dict] = []
+
+    # 上市（TWSE T86）
+    try:
+        resp = requests.get(
+            "https://www.twse.com.tw/fund/T86",
+            params={"response": "json", "date": today_str, "selectType": "ALLBUT0999"},
+            timeout=15, headers=_TWSE_HEADERS,
+        )
+        data = resp.json()
+        if data.get("stat") == "OK":
+            for row in data.get("data", []):
+                code = str(row[0]).strip()
+                if not code.isdigit() or not (4 <= len(code) <= 5):
+                    continue
+                foreign_net = (_parse_num(row[4]) or 0) + (_parse_num(row[7]) or 0)
+                trust_net   = _parse_num(row[10]) or 0
+                dealer_net  = _parse_num(row[11]) or 0
+                total_net   = _parse_num(row[18]) or 0
+                results.append({
+                    "ticker": code, "date": today_iso,
+                    "foreign_net": int(foreign_net), "trust_net": int(trust_net),
+                    "dealer_net": int(dealer_net), "total_net": int(total_net),
+                })
+        else:
+            print(f"[TWSE] T86 無資料（可能非交易日）: {data.get('stat')}")
+    except Exception as e:
+        print(f"[TWSE] T86 三大法人失敗: {e}")
+
+    # 上櫃（TPEx）
+    try:
+        resp = _tpex_get("https://www.tpex.org.tw/openapi/v1/tpex_3insti_daily_trading", timeout=15)
+        for row in resp.json():
+            code = str(row.get("SecuritiesCompanyCode", "")).strip()
+            if not code.isdigit() or not (4 <= len(code) <= 5):
+                continue
+            foreign_net = _parse_num(row.get("ForeignInvestorsIncludeMainlandAreaInvestors-Difference")) or 0
+            trust_net   = _parse_num(row.get("SecuritiesInvestmentTrustCompanies-Difference")) or 0
+            dealer_net  = _parse_num(row.get("Dealers-Difference")) or 0
+            total_net   = _parse_num(row.get("TotalDifference")) or 0
+            results.append({
+                "ticker": code, "date": today_iso,
+                "foreign_net": int(foreign_net), "trust_net": int(trust_net),
+                "dealer_net": int(dealer_net), "total_net": int(total_net),
+            })
+    except Exception as e:
+        print(f"[TPEx] 三大法人失敗: {e}")
+
+    return results
+
+
+def scan_institutional_buying(min_days: int = 3, limit: int = 200) -> list:
+    """掃全市場，回傳外資+投信合計連續買超 ≥ min_days 個交易日的股票。"""
+    from app.db import get_all_db_tickers_with_meta, get_all_institutional_trades_in_range, get_candles
+    from datetime import date, timedelta
+
+    lookback_days = min_days + 15  # 留緩衝扣掉假日
+    from_date = (date.today() - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+    to_date   = date.today().strftime("%Y-%m-%d")
+
+    trades_map = get_all_institutional_trades_in_range(from_date, to_date)
+    meta_map   = {row["ticker"]: row for row in get_all_db_tickers_with_meta()}
+
+    candle_from = (date.today() - timedelta(days=10)).strftime("%Y-%m-%d")
+
+    results = []
+    for ticker, records in trades_map.items():
+        meta = meta_map.get(ticker)
+        if not meta or meta.get("parent_industry") == "金融保險":
+            continue
+        records = sorted(records, key=lambda r: r["date"])
+        streak, total_net = 0, 0
+        for r in reversed(records):
+            net = (r.get("foreign_net") or 0) + (r.get("trust_net") or 0)
+            if net <= 0:
+                break
+            streak += 1
+            total_net += net
+        if streak < min_days:
+            continue
+
+        candles = get_candles(ticker, candle_from, to_date)
+        if not candles:
+            continue
+        last  = candles[-1]
+        close = last.get("close")
+        prev  = candles[-2] if len(candles) >= 2 else last
+        prev_close = prev.get("close")
+        change_pct = round((close - prev_close) / prev_close * 100, 2) if close and prev_close else None
+
+        results.append({
+            "ticker":          ticker,
+            "name":            meta.get("name") or "",
+            "exchange":        meta.get("exchange") or "",
+            "close":           round(float(close), 2) if close else None,
+            "change_pct":      change_pct,
+            "streak_days":     streak,
+            "total_net_zhang": round(total_net / 1000),
+        })
+
+    results.sort(key=lambda x: (x["streak_days"], x["total_net_zhang"]), reverse=True)
+    return results[:limit]
+
+
 def _detect_ma_pattern(ticker: str) -> dict:
     """偵測 MA 黏合型態（從 DB 優先，fallback yfinance）。"""
     from app.db import get_candles

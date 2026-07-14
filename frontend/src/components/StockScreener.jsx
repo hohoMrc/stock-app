@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { screenStocks, scanWeeklySurge, scanMaSqueeze, scanNearEma60 } from "../api";
+import { screenStocks, scanWeeklySurge, scanMaSqueeze, scanNearEma60, scanVolumeBreakout, scanInstitutionalBuying } from "../api";
 
 const DEFAULT_TICKERS = [
   // 半導體
@@ -89,6 +89,40 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
     }
   };
 
+  const handleVolumeBreakout = async () => {
+    setResultMode("volume_breakout");
+    setLoading(true);
+    setError(null);
+    setResults([]);
+    try {
+      const res = await scanVolumeBreakout(200);
+      setResults(res.data.stocks);
+      setSearched(true);
+    } catch (e) {
+      setError(e?.response?.data?.detail || e.message || "掃描失敗");
+      setSearched(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInstitutionalBuying = async () => {
+    setResultMode("institutional_buying");
+    setLoading(true);
+    setError(null);
+    setResults([]);
+    try {
+      const res = await scanInstitutionalBuying(3, 200);
+      setResults(res.data.stocks);
+      setSearched(true);
+    } catch (e) {
+      setError(e?.response?.data?.detail || e.message || "掃描失敗");
+      setSearched(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handlePattern = async (pattern) => {
     const newFilters = { ...EMPTY_FILTERS, pattern, custom_tickers: filters.custom_tickers };
     setFilters(newFilters);
@@ -159,6 +193,8 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
   const hasMA = !!filters.near_ma;
   const hasPattern = !!filters.pattern;
   const isEma60Mode = resultMode === "near_ema60";
+  const isVolumeBreakoutMode = resultMode === "volume_breakout";
+  const isInstitutionalBuyingMode = resultMode === "institutional_buying";
   const PATTERN_LABEL = { bird_beak: "⚡ 鳥嘴與分歧", divergence: "⚡ 鳥嘴與分歧" };
 
   return (
@@ -192,6 +228,22 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
           title="收盤在 EMA60 上方 0~3%，近一個月持續站上 EMA60，日量 ≥ 2000 張"
         >
           📈 EMA60近線
+        </button>
+        <button
+          className="preset-btn preset-btn--pattern"
+          onClick={handleVolumeBreakout}
+          disabled={loading}
+          title="今日成交量 ≥ 近5日均量3倍，且收盤價創近20日新高，日量 ≥ 2000 張"
+        >
+          💥 量價突破
+        </button>
+        <button
+          className="preset-btn preset-btn--pattern"
+          onClick={handleInstitutionalBuying}
+          disabled={loading}
+          title="外資＋投信合計買超連續 3 個交易日以上（不含自營商）"
+        >
+          🏦 法人連買
         </button>
       </div>
 
@@ -406,6 +458,9 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                   <th>成交量(張)</th>
                   {isEma60Mode && <th>EMA60</th>}
                   {isEma60Mode && <th>偏離</th>}
+                  {isVolumeBreakoutMode && <th>量比</th>}
+                  {isInstitutionalBuyingMode && <th>連續買超天數</th>}
+                  {isInstitutionalBuyingMode && <th>合計買超(張)</th>}
                   {hasMA && <th>{MA_OPTIONS.find(o => o.value === filters.near_ma)?.label}</th>}
                   {hasMA && <th>偏離</th>}
                   {hasPattern && <th>型態</th>}
@@ -431,6 +486,15 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                     {isEma60Mode && (
                       <td className="deviation-up">
                         {s.dev_pct != null ? `+${s.dev_pct}%` : "—"}
+                      </td>
+                    )}
+                    {isVolumeBreakoutMode && (
+                      <td className="deviation-up">{s.vol_ratio != null ? `${s.vol_ratio}x` : "—"}</td>
+                    )}
+                    {isInstitutionalBuyingMode && <td>{s.streak_days ?? "—"}</td>}
+                    {isInstitutionalBuyingMode && (
+                      <td className="deviation-up">
+                        {s.total_net_zhang != null ? s.total_net_zhang.toLocaleString() : "—"}
                       </td>
                     )}
                     {hasMA && <td>{s.ma_value ?? "—"}</td>}

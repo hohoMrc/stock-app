@@ -61,6 +61,19 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_candles_ticker
             ON candles(ticker, date DESC);
 
+        CREATE TABLE IF NOT EXISTS institutional_trades (
+            ticker      TEXT NOT NULL,
+            date        TEXT NOT NULL,
+            foreign_net INTEGER,
+            trust_net   INTEGER,
+            dealer_net  INTEGER,
+            total_net   INTEGER,
+            PRIMARY KEY (ticker, date)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_institutional_ticker
+            ON institutional_trades(ticker, date DESC);
+
         CREATE TABLE IF NOT EXISTS futures_candles (
             symbol    TEXT NOT NULL,
             timeframe TEXT NOT NULL,
@@ -292,6 +305,38 @@ def is_candles_fresh(ticker: str, from_date: str, to_date: str) -> bool:
         return False
     latest = datetime.strptime(row["latest"], "%Y-%m-%d").date()
     return (datetime.now().date() - latest).days <= 3
+
+
+# ── institutional_trades（三大法人買賣超）─────────────────
+
+def save_institutional_trades(records: list[dict]):
+    if not records:
+        return
+    with _conn() as conn:
+        conn.executemany(
+            "INSERT OR REPLACE INTO institutional_trades"
+            "(ticker, date, foreign_net, trust_net, dealer_net, total_net) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                (r["ticker"], r["date"], r.get("foreign_net"),
+                 r.get("trust_net"), r.get("dealer_net"), r.get("total_net"))
+                for r in records if r.get("ticker") and r.get("date")
+            ]
+        )
+
+
+def get_all_institutional_trades_in_range(from_date: str, to_date: str) -> dict[str, list[dict]]:
+    """一次取出所有 ticker 在日期範圍內的三大法人買賣超，回傳 {ticker: [record,...]}（依日期由舊到新）。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker, date, foreign_net, trust_net, dealer_net, total_net "
+            "FROM institutional_trades WHERE date>=? AND date<=? ORDER BY ticker, date",
+            (from_date, to_date)
+        ).fetchall()
+    result: dict[str, list] = {}
+    for r in rows:
+        result.setdefault(r["ticker"], []).append(dict(r))
+    return result
 
 
 # ── futures_candles ─────────────────────────────────────

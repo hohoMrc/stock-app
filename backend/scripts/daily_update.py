@@ -162,6 +162,46 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[EMA60近線] 掃描失敗: {e}")
 
+        print("[量價突破] 開始掃描...")
+        try:
+            from app.services.stock_data import scan_volume_breakout
+            vb_hits = scan_volume_breakout(200)
+            if vb_hits:
+                lines = [
+                    _stock_link(s["ticker"], s.get("name", ""), f"  {s['close']}元 量比{s['vol_ratio']}x")
+                    for s in vb_hits
+                ]
+                vb_msg = f"[量價突破] 爆量創20日新高，今日找到 {len(vb_hits)} 支\n" + "\n".join(lines)
+            else:
+                vb_msg = "[量價突破] 今日無符合條件的股票"
+            print(vb_msg)
+            _tg_notify(vb_msg, html=True)
+        except Exception as e:
+            print(f"[量價突破] 掃描失敗: {e}")
+
+        print("[三大法人] 抓取今日買賣超資料...")
+        try:
+            from app.services.stock_data import fetch_institutional_trades_today, scan_institutional_buying
+            from app.db import save_institutional_trades
+            inst_records = fetch_institutional_trades_today()
+            save_institutional_trades(inst_records)
+            print(f"[三大法人] 存入 {len(inst_records)} 筆")
+
+            print("[法人連買] 開始掃描...")
+            buy_hits = scan_institutional_buying(min_days=3, limit=200)
+            if buy_hits:
+                lines = [
+                    _stock_link(s["ticker"], s.get("name", ""), f"  {s['close']}元 連{s['streak_days']}天 合計{s['total_net_zhang']}張")
+                    for s in buy_hits
+                ]
+                buy_msg = f"[法人連買] 外資+投信連續買超≥3天，今日找到 {len(buy_hits)} 支\n" + "\n".join(lines)
+            else:
+                buy_msg = "[法人連買] 今日無符合條件的股票"
+            print(buy_msg)
+            _tg_notify(buy_msg, html=True)
+        except Exception as e:
+            print(f"[三大法人/法人連買] 失敗: {e}")
+
     # 儲存台指期當日各 timeframe 盤中 K 棒到 DB
     print("[期貨K線] 儲存當日各 timeframe K 棒...")
     try:
