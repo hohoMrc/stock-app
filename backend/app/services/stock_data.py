@@ -1436,7 +1436,9 @@ def scan_institutional_buying(min_days: int = 3, limit: int = 200) -> list:
             "total_net_zhang": round(total_net / 1000),
         })
 
-    results.sort(key=lambda x: (x["streak_days"], x["total_net_zhang"]), reverse=True)
+    # 優先看買超規模（張數），連續天數只當篩選門檻（已 >= min_days），不當主要排序依據，
+    # 避免「連續天數多但每天量極小」的雜訊排到「量大但天數略少」的前面
+    results.sort(key=lambda x: (x["total_net_zhang"], x["streak_days"]), reverse=True)
     return results[:limit]
 
 
