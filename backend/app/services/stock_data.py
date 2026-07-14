@@ -600,6 +600,11 @@ def get_stock_info(ticker: str) -> dict:
         "price":          price,
         "change":         fugle_q.get("change"),
         "change_pct":     fugle_q.get("change_pct"),
+        # 今日開高低 + 報價所屬日期（供前端即時更新股價走勢圖今天這根 K 棒用）
+        "open":           fugle_q.get("open"),
+        "high":           fugle_q.get("high"),
+        "low":            fugle_q.get("low"),
+        "quote_date":     fugle_q.get("quote_date"),
         "dividend_yield": dividend_yield,
         "volume":         volume,
         "volume_zhang":   volume_zhang,

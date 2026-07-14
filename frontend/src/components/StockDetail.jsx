@@ -57,6 +57,22 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         try {
           const res = await getStock(ticker);
           setInfo(res.data);
+          // 日K：順便把今天這根 K 棒更新成最新報價，不用切分頁或重新整理才會刷新
+          if (interval === "1d" && res.data.quote_date && res.data.open && res.data.price) {
+            const d = res.data;
+            const newBar = {
+              date: d.quote_date, open: d.open,
+              high: d.high ?? d.price, low: d.low ?? d.price,
+              close: d.price, volume: d.volume ?? 0,
+            };
+            setHistory((prev) => {
+              if (prev.length === 0) return prev;
+              const last = prev[prev.length - 1];
+              if (last.date === newBar.date) return [...prev.slice(0, -1), newBar];
+              if (newBar.date > last.date) return [...prev, newBar];
+              return prev;
+            });
+          }
         } catch (_) {}
       }, 10_000);
     };
