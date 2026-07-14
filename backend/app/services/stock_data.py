@@ -4,6 +4,7 @@ import tempfile
 import threading
 import time
 import requests
+import urllib3
 import yfinance as yf
 import pandas as pd
 from datetime import date, timedelta, datetime, timezone
@@ -365,7 +366,7 @@ def _load_tw_stock_names():
     if not _tpex_names_loaded and now - _tpex_names_last_try >= _NAMES_RETRY_COOLDOWN:
         _tpex_names_last_try = now
         try:
-            rows = requests.get("https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O", timeout=10).json()
+            rows = _tpex_get("https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O").json()
             tpex_count = 0
             for row in rows:
                 code = row.get("SecuritiesCompanyCode", "").strip()
@@ -392,6 +393,17 @@ def _load_tw_stock_names():
 
 
 _TWSE_HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"}
+
+# TPEx 憑證缺少 Subject Key Identifier 擴充欄位，新版 OpenSSL（如 3.5+）驗證會直接拒絕，
+# 但 curl 用系統信任鏈驗證是正常的，代表憑證本身可信，只是 Python 比較嚴格。
+# 這裡只放寬這個網域的驗證（抓的都是公開股票資料，非敏感資訊）。
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+def _tpex_get(url: str, **kwargs):
+    kwargs.setdefault("timeout", 10)
+    kwargs.setdefault("verify", False)
+    return requests.get(url, **kwargs)
 
 
 def _fetch_twse_price(ticker: str, prefix: str) -> dict:
@@ -789,7 +801,7 @@ def _fetch_twse_month(ticker: str, year: int, month: int, exchange: str) -> list
             roc_year = year - 1911
             url = (f"https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_info/"
                    f"st43_result.php?l=zh-tw&d={roc_year}/{month:02d}&stkno={ticker}&s=0,asc,0")
-            resp = requests.get(url, timeout=10, headers=_TWSE_HEADERS)
+            resp = _tpex_get(url, headers=_TWSE_HEADERS)
             data = resp.json()
             rows = data.get("aaData", [])
             result = []
@@ -1668,7 +1680,7 @@ def get_trade_value_ranking(limit: int = 50, force: bool = False) -> list:
             print(f"[TWSE] STOCK_DAY_ALL 失敗: {e}")
 
         try:
-            resp = requests.get(
+            resp = _tpex_get(
                 "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
                 timeout=15, headers=_TWSE_HEADERS,
             )
@@ -1820,7 +1832,7 @@ def get_turnover_ranking(limit: int = 50, force: bool = False) -> list:
 
     # 上櫃 (TPEx)
     try:
-        resp = requests.get(
+        resp = _tpex_get(
             "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes",
             timeout=15, headers=_TWSE_HEADERS,
         )
