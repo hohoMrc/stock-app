@@ -17,6 +17,22 @@ const SCAN_DEFAULT_MA = {
   near_ema60: { ma5: false, ma10: false, ma20: false, ma30: false, ma60: false, ema10: false, ema60: true  },
 };
 
+// 日K圖的歷史資料在後端有快取，可能比報價舊；用最新報價把最後一根 K 棒校正成即時值，
+// 開頁當下就套用一次，不用等第一次輪詢才校正，避免畫面先顯示舊資料又突然跳成新的。
+function mergeLiveBar(historyArr, info, interval) {
+  if (interval !== "1d" || !info?.quote_date || !info.open || !info.price) return historyArr;
+  if (!historyArr || historyArr.length === 0) return historyArr;
+  const newBar = {
+    date: info.quote_date, open: info.open,
+    high: info.high ?? info.price, low: info.low ?? info.price,
+    close: info.price, volume: info.volume ?? 0,
+  };
+  const last = historyArr[historyArr.length - 1];
+  if (last.date === newBar.date) return [...historyArr.slice(0, -1), newBar];
+  if (newBar.date > last.date) return [...historyArr, newBar];
+  return historyArr;
+}
+
 export default function StockDetail({ ticker, scanContext = null, onBack, onIndustry, watchlist = [], onToggleWatch, onPaperTrade }) {
   const [info, setInfo] = useState(null);
   const [history, setHistory] = useState([]);
@@ -40,7 +56,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
           getHistory(ticker, cfg.fetchPeriod, interval),
         ]);
         setInfo(infoRes.data);
-        setHistory(histRes.data.data);
+        setHistory(mergeLiveBar(histRes.data.data, infoRes.data, interval));
       } finally {
         setLoading(false);
       }
@@ -57,22 +73,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         try {
           const res = await getStock(ticker);
           setInfo(res.data);
-          // 日K：順便把今天這根 K 棒更新成最新報價，不用切分頁或重新整理才會刷新
-          if (interval === "1d" && res.data.quote_date && res.data.open && res.data.price) {
-            const d = res.data;
-            const newBar = {
-              date: d.quote_date, open: d.open,
-              high: d.high ?? d.price, low: d.low ?? d.price,
-              close: d.price, volume: d.volume ?? 0,
-            };
-            setHistory((prev) => {
-              if (prev.length === 0) return prev;
-              const last = prev[prev.length - 1];
-              if (last.date === newBar.date) return [...prev.slice(0, -1), newBar];
-              if (newBar.date > last.date) return [...prev, newBar];
-              return prev;
-            });
-          }
+          setHistory((prev) => mergeLiveBar(prev, res.data, interval));
         } catch (_) {}
       }, 10_000);
     };
