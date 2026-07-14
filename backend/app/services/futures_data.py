@@ -13,9 +13,12 @@ _lock        = threading.Lock()
 
 MONTH_CODES = "ABCDEFGHIJKL"
 
+_symbol_cache: dict[str, tuple[float, str]] = {}   # product → (查詢時間, symbol)
+_SYMBOL_CACHE_TTL = 3600  # 近月合約一天最多換一次，1 小時內重複查詢直接用快取
 
-def _current_symbol(product: str = "TXF") -> str:
-    """自動產生當前近月合約代號，product 可為 TXF 或 MTX。"""
+
+def _current_symbol_fallback(product: str = "TXF") -> str:
+    """日期推算備援：台指期結算日固定是每月第三個星期三（未考慮國定假日順延）。"""
     today = date.today()
     year, month = today.year, today.month
     cal       = calendar.monthcalendar(year, month)
@@ -26,6 +29,30 @@ def _current_symbol(product: str = "TXF") -> str:
         if month > 12:
             month, year = 1, year + 1
     return f"{product}{MONTH_CODES[month - 1]}{year % 10}"
+
+
+def _current_symbol(product: str = "TXF") -> str:
+    """向 Fugle 查詢該商品目前上市的合約，取結算日最近且尚未結算的作為近月合約。
+    比自己用「每月第三個星期三」推算更可靠（會遇到國定假日順延結算日的情況），
+    查詢失敗時退回日期推算。"""
+    cached = _symbol_cache.get(product)
+    if cached and time.time() - cached[0] < _SYMBOL_CACHE_TTL:
+        return cached[1]
+    try:
+        data = _get_client().futopt.intraday.tickers(type="FUTURE", product=product)
+        contracts = data.get("data", [])
+        today_str = date.today().strftime("%Y-%m-%d")
+        upcoming = sorted(
+            (c for c in contracts if c.get("settlementDate") and c.get("symbol") and c["settlementDate"] >= today_str),
+            key=lambda c: c["settlementDate"],
+        )
+        if upcoming:
+            symbol = upcoming[0]["symbol"]
+            _symbol_cache[product] = (time.time(), symbol)
+            return symbol
+    except Exception as e:
+        print(f"[futures] 取得 {product} 合約清單失敗，改用日期推算: {e}")
+    return _current_symbol_fallback(product)
 
 
 def _init_sdk():
