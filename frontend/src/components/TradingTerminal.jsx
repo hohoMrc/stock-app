@@ -117,9 +117,39 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
     if (!loaded.current[activeTab] && activeTab !== "watch" && activeTab !== "holdings") loadList(activeTab);
   }, [activeTab]);
 
-  // ── 排行清單 WebSocket 即時更新（成交值/成交量分頁，依目前清單的股票代號訂閱）──
+  // ── 排行清單 WebSocket 即時更新（成交值/成交量/持股分頁，依目前清單的股票代號訂閱）──
+  const mergeWsRow = (row, data) => {
+    if (data.channel === "books") {
+      const bid = data.bids?.[0] ? Math.round(data.bids[0].price * 100) / 100 : row.best_bid;
+      const ask = data.asks?.[0] ? Math.round(data.asks[0].price * 100) / 100 : row.best_ask;
+      return { ...row, best_bid: bid, best_ask: ask };
+    }
+    if (data.channel === "trades") {
+      const ref = row.close != null && row.change != null ? row.close - row.change : null;
+      let change = row.change, changePct = row.change_pct;
+      if (ref != null && data.price != null) {
+        change = Math.round((data.price - ref) * 100) / 100;
+        changePct = ref ? Math.round((change / ref) * 10000) / 100 : changePct;
+      }
+      const isBuy  = data.price != null && data.ask != null && data.price >= data.ask;
+      const isSell = data.price != null && data.bid != null && data.price <= data.bid;
+      return {
+        ...row,
+        close: data.price ?? row.close,
+        change,
+        change_pct: changePct,
+        trade_volume_zhang: data.volume ?? row.trade_volume_zhang,
+        last_size_zhang: data.size ?? row.last_size_zhang,
+        last_trade_dir: isBuy ? "buy" : isSell ? "sell" : row.last_trade_dir,
+      };
+    }
+    return row;
+  };
+
   const listTickers = (activeTab === "value" || activeTab === "turnover")
     ? (listData[activeTab] || []).map((s) => s.ticker).join(",")
+    : activeTab === "holdings"
+    ? holdings.map((p) => p.ticker).join(",")
     : "";
 
   useEffect(() => {
@@ -132,37 +162,25 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
       try {
         const data = JSON.parse(e.data);
         if (data.event === "keepalive" || !data.symbol) return;
+        if (tabKey === "holdings") {
+          setHoldings((prev) => {
+            const idx = prev.findIndex((r) => r.ticker === data.symbol);
+            if (idx === -1) return prev;
+            const updated = mergeWsRow(prev[idx], data);
+            if (updated === prev[idx]) return prev;
+            const next = [...prev];
+            next[idx] = updated;
+            return next;
+          });
+          return;
+        }
         setListData((prev) => {
           const rows = prev[tabKey];
           if (!rows) return prev;
           const idx = rows.findIndex((r) => r.ticker === data.symbol);
           if (idx === -1) return prev;
-          const row = rows[idx];
-          let updated = row;
-          if (data.channel === "books") {
-            const bid = data.bids?.[0] ? Math.round(data.bids[0].price * 100) / 100 : row.best_bid;
-            const ask = data.asks?.[0] ? Math.round(data.asks[0].price * 100) / 100 : row.best_ask;
-            updated = { ...row, best_bid: bid, best_ask: ask };
-          } else if (data.channel === "trades") {
-            const ref = row.close != null && row.change != null ? row.close - row.change : null;
-            let change = row.change, changePct = row.change_pct;
-            if (ref != null && data.price != null) {
-              change = Math.round((data.price - ref) * 100) / 100;
-              changePct = ref ? Math.round((change / ref) * 10000) / 100 : changePct;
-            }
-            const isBuy  = data.price != null && data.ask != null && data.price >= data.ask;
-            const isSell = data.price != null && data.bid != null && data.price <= data.bid;
-            updated = {
-              ...row,
-              close: data.price ?? row.close,
-              change,
-              change_pct: changePct,
-              trade_volume_zhang: data.volume ?? row.trade_volume_zhang,
-              last_size_zhang: data.size ?? row.last_size_zhang,
-              last_trade_dir: isBuy ? "buy" : isSell ? "sell" : row.last_trade_dir,
-            };
-          }
-          if (updated === row) return prev;
+          const updated = mergeWsRow(rows[idx], data);
+          if (updated === rows[idx]) return prev;
           const newRows = [...rows];
           newRows[idx] = updated;
           return { ...prev, [tabKey]: newRows };
@@ -285,8 +303,10 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
     : activeTab === "holdings"
     ? holdings.map((p) => ({
         ticker: p.ticker, name: p.name,
-        close: p.price, change: p.change, change_pct: p.change_pct,
-        trade_volume_zhang: p.volume_zhang,
+        close: p.close ?? p.price, change: p.change, change_pct: p.change_pct,
+        trade_volume_zhang: p.trade_volume_zhang ?? p.volume_zhang,
+        best_bid: p.best_bid, best_ask: p.best_ask,
+        last_size_zhang: p.last_size_zhang, last_trade_dir: p.last_trade_dir,
       }))
     : listData[activeTab];
 
