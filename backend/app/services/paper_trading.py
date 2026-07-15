@@ -6,7 +6,7 @@ from app.db import (
     insert_paper_order, get_paper_orders, get_paper_realized_pl_total,
     get_paper_bought_qty_since,
 )
-from app.services.stock_data import get_stock_info
+from app.services.stock_data import get_stock_info, _enrich_with_intraday
 
 COMMISSION_RATE = 0.001425
 COMMISSION_MIN  = 20
@@ -117,7 +117,8 @@ def get_positions_with_price(user_id: int) -> list[dict]:
             "unrealized_pl": round(unrealized_pl, 2) if unrealized_pl is not None else None,
             "return_pct":    round(unrealized_pl / cost_basis * 100, 2) if unrealized_pl is not None and cost_basis else None,
         })
-    return result
+    # 補上委買/委賣/單量等五檔資訊（漲跌停鎖死時 WebSocket 可能完全不推播，靠這裡的初始 REST 值墊底）
+    return _enrich_with_intraday(result)
 
 
 def get_account_summary(user_id: int) -> dict:
