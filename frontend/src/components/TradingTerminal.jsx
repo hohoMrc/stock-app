@@ -398,7 +398,7 @@ function OrderBook({ data, loading }) {
   const bidPct   = total > 0 ? Math.round((totalBid / total) * 100) : 0;
   const askPct   = 100 - bidPct;
   // 價格 0 代表沒有限價（市價委託），直接顯示目前市價
-  const displayPrice = (price) => (price === 0 ? (data.close ?? price) : price);
+  const displayPrice = (price) => (price === 0 ? "市價" : price);
 
   return (
     <div className="ob-wrap">

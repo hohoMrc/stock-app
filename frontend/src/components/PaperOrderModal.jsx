@@ -28,14 +28,13 @@ export default function PaperOrderModal({ ticker, name, initialSide = "sell", on
     return () => { alive = false; clearInterval(pollRef.current); };
   }, [ticker]);
 
-  // 五檔價格 0 代表沒有限價（市價委託），直接用目前市價
-  const displayPrice = (p) => (p === 0 ? marketPrice : p);
+  // 五檔價格 0 代表沒有限價（市價委託），顯示「市價」文字
+  const displayPrice = (p) => (p === 0 ? "市價" : p);
 
   const pickPrice = (p) => {
-    const picked = displayPrice(p);
-    if (picked == null) return;
+    if (p === 0) { setPriceMode("market"); return; }
     setPriceMode("limit");
-    setPrice(String(picked));
+    setPrice(String(p));
   };
 
   const effectivePrice = priceMode === "market" ? marketPrice : Number(price);
