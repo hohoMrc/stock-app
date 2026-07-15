@@ -332,30 +332,26 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
       >
         {selected ? (
           <>
-            {/* 圖表控制列 */}
+            {/* 圖表控制列：改下拉選單節省空間 */}
             <div className="terminal-chart-controls">
-              <div className="tcc-intervals">
+              <select
+                className="tcc-select"
+                value={chartInterval}
+                onChange={(e) => setChartInterval(e.target.value)}
+              >
                 {Object.entries(INTERVAL_LABELS).map(([iv, label]) => (
-                  <button
-                    key={iv}
-                    className={chartInterval === iv ? "active" : ""}
-                    onClick={() => setChartInterval(iv)}
-                  >
-                    {label}
-                  </button>
+                  <option key={iv} value={iv}>{label}</option>
                 ))}
-              </div>
-              <div className="tcc-periods">
+              </select>
+              <select
+                className="tcc-select"
+                value={chartPeriod}
+                onChange={(e) => setChartPeriod(e.target.value)}
+              >
                 {INTERVAL_CONFIG[chartInterval].periods.map((p) => (
-                  <button
-                    key={p}
-                    className={chartPeriod === p ? "active" : ""}
-                    onClick={() => setChartPeriod(p)}
-                  >
-                    {PERIOD_LABELS[p]}
-                  </button>
+                  <option key={p} value={p}>{PERIOD_LABELS[p]}</option>
                 ))}
-              </div>
+              </select>
             </div>
 
             {/* K 線圖 */}
@@ -367,6 +363,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
                   data={chartData}
                   period={chartPeriod}
                   interval={chartInterval}
+                  showMACD={false}
                 />
               ) : (
                 <div className="terminal-loading">無圖表資料</div>

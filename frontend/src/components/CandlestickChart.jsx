@@ -167,7 +167,7 @@ const KD_PANE_HEIGHT   = 100;
 
 const DEFAULT_ACTIVE_MA = { ma5: false, ma10: false, ma20: false, ma30: false, ma60: false, ema10: true, ema60: true };
 
-export default function CandlestickChart({ data, period = "3mo", interval = "1d", height = 320, defaultMA = null }) {
+export default function CandlestickChart({ data, period = "3mo", interval = "1d", height = 320, defaultMA = null, showMACD = true }) {
   const containerRef    = useRef(null);
   const chartRef        = useRef(null);
   const candleSeriesRef = useRef(null);
@@ -209,7 +209,8 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
 
   const syncLabelOffsets = useCallback(() => {
     const panes = chartRef.current?.panes();
-    if (!panes || panes.length < 4 || !containerRef.current) return;
+    const expectedPanes = showMACD ? 4 : 3;
+    if (!panes || panes.length < expectedPanes || !containerRef.current) return;
     const totalH = containerRef.current.clientHeight;
     if (!totalH) return;
     const f = panes.map(p => (typeof p.getStretchFactor === "function" ? p.getStretchFactor() : 80));
@@ -217,17 +218,22 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     if (!sum) return;
     const kH    = Math.round((f[0] / sum) * totalH);
     const volH  = Math.round((f[1] / sum) * totalH);
-    const macdH = Math.round((f[2] / sum) * totalH);
     setVolTop(kH - 20);
-    setMacdTop(kH + volH + 2);
-    setKdTop(kH + volH + macdH + 2);
-  }, []);
+    if (showMACD) {
+      const macdH = Math.round((f[2] / sum) * totalH);
+      setMacdTop(kH + volH + 2);
+      setKdTop(kH + volH + macdH + 2);
+    } else {
+      setKdTop(kH + volH + 2);
+    }
+  }, [showMACD]);
 
   // ── 建立圖表實例 ──────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
-    const totalHeight = containerRef.current.clientHeight || (VOL_PANE_HEIGHT + MACD_PANE_HEIGHT + KD_PANE_HEIGHT + 320);
-    const kLineH = Math.max(120, totalHeight - VOL_PANE_HEIGHT - MACD_PANE_HEIGHT - KD_PANE_HEIGHT);
+    const subPaneHeight = VOL_PANE_HEIGHT + (showMACD ? MACD_PANE_HEIGHT : 0) + KD_PANE_HEIGHT;
+    const totalHeight = containerRef.current.clientHeight || (subPaneHeight + 320);
+    const kLineH = Math.max(120, totalHeight - subPaneHeight);
     const chart = createChart(containerRef.current, {
       width:  containerRef.current.clientWidth,
       height: totalHeight,
@@ -290,24 +296,26 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
     });
 
-    // pane 2: MACD — 三個系列強制同一 price scale，確保 0 軸在可視範圍
-    const macdPane = chart.addPane();
-    macdHistRef.current = macdPane.addSeries(HistogramSeries, {
-      priceLineVisible: false, lastValueVisible: false,
-      priceScaleId: 'right',
-    });
-    difSeriesRef.current = macdPane.addSeries(LineSeries, {
-      color: "#fbbf24", lineWidth: 1.5,
-      priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-      priceScaleId: 'right',
-    });
-    deaSeriesRef.current = macdPane.addSeries(LineSeries, {
-      color: "#60a5fa", lineWidth: 1.5,
-      priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-      priceScaleId: 'right',
-    });
+    // pane 2: MACD（可選）— 三個系列強制同一 price scale，確保 0 軸在可視範圍
+    if (showMACD) {
+      const macdPane = chart.addPane();
+      macdHistRef.current = macdPane.addSeries(HistogramSeries, {
+        priceLineVisible: false, lastValueVisible: false,
+        priceScaleId: 'right',
+      });
+      difSeriesRef.current = macdPane.addSeries(LineSeries, {
+        color: "#fbbf24", lineWidth: 1.5,
+        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+        priceScaleId: 'right',
+      });
+      deaSeriesRef.current = macdPane.addSeries(LineSeries, {
+        color: "#60a5fa", lineWidth: 1.5,
+        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+        priceScaleId: 'right',
+      });
+    }
 
-    // pane 3: KD (Stochastic 9)
+    // pane 3（或 2，若無 MACD）: KD (Stochastic 9)
     const kdPane = chart.addPane();
     kSeriesRef.current = kdPane.addSeries(LineSeries, {
       color: "#f59e0b", lineWidth: 1.5,
@@ -321,8 +329,9 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     const panes = chart.panes();
     panes[0].setStretchFactor(kLineH);
     panes[1].setStretchFactor(VOL_PANE_HEIGHT);
-    panes[2].setStretchFactor(MACD_PANE_HEIGHT);
-    panes[3].setStretchFactor(KD_PANE_HEIGHT);
+    let paneIdx = 2;
+    if (showMACD) { panes[paneIdx].setStretchFactor(MACD_PANE_HEIGHT); paneIdx++; }
+    panes[paneIdx].setStretchFactor(KD_PANE_HEIGHT);
 
     chart.subscribeCrosshairMove((param) => {
       if (!param.time || param.point === undefined ||
@@ -353,7 +362,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       const newW = entry.contentRect.width;
       const newH = entry.contentRect.height || totalHeight;
       chartRef.current.applyOptions({ width: newW, height: newH });
-      const newKH = Math.max(120, newH - VOL_PANE_HEIGHT - MACD_PANE_HEIGHT - KD_PANE_HEIGHT);
+      const newKH = Math.max(120, newH - subPaneHeight);
       chartRef.current.panes()[0]?.setStretchFactor(newKH);
       syncLabelOffsets();
     });
@@ -385,7 +394,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       dSeriesRef.current      = null;
       maSeriesRefs.current    = {};
     };
-  }, []);
+  }, [showMACD]);
 
   // ── 載入資料 ──────────────────────────────────────────────────
   function applyVisibleRange(p) {
@@ -460,18 +469,22 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     vm20.forEach((item) => { const v = volMap.get(String(item.time)); if (v) v.ma20 = item.value; });
     volMapRef.current = volMap;
 
-    // MACD + macdMap
-    const { difArr, deaArr, histArr } = calcMACD(data);
-    difSeriesRef.current?.setData(difArr);
-    deaSeriesRef.current?.setData(deaArr);
-    macdHistRef.current?.setData(histArr);
-    const macdMap = new Map();
-    histArr.forEach((item) => {
-      const dif = difArr.find((d) => String(d.time) === String(item.time));
-      const dea = deaArr.find((d) => String(d.time) === String(item.time));
-      macdMap.set(String(item.time), { dif: dif?.value, dea: dea?.value, hist: item.value });
-    });
-    macdMapRef.current = macdMap;
+    // MACD + macdMap（可選）
+    if (showMACD) {
+      const { difArr, deaArr, histArr } = calcMACD(data);
+      difSeriesRef.current?.setData(difArr);
+      deaSeriesRef.current?.setData(deaArr);
+      macdHistRef.current?.setData(histArr);
+      const macdMap = new Map();
+      histArr.forEach((item) => {
+        const dif = difArr.find((d) => String(d.time) === String(item.time));
+        const dea = deaArr.find((d) => String(d.time) === String(item.time));
+        macdMap.set(String(item.time), { dif: dif?.value, dea: dea?.value, hist: item.value });
+      });
+      macdMapRef.current = macdMap;
+    } else {
+      macdMapRef.current = new Map();
+    }
 
     // KD (Stochastic 9) + kdMap
     const { kArr, dArr } = calcKD(data);
@@ -496,7 +509,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       boll:  bollMap.get(lastKey),
       volMa: volMap.get(lastKey),
     });
-    setLastMACD(macdMap.get(lastKey) ?? null);
+    setLastMACD(macdMapRef.current.get(lastKey) ?? null);
     setLastKD(kdMap.get(lastKey) ?? null);
 
     applyVisibleRange(period);
@@ -526,7 +539,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const sign    = (v) => v > 0 ? "+" : "";
 
   const kPaneHeight      = height;
-  const totalChartHeight = height + VOL_PANE_HEIGHT + MACD_PANE_HEIGHT + KD_PANE_HEIGHT;
+  const totalChartHeight = height + VOL_PANE_HEIGHT + (showMACD ? MACD_PANE_HEIGHT : 0) + KD_PANE_HEIGHT;
 
   return (
     <div style={{ position: "relative" }}>
@@ -612,19 +625,21 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
           )}
         </div>
 
-        {/* MACD 副圖標籤 */}
-        <div className="kd-label-bar" style={{ top: macdTop }}>
-          <span className="kd-label-title">MACD(12,26,9)</span>
-          {mac ? (
-            <>
-              <span style={{ color: "#fbbf24" }}>DIF: {mac.dif?.toFixed(4)}</span>
-              <span style={{ color: "#60a5fa" }}>DEA: {mac.dea?.toFixed(4)}</span>
-              <span style={{ color: mac.hist >= 0 ? "#dc2626" : "#16a34a" }}>
-                MACD: {mac.hist?.toFixed(4)}
-              </span>
-            </>
-          ) : null}
-        </div>
+        {/* MACD 副圖標籤（可選） */}
+        {showMACD && (
+          <div className="kd-label-bar" style={{ top: macdTop }}>
+            <span className="kd-label-title">MACD(12,26,9)</span>
+            {mac ? (
+              <>
+                <span style={{ color: "#fbbf24" }}>DIF: {mac.dif?.toFixed(4)}</span>
+                <span style={{ color: "#60a5fa" }}>DEA: {mac.dea?.toFixed(4)}</span>
+                <span style={{ color: mac.hist >= 0 ? "#dc2626" : "#16a34a" }}>
+                  MACD: {mac.hist?.toFixed(4)}
+                </span>
+              </>
+            ) : null}
+          </div>
+        )}
 
         {/* KD 副圖標籤 */}
         <div className="kd-label-bar" style={{ top: kdTop }}>

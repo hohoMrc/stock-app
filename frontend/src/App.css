@@ -1501,25 +1501,17 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   flex-wrap: wrap;
 }
 
-.tcc-intervals, .tcc-periods { display: flex; gap: 2px; }
-
-.tcc-intervals button, .tcc-periods button {
-  background: none;
-  border: 1px solid transparent;
+.tcc-select {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
   border-radius: 6px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-size: 12px;
-  padding: 3px 9px;
+  padding: 4px 8px;
   cursor: pointer;
-  transition: all 0.15s;
 }
-
-.tcc-intervals button:hover, .tcc-periods button:hover { color: var(--text-primary); }
-.tcc-intervals button.active, .tcc-periods button.active {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: var(--accent-glow2);
-}
+.tcc-select:hover { border-color: var(--accent); }
+.tcc-select:focus { outline: none; border-color: var(--accent); }
 
 .tcc-divider { width: 1px; height: 18px; background: var(--border); }
 
