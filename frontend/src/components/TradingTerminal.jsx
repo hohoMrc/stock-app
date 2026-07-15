@@ -397,6 +397,8 @@ function OrderBook({ data, loading }) {
   const total    = totalBid + totalAsk;
   const bidPct   = total > 0 ? Math.round((totalBid / total) * 100) : 0;
   const askPct   = 100 - bidPct;
+  // 價格 0 代表沒有限價（市價委託），直接顯示目前市價
+  const displayPrice = (price) => (price === 0 ? (data.close ?? price) : price);
 
   return (
     <div className="ob-wrap">
@@ -411,26 +413,6 @@ function OrderBook({ data, loading }) {
       </div>
 
       <div className="ob-grid">
-        {/* 委賣（紅）：由高到低排列 */}
-        <div className="ob-col ob-ask-col">
-          <div className="ob-col-header">
-            <span>委賣價</span>
-            <span>張數</span>
-          </div>
-          {[...asks].reverse().map((a, i) => (
-            <div key={i} className="ob-row">
-              <span className="ob-price down">{a.price}</span>
-              <span className="ob-qty">{a.size}</span>
-              <div className="ob-bar-wrap">
-                <div
-                  className="ob-bar ob-bar-ask"
-                  style={{ width: totalAsk > 0 ? `${((a.size / totalAsk) * 100).toFixed(0)}%` : "0%" }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-
         {/* 委買（綠）：由高到低排列 */}
         <div className="ob-col ob-bid-col">
           <div className="ob-col-header">
@@ -439,7 +421,7 @@ function OrderBook({ data, loading }) {
           </div>
           {bids.map((b, i) => (
             <div key={i} className="ob-row">
-              <span className="ob-price up">{b.price}</span>
+              <span className="ob-price up">{displayPrice(b.price)}</span>
               <span className="ob-qty">{b.size}</span>
               <div className="ob-bar-wrap">
                 <div
@@ -450,17 +432,37 @@ function OrderBook({ data, loading }) {
             </div>
           ))}
         </div>
+
+        {/* 委賣（紅）：由高到低排列 */}
+        <div className="ob-col ob-ask-col">
+          <div className="ob-col-header">
+            <span>委賣價</span>
+            <span>張數</span>
+          </div>
+          {[...asks].reverse().map((a, i) => (
+            <div key={i} className="ob-row">
+              <span className="ob-price down">{displayPrice(a.price)}</span>
+              <span className="ob-qty">{a.size}</span>
+              <div className="ob-bar-wrap">
+                <div
+                  className="ob-bar ob-bar-ask"
+                  style={{ width: totalAsk > 0 ? `${((a.size / totalAsk) * 100).toFixed(0)}%` : "0%" }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* 買賣壓力比 */}
       {total > 0 && (
         <div className="ob-pressure">
-          <span className="ob-pct down">{askPct}% 賣</span>
-          <div className="ob-pressure-bar">
-            <div className="ob-pressure-ask" style={{ width: `${askPct}%` }} />
-            <div className="ob-pressure-bid" style={{ width: `${bidPct}%` }} />
-          </div>
           <span className="ob-pct up">{bidPct}% 買</span>
+          <div className="ob-pressure-bar">
+            <div className="ob-pressure-bid" style={{ width: `${bidPct}%` }} />
+            <div className="ob-pressure-ask" style={{ width: `${askPct}%` }} />
+          </div>
+          <span className="ob-pct down">{askPct}% 賣</span>
         </div>
       )}
     </div>

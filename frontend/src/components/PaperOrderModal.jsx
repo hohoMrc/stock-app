@@ -28,9 +28,14 @@ export default function PaperOrderModal({ ticker, name, initialSide = "sell", on
     return () => { alive = false; clearInterval(pollRef.current); };
   }, [ticker]);
 
+  // 五檔價格 0 代表沒有限價（市價委託），直接用目前市價
+  const displayPrice = (p) => (p === 0 ? marketPrice : p);
+
   const pickPrice = (p) => {
+    const picked = displayPrice(p);
+    if (picked == null) return;
     setPriceMode("limit");
-    setPrice(String(p));
+    setPrice(String(picked));
   };
 
   const effectivePrice = priceMode === "market" ? marketPrice : Number(price);
@@ -79,7 +84,7 @@ export default function PaperOrderModal({ ticker, name, initialSide = "sell", on
           <div className="pom-ob-col">
             {asksDesc.map((a, i) => (
               <div key={`ask-${i}`} className="pom-ob-row" onClick={() => pickPrice(a.price)}>
-                <span className="pom-ob-price down">{a.price}</span>
+                <span className="pom-ob-price down">{displayPrice(a.price)}</span>
                 <span className="pom-ob-size">{a.size}</span>
               </div>
             ))}
@@ -88,7 +93,7 @@ export default function PaperOrderModal({ ticker, name, initialSide = "sell", on
           <div className="pom-ob-col">
             {bidsDesc.map((b, i) => (
               <div key={`bid-${i}`} className="pom-ob-row" onClick={() => pickPrice(b.price)}>
-                <span className="pom-ob-price up">{b.price}</span>
+                <span className="pom-ob-price up">{displayPrice(b.price)}</span>
                 <span className="pom-ob-size">{b.size}</span>
               </div>
             ))}

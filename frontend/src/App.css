@@ -1845,7 +1845,7 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   .terminal-chart-area { min-height: 200px; }
   .ob-grid { flex-direction: column; gap: 0; }
   .ob-col { border-right: none; }
-  .ob-ask-col { border-bottom: 1px solid var(--border); }
+  .ob-bid-col { border-bottom: 1px solid var(--border); }
 }
 
 /* ── 台指期 ─────────────────────────────────── */
