@@ -1798,6 +1798,67 @@ def _enrich_with_intraday(stocks: list) -> list:
     return merged
 
 
+def get_watchlist_quotes(tickers: list[str]) -> list[dict]:
+    """取得自選股清單的即時基本資料（股名、成交價、漲跌、委買委賣等），供看盤頁自選分頁使用。"""
+    _load_tw_stock_names()
+    merged_names: dict[str, str] = {**COMMON_STOCK_NAMES, **ETF_NAMES}
+    merged_names.update(_tw_stock_names)
+    stocks = [{"ticker": t, "name": merged_names.get(t, t)} for t in tickers]
+
+    client = _get_fugle()
+    if not client or not stocks:
+        return stocks
+
+    def _fetch(ticker: str):
+        try:
+            resp = client.stock.intraday.quote(symbol=ticker)
+            data = resp.get("data", resp) if isinstance(resp, dict) else {}
+            if not isinstance(data, dict):
+                return ticker, {}
+
+            close = data.get("closePrice") or data.get("lastPrice")
+            ref   = data.get("referencePrice")
+            change = change_pct = None
+            if close and ref:
+                change     = round(float(close) - float(ref), 2)
+                change_pct = round(change / float(ref) * 100, 2)
+
+            bids = data.get("bids") or []
+            asks = data.get("asks") or []
+            total = data.get("total") or {}
+            last_size = data.get("lastSize")
+            lt       = data.get("lastTrade") or {}
+            lt_price = lt.get("price")
+            lt_ask   = lt.get("ask")
+            lt_bid   = lt.get("bid")
+            if lt_price and lt_ask and lt_price >= lt_ask:
+                last_dir = "buy"
+            elif lt_price and lt_bid and lt_price <= lt_bid:
+                last_dir = "sell"
+            else:
+                last_dir = None
+
+            return ticker, {
+                "close":              round(float(close), 2) if close else None,
+                "change":             change,
+                "change_pct":         change_pct,
+                "best_bid":           bids[0]["price"] if bids else None,
+                "best_ask":           asks[0]["price"] if asks else None,
+                "last_size_zhang":    round(last_size / 1000) if last_size else None,
+                "last_trade_dir":     last_dir,
+                "trade_volume_zhang": int(total.get("tradeVolume") or 0) or None,
+                "is_limit_up":        bool(data.get("isLimitUpPrice")),
+                "is_limit_down":      bool(data.get("isLimitDownPrice")),
+            }
+        except Exception:
+            return ticker, {}
+
+    with ThreadPoolExecutor(max_workers=20) as pool:
+        quote_map = dict(pool.map(_fetch, tickers))
+
+    return [{**s, **quote_map.get(s["ticker"], {})} for s in stocks]
+
+
 def get_trade_value_ranking(limit: int = 50, force: bool = False) -> list:
     """取得成交值排行（合併上市 + 上櫃）
     優先 Fugle snapshot/actives（盤中即時），退回 TWSE/TPEx 收盤資料。

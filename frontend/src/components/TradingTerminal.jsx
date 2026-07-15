@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import CandlestickChart from "./CandlestickChart";
-import { getTradeValueRanking, getTurnoverRanking, getHistory, getOrderbook, getTrades, getPaperPositions } from "../api";
+import { getTradeValueRanking, getTurnoverRanking, getHistory, getOrderbook, getTrades, getPaperPositions, getWatchlistQuotes } from "../api";
 
 const WS_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000")
   .replace(/^http/, "ws");
@@ -38,6 +38,9 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
   const [holdings, setHoldings]               = useState([]);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
   const holdingsLoaded = useRef(false);
+
+  const [watchQuotes, setWatchQuotes]   = useState([]);
+  const [watchLoading, setWatchLoading] = useState(false);
 
   const [selected, setSelected]         = useState(null); // { ticker, name, close, change, change_pct }
   const [chartData, setChartData]       = useState([]);
@@ -150,6 +153,8 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
     ? (listData[activeTab] || []).map((s) => s.ticker).join(",")
     : activeTab === "holdings"
     ? holdings.map((p) => p.ticker).join(",")
+    : activeTab === "watch"
+    ? watchlist.join(",")
     : "";
 
   useEffect(() => {
@@ -162,8 +167,9 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
       try {
         const data = JSON.parse(e.data);
         if (data.event === "keepalive" || !data.symbol) return;
-        if (tabKey === "holdings") {
-          setHoldings((prev) => {
+        if (tabKey === "holdings" || tabKey === "watch") {
+          const setter = tabKey === "holdings" ? setHoldings : setWatchQuotes;
+          setter((prev) => {
             const idx = prev.findIndex((r) => r.ticker === data.symbol);
             if (idx === -1) return prev;
             const updated = mergeWsRow(prev[idx], data);
@@ -214,6 +220,20 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
   useEffect(() => {
     if (activeTab === "holdings" && username && !holdingsLoaded.current) loadHoldings();
   }, [activeTab, username]);
+
+  // ── 自選股：股名/成交價/委買委賣（切到分頁或自選清單變動時重新抓取，WS 接手後續即時更新）──
+  const watchTickers = watchlist.join(",");
+  useEffect(() => {
+    if (activeTab !== "watch") return;
+    if (!watchTickers) { setWatchQuotes([]); return; }
+    let alive = true;
+    setWatchLoading(true);
+    getWatchlistQuotes(watchlist)
+      .then((res) => { if (alive) setWatchQuotes(res.data.stocks); })
+      .catch(() => {})
+      .finally(() => { if (alive) setWatchLoading(false); });
+    return () => { alive = false; };
+  }, [activeTab, watchTickers]);
 
   // ── K 線資料 ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -299,7 +319,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
   };
 
   const stocks = activeTab === "watch"
-    ? watchlist.map((t) => ({ ticker: t, name: "" }))
+    ? watchQuotes
     : activeTab === "holdings"
     ? holdings.map((p) => ({
         ticker: p.ticker, name: p.name,
@@ -361,7 +381,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
           <div className="tl-updated">更新 {listUpdatedAt[activeTab]}</div>
         )}
         <div className="tl-table-wrap">
-          {(activeTab === "holdings" ? holdingsLoading : listLoading[activeTab]) && (
+          {(activeTab === "holdings" ? holdingsLoading : activeTab === "watch" ? watchLoading : listLoading[activeTab]) && (
             <div className="tl-loading">載入中...</div>
           )}
           <table className="tl-table">
@@ -438,7 +458,10 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
           {activeTab === "holdings" && username && !holdingsLoading && stocks.length === 0 && (
             <div className="tl-empty">尚無持股</div>
           )}
-          {activeTab !== "holdings" && !listLoading[activeTab] && stocks.length === 0 && (
+          {activeTab === "watch" && !watchLoading && stocks.length === 0 && (
+            <div className="tl-empty">尚未加入自選股</div>
+          )}
+          {activeTab !== "holdings" && activeTab !== "watch" && !listLoading[activeTab] && stocks.length === 0 && (
             <div className="tl-empty">暫無資料</div>
           )}
         </div>
