@@ -51,5 +51,5 @@ export const updateWatchNote  = (ticker, note)    => api.patch(`/api/watchlist/$
 export const getPaperAccount   = ()                          => api.get("/api/paper/account");
 export const getPaperPositions = ()                          => api.get("/api/paper/positions");
 export const getPaperOrders    = (limit = 50)                => api.get("/api/paper/orders", { params: { limit } });
-export const placePaperOrder   = (ticker, side, lots)         => api.post("/api/paper/order", { ticker, side, lots });
+export const placePaperOrder   = (ticker, side, lots, price)  => api.post("/api/paper/order", { ticker, side, lots, ...(price != null ? { price } : {}) });
 export const depositPaperCash  = ()                          => api.post("/api/paper/deposit");

@@ -1948,3 +1948,49 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .paper-position-row { cursor: pointer; }
 .info-value.up   { color: var(--up); }
 .info-value.down { color: var(--down); }
+
+/* ── 模擬下單：五檔買賣面板 ── */
+.pom-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  width: min(360px, 92vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pom-header { display: flex; align-items: center; justify-content: space-between; }
+.pom-name { margin-left: 8px; font-size: 15px; font-weight: 600; }
+.pom-close { background: transparent; border: none; color: var(--text-secondary); font-size: 16px; cursor: pointer; padding: 4px; }
+.pom-close:hover { color: var(--text-primary); }
+.pom-orderbook { display: flex; align-items: stretch; gap: 6px; }
+.pom-ob-col { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.pom-ob-row {
+  display: flex; justify-content: space-between; padding: 5px 8px;
+  border-radius: 4px; background: var(--bg-elevated); cursor: pointer; font-size: 13px;
+  transition: background 0.15s;
+}
+.pom-ob-row:hover { background: var(--bg-hover); }
+.pom-ob-price { font-weight: 600; }
+.pom-ob-price.up   { color: var(--up); }
+.pom-ob-price.down { color: var(--down); }
+.pom-ob-size { color: var(--text-secondary); }
+.pom-ob-mid {
+  writing-mode: vertical-rl; text-align: center; color: var(--text-muted);
+  font-size: 12px; padding: 4px 2px; flex-shrink: 0;
+}
+.pom-ob-hint { font-size: 11px; color: var(--text-muted); margin-top: -6px; }
+.pom-price-mode { display: flex; gap: 8px; }
+.pom-price-mode button {
+  flex: 1; padding: 7px; border-radius: 6px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 13px;
+}
+.pom-price-mode button.active { background: var(--accent-dark); color: #fff; border-color: var(--accent-dark); }
+.pom-price-input {
+  padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg-elevated); color: var(--text-primary); font-size: 14px;
+}

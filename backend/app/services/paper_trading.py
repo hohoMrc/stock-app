@@ -30,11 +30,16 @@ def _today_start_ts() -> float:
     return datetime.combine(date.today(), datetime.min.time()).timestamp()
 
 
-def place_market_order(user_id: int, ticker: str, side: str, lots: int) -> dict:
+def place_market_order(user_id: int, ticker: str, side: str, lots: int, price: float | None = None) -> dict:
+    """price 未提供時用即時市價成交；有提供時直接以該價格成交（不掛單等待，送出當下立即記帳）。"""
     qty = lots * 1000
     info  = get_stock_info(ticker)
-    price = info.get("price")
     name  = info.get("name")
+    if price is not None:
+        if price <= 0:
+            raise PaperTradingError("價格需大於 0")
+    else:
+        price = info.get("price")
     if not price:
         raise PaperTradingError("目前無法取得該股票報價，請稍後再試")
 

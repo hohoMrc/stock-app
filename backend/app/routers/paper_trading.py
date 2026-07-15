@@ -17,6 +17,7 @@ class OrderBody(BaseModel):
     ticker: str
     side: str
     lots: int
+    price: float | None = None
 
 
 @router.get("/account")
@@ -45,7 +46,7 @@ async def place_order(body: OrderBody, authorization: str | None = Header(None))
     if body.lots <= 0:
         raise HTTPException(status_code=400, detail="張數需大於 0")
     try:
-        return await run_in_threadpool(svc.place_market_order, user_id, body.ticker, body.side, body.lots)
+        return await run_in_threadpool(svc.place_market_order, user_id, body.ticker, body.side, body.lots, body.price)
     except svc.PaperTradingError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

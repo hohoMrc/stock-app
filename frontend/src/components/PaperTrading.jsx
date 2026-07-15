@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { searchStocks, getStock, getPaperAccount, getPaperPositions, getPaperOrders, placePaperOrder, depositPaperCash } from "../api";
+import { calcFee, calcTax } from "../feeCalc";
+import PaperOrderModal from "./PaperOrderModal";
 
 export default function PaperTrading({ username, onRequireLogin, prefillTicker = null, onSelectStock }) {
   const [account, setAccount]     = useState(null);
@@ -18,6 +20,7 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
   const [formError, setFormError]     = useState("");
   const [formMsg, setFormMsg]         = useState("");
   const [depositing, setDepositing]   = useState(false);
+  const [orderModal, setOrderModal]   = useState(null); // { ticker, name } | null
 
   const debounceRef = useRef(null);
   const wrapperRef  = useRef(null);
@@ -135,8 +138,8 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
   }
 
   const gross = selected ? selected.price * lots * 1000 : 0;
-  const fee   = gross ? Math.max(Math.round(gross * 0.001425), 20) : 0;
-  const tax   = side === "sell" && gross ? Math.round(gross * 0.003) : 0;
+  const fee   = gross ? calcFee(gross) : 0;
+  const tax   = side === "sell" && gross ? calcTax(gross) : 0;
   const estNet = side === "buy" ? gross + fee : gross - fee - tax;
 
   return (
@@ -254,7 +257,7 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
             <thead>
               <tr>
                 <th>代號</th><th>名稱</th><th>張數</th><th>均價</th><th>現價</th>
-                <th>市值</th><th>未實現損益</th><th>報酬率</th>
+                <th>市值</th><th>未實現損益</th><th>報酬率</th><th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -273,6 +276,14 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
                   <td>{p.market_value?.toLocaleString() ?? "—"}</td>
                   <td>{p.unrealized_pl?.toLocaleString() ?? "—"}</td>
                   <td>{p.return_pct != null ? `${p.return_pct}%` : "—"}</td>
+                  <td>
+                    <button
+                      className="view-btn"
+                      onClick={(e) => { e.stopPropagation(); setOrderModal({ ticker: p.ticker, name: p.name }); }}
+                    >
+                      交易
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -313,6 +324,20 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
             </tbody>
           </table>
         </div>
+      )}
+
+      {orderModal && (
+        <PaperOrderModal
+          ticker={orderModal.ticker}
+          name={orderModal.name}
+          initialSide="sell"
+          onClose={() => setOrderModal(null)}
+          onSuccess={(d) => {
+            setFormMsg(`${d.side === "buy" ? "買進" : "賣出"} ${d.ticker} ${d.qty / 1000} 張成交，成交價 ${d.price} 元`);
+            setFormError("");
+            loadAll();
+          }}
+        />
       )}
     </div>
   );
