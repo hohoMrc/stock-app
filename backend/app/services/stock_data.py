@@ -1387,8 +1387,8 @@ def fetch_institutional_trades_today() -> list[dict]:
     return results
 
 
-def scan_institutional_buying(min_days: int = 3, limit: int = 200) -> list:
-    """掃全市場，回傳外資+投信合計連續買超 ≥ min_days 個交易日的股票。"""
+def scan_institutional_buying(min_days: int = 3, limit: int = 200, min_total_net_zhang: int = 0) -> list:
+    """掃全市場，回傳外資+投信合計連續買超 ≥ min_days 個交易日，且合計買超 ≥ min_total_net_zhang 張的股票。"""
     from app.db import get_all_db_tickers_with_meta, get_all_institutional_trades_in_range, get_candles
     from datetime import date, timedelta
 
@@ -1435,6 +1435,9 @@ def scan_institutional_buying(min_days: int = 3, limit: int = 200) -> list:
             "streak_days":     streak,
             "total_net_zhang": round(total_net / 1000),
         })
+
+    if min_total_net_zhang:
+        results = [r for r in results if r["total_net_zhang"] >= min_total_net_zhang]
 
     # 優先看買超規模（張數），連續天數只當篩選門檻（已 >= min_days），不當主要排序依據，
     # 避免「連續天數多但每天量極小」的雜訊排到「量大但天數略少」的前面

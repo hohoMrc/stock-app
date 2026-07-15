@@ -88,9 +88,10 @@ async def volume_breakout_scan(limit: int = Query(default=200, le=500)):
 async def institutional_buying_scan(
     min_days: int = Query(default=3, ge=1, le=20),
     limit: int = Query(default=200, le=500),
+    min_total_net_zhang: int = Query(default=0, ge=0),
 ):
     try:
-        results = await run_in_threadpool(scan_institutional_buying, min_days, limit)
+        results = await run_in_threadpool(scan_institutional_buying, min_days, limit, min_total_net_zhang)
         return {"count": len(results), "stocks": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
