@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import CandlestickChart from "./CandlestickChart";
 import { getTradeValueRanking, getTurnoverRanking, getHistory, getOrderbook, getTrades, getPaperPositions } from "../api";
 
+const WS_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000")
+  .replace(/^http/, "ws");
+
 const INTERVAL_CONFIG = {
   "1m":  { fetchPeriod: "5d",  defaultPeriod: "1d",  periods: ["1d", "3d", "5d"] },
   "5m":  { fetchPeriod: "1mo", defaultPeriod: "5d",  periods: ["3d", "5d", "1mo"] },
@@ -42,6 +45,8 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
   const [orderbook, setOrderbook]       = useState({ best_bids: [], best_asks: [] });
   const [trades, setTrades]             = useState([]);
   const [obLoading, setObLoading]       = useState(false);
+  const [wsKey, setWsKey]               = useState(0);   // 遞增觸發 WebSocket 重連
+  const wsRef                           = useRef(null);
 
   // 手機版：顯示哪個面板 ("list" | "chart")
   const [mobileView, setMobileView] = useState("list");
@@ -161,6 +166,48 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
     const timer = setInterval(fetchAll, 10000);
     return () => { alive = false; clearInterval(timer); };
   }, [selected?.ticker]);
+
+  // ── WebSocket 即時委買委賣 + 成交明細（REST 輪詢仍保留作保底）────────
+  useEffect(() => {
+    if (!selected) return;
+    if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
+    const ws = new WebSocket(`${WS_BASE}/ws/stock?symbol=${selected.ticker}`);
+    wsRef.current = ws;
+    ws.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.event === "keepalive") return;
+        if (data.channel === "books") {
+          const norm = (arr) => (arr || []).map((x) => ({
+            price: Math.round(x.price * 100) / 100,
+            size: x.size,
+          }));
+          setOrderbook((prev) => ({
+            ...prev,
+            best_bids: norm(data.bids),
+            best_asks: norm(data.asks),
+            is_realtime: true,
+          }));
+        } else if (data.channel === "trades") {
+          const timeStr = data.time
+            ? new Date(data.time / 1000).toLocaleTimeString("zh-TW", { hour12: false, timeZone: "Asia/Taipei" })
+            : null;
+          const trade = { time: timeStr, price: data.price, size: data.size, bid: data.bid, ask: data.ask };
+          setTrades((prev) => [trade, ...prev].slice(0, 20));
+        }
+      } catch (_) {}
+    };
+    ws.onerror = () => {};
+    ws.onclose = () => {
+      // 斷線後 3 秒自動重連
+      setTimeout(() => setWsKey((k) => k + 1), 3000);
+    };
+    return () => {
+      ws.onclose = null;   // 清掉 onclose 避免 cleanup 時觸發重連
+      ws.close();
+      wsRef.current = null;
+    };
+  }, [selected?.ticker, wsKey]);
 
   const handleSelect = (s) => {
     setSelected(s);

@@ -2186,3 +2186,107 @@ def search_stocks(q: str, limit: int = 10) -> list[dict]:
         if len(results) >= limit:
             break
     return results
+
+
+# ── WebSocket 即時訂閱管理（比照 futures_data.py 的 futopt 模式）──────────
+import asyncio
+import json as _json
+
+_ws_queues: dict[str, set] = {}   # symbol → set of asyncio.Queue（每個連線一個 queue）
+_ws_lock = threading.Lock()
+_ws_stock = None   # Fubon WS stock client（全域共用，訂閱 trades + books）
+
+
+def _reset_ws_stock():
+    """Fubon WS 斷線時重置，讓下次呼叫重新建立連線。"""
+    global _ws_stock
+    with _fugle_lock:
+        _ws_stock = None
+    print("[Fubon WS] 股票連線已重置，等待下次請求重新建立")
+
+
+def _get_ws_stock():
+    """取得 Fubon WebSocket stock client，確保已登入並連線（沿用 _get_fugle 的同一組登入）。"""
+    global _ws_stock
+    if _ws_stock is not None:
+        return _ws_stock
+    with _fugle_lock:
+        if _ws_stock is not None:
+            return _ws_stock
+        _get_fugle()   # 確保 _fugle_sdk 已初始化
+        if not _fugle_sdk:
+            raise RuntimeError("Fugle SDK 未就緒，無法建立股票 WebSocket 連線")
+        stock = _fugle_sdk.marketdata.websocket_client.stock
+
+        def _on_message(raw):
+            try:
+                msg = _json.loads(raw) if isinstance(raw, str) else raw
+            except Exception:
+                msg = raw
+            if not isinstance(msg, dict) or msg.get("event") != "data":
+                return
+            payload = dict(msg.get("data") or {})
+            sym = payload.get("symbol", "")
+            payload["channel"] = msg.get("channel", "")
+            with _ws_lock:
+                queues = _ws_queues.get(sym, set()).copy()
+            for q in queues:
+                try:
+                    loop = q._loop
+                    asyncio.run_coroutine_threadsafe(q.put(payload), loop)
+                except Exception:
+                    pass
+
+        def _on_disconnect(msg=None):
+            print(f"[Fubon WS] 股票連線斷線: {msg}")
+            _reset_ws_stock()
+
+        stock.on("message", _on_message)
+        for evt in ("disconnect", "error", "close"):
+            try:
+                stock.on(evt, _on_disconnect)
+            except Exception:
+                pass
+        stock.connect()
+        time.sleep(2)   # 等連線建立後再 return（connect() 是非同步啟動）
+        _ws_stock = stock
+        print("[Fubon WS] 股票連線已建立")
+    return _ws_stock
+
+
+def add_ws_listener(symbol: str, queue: "asyncio.Queue") -> None:
+    """前端 WebSocket 連線進來時，把 queue 登記到 symbol 訂閱（trades + books）。"""
+    stock = _get_ws_stock()
+    with _ws_lock:
+        if symbol not in _ws_queues:
+            _ws_queues[symbol] = set()
+            for attempt in range(2):
+                try:
+                    stock.subscribe({"channel": "trades", "symbol": symbol})
+                    stock.subscribe({"channel": "books",  "symbol": symbol})
+                    print(f"[Fubon WS] 訂閱股票 {symbol} 成功")
+                    break
+                except Exception as e:
+                    print(f"[Fubon WS] subscribe {symbol} attempt {attempt+1} failed: {e}")
+                    if attempt == 0:
+                        time.sleep(0.5)
+        _ws_queues[symbol].add(queue)
+
+
+def remove_ws_listener(symbol: str, queue: "asyncio.Queue") -> None:
+    """前端斷線時移除 queue；該股票沒人訂閱時順便取消訂閱，避免訂閱數持續累積。"""
+    with _ws_lock:
+        listeners = _ws_queues.get(symbol)
+        if not listeners:
+            return
+        listeners.discard(queue)
+        if listeners:
+            return
+        del _ws_queues[symbol]
+        stock = _ws_stock
+    if stock is not None:
+        try:
+            stock.unsubscribe({"channel": "trades", "symbol": symbol})
+            stock.unsubscribe({"channel": "books",  "symbol": symbol})
+        except Exception as e:
+            print(f"[Fubon WS] unsubscribe {symbol} 失敗（略過）: {e}")

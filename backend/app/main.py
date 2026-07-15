@@ -9,6 +9,7 @@ from app.routers.watchlist import router as watchlist_router
 from app.routers.admin import router as admin_router
 from app.routers.futures import router as futures_router
 from app.routers.futures_ws import router as futures_ws_router
+from app.routers.stock_ws import router as stock_ws_router
 from app.routers.paper_trading import router as paper_trading_router
 
 load_dotenv()
@@ -47,6 +48,7 @@ app.include_router(watchlist_router)
 app.include_router(admin_router)
 app.include_router(futures_router)
 app.include_router(futures_ws_router)
+app.include_router(stock_ws_router)
 app.include_router(paper_trading_router)
 
 
