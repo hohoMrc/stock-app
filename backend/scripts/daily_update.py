@@ -38,6 +38,31 @@ def _stock_link(ticker: str, name: str, extra: str = "", scan: str = "") -> str:
         url += f"&scan={scan}"
     return f'<a href="{url}">{ticker} {name}</a>{extra}'
 
+TG_MAX_LEN = 3900  # Telegram 單則訊息上限 4096 字元，留點安全邊界
+
+def _tg_notify_lines(title: str, lines: list[str], empty_text: str):
+    """依 Telegram 4096 字元上限自動分段發送，避免股票數太多導致單則訊息過長被拒（HTTP 400）。"""
+    if not lines:
+        print(empty_text)
+        _tg_notify(empty_text, html=True)
+        return
+
+    chunks, cur, cur_len = [], [], 0
+    for line in lines:
+        if cur and cur_len + len(line) + 1 > TG_MAX_LEN:
+            chunks.append(cur)
+            cur, cur_len = [], 0
+        cur.append(line)
+        cur_len += len(line) + 1
+    if cur:
+        chunks.append(cur)
+
+    for i, chunk in enumerate(chunks):
+        header = title if i == 0 else f"{title}（續 {i + 1}/{len(chunks)}）"
+        msg = header + "\n" + "\n".join(chunk)
+        print(msg)
+        _tg_notify(msg, html=True)
+
 from app.db import init_db, save_candles, bulk_save_stock_meta, _conn
 from app.services.stock_data import (
     _fugle_candles, _load_tw_stock_names,
@@ -134,16 +159,15 @@ if __name__ == "__main__":
         try:
             from app.services.stock_data import scan_ma_squeeze
             hits = scan_ma_squeeze(500)
-            if hits:
-                lines = [
-                    _stock_link(s["ticker"], s.get("name", ""), f"  {s.get('close') or s.get('price', '')}元", scan="bird_beak")
-                    for s in hits
-                ]
-                squeeze_msg = f"[鳥嘴與分歧] 日K 5MA/20MA，今日找到 {len(hits)} 支\n" + "\n".join(lines)
-            else:
-                squeeze_msg = "[鳥嘴與分歧] 日K 5MA/20MA，今日無符合條件的股票"
-            print(squeeze_msg)
-            _tg_notify(squeeze_msg, html=True)
+            lines = [
+                _stock_link(s["ticker"], s.get("name", ""), f"  {s.get('close') or s.get('price', '')}元", scan="bird_beak")
+                for s in hits
+            ]
+            _tg_notify_lines(
+                f"[鳥嘴與分歧] 日K 5MA/20MA，今日找到 {len(hits)} 支",
+                lines,
+                "[鳥嘴與分歧] 日K 5MA/20MA，今日無符合條件的股票",
+            )
         except Exception as e:
             print(f"[鳥嘴與分歧] 掃描失敗: {e}")
 
@@ -151,16 +175,15 @@ if __name__ == "__main__":
         try:
             from app.services.stock_data import scan_near_ema60
             ema_hits = scan_near_ema60(500)
-            if ema_hits:
-                lines = [
-                    _stock_link(s["ticker"], s.get("name", ""), f"  {s['close']}元 (+{s['dev_pct']}%)", scan="near_ema60")
-                    for s in ema_hits
-                ]
-                ema_msg = f"[EMA60近線] 今日找到 {len(ema_hits)} 支\n" + "\n".join(lines)
-            else:
-                ema_msg = "[EMA60近線] 今日無符合條件的股票"
-            print(ema_msg)
-            _tg_notify(ema_msg, html=True)
+            lines = [
+                _stock_link(s["ticker"], s.get("name", ""), f"  {s['close']}元 (+{s['dev_pct']}%)", scan="near_ema60")
+                for s in ema_hits
+            ]
+            _tg_notify_lines(
+                f"[EMA60近線] 今日找到 {len(ema_hits)} 支",
+                lines,
+                "[EMA60近線] 今日無符合條件的股票",
+            )
         except Exception as e:
             print(f"[EMA60近線] 掃描失敗: {e}")
 
@@ -168,16 +191,15 @@ if __name__ == "__main__":
         try:
             from app.services.stock_data import scan_volume_breakout
             vb_hits = scan_volume_breakout(200)
-            if vb_hits:
-                lines = [
-                    _stock_link(s["ticker"], s.get("name", ""), f"  {s['close']}元 量比{s['vol_ratio']}x")
-                    for s in vb_hits
-                ]
-                vb_msg = f"[量價突破] 爆量創20日新高，今日找到 {len(vb_hits)} 支\n" + "\n".join(lines)
-            else:
-                vb_msg = "[量價突破] 今日無符合條件的股票"
-            print(vb_msg)
-            _tg_notify(vb_msg, html=True)
+            lines = [
+                _stock_link(s["ticker"], s.get("name", ""), f"  {s['close']}元 量比{s['vol_ratio']}x")
+                for s in vb_hits
+            ]
+            _tg_notify_lines(
+                f"[量價突破] 爆量創20日新高，今日找到 {len(vb_hits)} 支",
+                lines,
+                "[量價突破] 今日無符合條件的股票",
+            )
         except Exception as e:
             print(f"[量價突破] 掃描失敗: {e}")
 
@@ -191,16 +213,15 @@ if __name__ == "__main__":
 
             print("[法人連買] 開始掃描...")
             buy_hits = scan_institutional_buying(min_days=3, limit=200)
-            if buy_hits:
-                lines = [
-                    _stock_link(s["ticker"], s.get("name", ""), f"  {s['close']}元 連{s['streak_days']}天 合計{s['total_net_zhang']}張")
-                    for s in buy_hits
-                ]
-                buy_msg = f"[法人連買] 外資+投信連續買超≥3天，今日找到 {len(buy_hits)} 支\n" + "\n".join(lines)
-            else:
-                buy_msg = "[法人連買] 今日無符合條件的股票"
-            print(buy_msg)
-            _tg_notify(buy_msg, html=True)
+            lines = [
+                _stock_link(s["ticker"], s.get("name", ""), f"  {s['close']}元 連{s['streak_days']}天 合計{s['total_net_zhang']}張")
+                for s in buy_hits
+            ]
+            _tg_notify_lines(
+                f"[法人連買] 外資+投信連續買超≥3天，今日找到 {len(buy_hits)} 支",
+                lines,
+                "[法人連買] 今日無符合條件的股票",
+            )
         except Exception as e:
             print(f"[三大法人/法人連買] 失敗: {e}")
 
