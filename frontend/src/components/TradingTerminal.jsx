@@ -285,8 +285,8 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
                       {s.change != null ? `${sign}${s.change}` : "—"}
                     </td>
                     <td className="tl-num">{vol != null ? vol.toLocaleString() : "—"}</td>
-                    <td className={`tl-num ${dir}`}>{s.best_bid ?? "—"}</td>
-                    <td className={`tl-num ${dir}`}>{s.best_ask ?? "—"}</td>
+                    <td className={`tl-num ${dir}`}>{s.best_bid === 0 ? "市價" : s.best_bid ?? "—"}</td>
+                    <td className={`tl-num ${dir}`}>{s.best_ask === 0 ? "市價" : s.best_ask ?? "—"}</td>
                     <td className="tl-col-last">
                       {s.last_size_zhang != null ? (
                         <span className={`tl-last-size ${isBuy ? "buy" : isSell ? "sell" : ""}`}>
