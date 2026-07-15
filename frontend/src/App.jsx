@@ -39,11 +39,12 @@ const INIT_FILTERS = {
 };
 
 export default function App() {
-  // 支援 ?ticker=XXXX 深層連結（從 TG 通知點進來）
-  const urlTicker = new URLSearchParams(window.location.search).get("ticker");
+  // 支援 ?ticker=XXXX&scan=YYYY 深層連結（從 TG 通知點進來，scan 決定預設顯示的均線）
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlTicker = urlParams.get("ticker");
   const [activePage, setActivePage] = useState(urlTicker ? "detail" : "ranking");
   const [selectedTicker, setSelectedTicker] = useState(urlTicker || null);
-  const [selectedTickerContext, setSelectedTickerContext] = useState(null);
+  const [selectedTickerContext, setSelectedTickerContext] = useState(urlParams.get("scan") || null);
   const [selectedIndustry, setSelectedIndustry] = useState(null);
   const [pageHistory, setPageHistory] = useState([]);
   const [paperPrefillTicker, setPaperPrefillTicker] = useState(null);

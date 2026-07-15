@@ -14,7 +14,7 @@ const INTERVAL_CONFIG = {
 
 const SCAN_DEFAULT_MA = {
   bird_beak: { ma5: true,  ma10: false, ma20: true,  ma30: false, ma60: false, ema10: false, ema60: false },
-  near_ema60: { ma5: false, ma10: false, ma20: false, ma30: false, ma60: false, ema10: false, ema60: true  },
+  near_ema60: { ma5: false, ma10: false, ma20: false, ma30: false, ma60: false, ema10: true,  ema60: true  },
 };
 
 // 日K圖的歷史資料在後端有快取，可能比報價舊；用最新報價把最後一根 K 棒校正成即時值，

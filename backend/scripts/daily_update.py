@@ -32,8 +32,10 @@ def _tg_notify(text: str, html: bool = False):
     except Exception as e:
         print(f"[TG] 通知失敗: {e}")
 
-def _stock_link(ticker: str, name: str, extra: str = "") -> str:
+def _stock_link(ticker: str, name: str, extra: str = "", scan: str = "") -> str:
     url = f"{SITE_URL}/?ticker={ticker}"
+    if scan:
+        url += f"&scan={scan}"
     return f'<a href="{url}">{ticker} {name}</a>{extra}'
 
 from app.db import init_db, save_candles, bulk_save_stock_meta, _conn
@@ -134,7 +136,7 @@ if __name__ == "__main__":
             hits = scan_ma_squeeze(500)
             if hits:
                 lines = [
-                    _stock_link(s["ticker"], s.get("name", ""), f"  {s.get('close') or s.get('price', '')}元")
+                    _stock_link(s["ticker"], s.get("name", ""), f"  {s.get('close') or s.get('price', '')}元", scan="bird_beak")
                     for s in hits
                 ]
                 squeeze_msg = f"[鳥嘴與分歧] 日K 5MA/20MA，今日找到 {len(hits)} 支\n" + "\n".join(lines)
@@ -151,7 +153,7 @@ if __name__ == "__main__":
             ema_hits = scan_near_ema60(500)
             if ema_hits:
                 lines = [
-                    _stock_link(s["ticker"], s.get("name", ""), f"  {s['close']}元 (+{s['dev_pct']}%)")
+                    _stock_link(s["ticker"], s.get("name", ""), f"  {s['close']}元 (+{s['dev_pct']}%)", scan="near_ema60")
                     for s in ema_hits
                 ]
                 ema_msg = f"[EMA60近線] 今日找到 {len(ema_hits)} 支\n" + "\n".join(lines)
