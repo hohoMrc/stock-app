@@ -112,7 +112,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
     setError(null);
     setResults([]);
     try {
-      const res = await scanInstitutionalBuying(3, 200);
+      const res = await scanInstitutionalBuying(3, 200, 2000);
       setResults(res.data.stocks);
       setSearched(true);
     } catch (e) {
@@ -241,7 +241,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
           className="preset-btn preset-btn--pattern"
           onClick={handleInstitutionalBuying}
           disabled={loading}
-          title="外資＋投信合計買超連續 3 個交易日以上（不含自營商）"
+          title="外資＋投信合計買超連續 3 個交易日以上（不含自營商），合計買超 ≥ 2000 張"
         >
           🏦 法人連買
         </button>
