@@ -548,6 +548,40 @@
 .kd-k-val       { color: #f59e0b; }
 .kd-d-val       { color: #3b82f6; }
 
+/* ── Institutional trades ── */
+.institutional-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+}
+
+.institutional-section h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.inst-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+.inst-table th, .inst-table td {
+  padding: 6px 8px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+.inst-table th:first-child, .inst-table td:first-child { text-align: left; }
+.inst-table th { color: var(--text-secondary); font-weight: 500; }
+.inst-table td.up   { color: var(--up); }
+.inst-table td.down { color: var(--down); }
+
 /* ── Analysis ── */
 .analysis-section {
   background: var(--bg-card);

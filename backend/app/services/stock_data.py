@@ -1387,6 +1387,26 @@ def fetch_institutional_trades_today() -> list[dict]:
     return results
 
 
+def get_institutional_trades_history(ticker: str, days: int = 30) -> list[dict]:
+    """取單一股票近 N 天的三大法人買賣超（換算成張），供個股頁顯示用。"""
+    from app.db import get_institutional_trades_for_ticker
+    from datetime import date, timedelta
+
+    from_date = (date.today() - timedelta(days=days)).strftime("%Y-%m-%d")
+    to_date   = date.today().strftime("%Y-%m-%d")
+    records = get_institutional_trades_for_ticker(ticker, from_date, to_date)
+    return [
+        {
+            "date":        r["date"],
+            "foreign_net": round((r.get("foreign_net") or 0) / 1000, 1),
+            "trust_net":   round((r.get("trust_net") or 0) / 1000, 1),
+            "dealer_net":  round((r.get("dealer_net") or 0) / 1000, 1),
+            "total_net":   round((r.get("total_net") or 0) / 1000, 1),
+        }
+        for r in records
+    ]
+
+
 def scan_institutional_buying(min_days: int = 3, limit: int = 200, min_total_net_zhang: int = 0) -> list:
     """掃全市場，回傳外資+投信合計連續買超 ≥ min_days 個交易日，且合計買超 ≥ min_total_net_zhang 張的股票。"""
     from app.db import get_all_db_tickers_with_meta, get_all_institutional_trades_in_range, get_candles

@@ -339,6 +339,17 @@ def get_all_institutional_trades_in_range(from_date: str, to_date: str) -> dict[
     return result
 
 
+def get_institutional_trades_for_ticker(ticker: str, from_date: str, to_date: str) -> list[dict]:
+    """取單一股票在日期範圍內的三大法人買賣超（依日期由舊到新）。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT date, foreign_net, trust_net, dealer_net, total_net "
+            "FROM institutional_trades WHERE ticker=? AND date>=? AND date<=? ORDER BY date",
+            (ticker, from_date, to_date)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 # ── futures_candles ─────────────────────────────────────
 
 def save_futures_candles(symbol: str, timeframe: str, candles: list[dict]):

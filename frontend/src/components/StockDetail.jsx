@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import CandlestickChart from "./CandlestickChart";
-import { getStock, getHistory, analyzeStock } from "../api";
+import { getStock, getHistory, analyzeStock, getInstitutionalTrades } from "../api";
 import { isTradingHours } from "../marketHours";
 
 const INTERVAL_CONFIG = {
@@ -44,6 +44,8 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   const [loading, setLoading] = useState(true);
   const [live, setLive] = useState(false);   // 是否正在即時刷新
   const pollRef = useRef(null);
+  const [instTrades, setInstTrades] = useState([]);
+  const [instLoading, setInstLoading] = useState(false);
 
   useEffect(() => {
     const cfg = INTERVAL_CONFIG[interval];
@@ -80,6 +82,17 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
     startPoll();
     return () => clearInterval(pollRef.current);
   }, [ticker, interval]);
+
+  // 三大法人買賣超（近30天，只需在切換股票時抓一次，不用跟報價一樣輪詢）
+  useEffect(() => {
+    let alive = true;
+    setInstLoading(true);
+    getInstitutionalTrades(ticker, 30)
+      .then((res) => { if (alive) setInstTrades(res.data.records); })
+      .catch(() => { if (alive) setInstTrades([]); })
+      .finally(() => { if (alive) setInstLoading(false); });
+    return () => { alive = false; };
+  }, [ticker]);
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
@@ -218,6 +231,59 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
           <p className="no-data">無股價資料</p>
         )}
       </div>
+
+      {!instLoading && instTrades.length > 0 && (
+        <div className="institutional-section">
+          <h3>三大法人買賣超（近{instTrades.length}個交易日，張）</h3>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={instTrades} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 11 }}
+                tickFormatter={(v) => {
+                  const [, m, d] = v.split("-");
+                  return `${parseInt(m)}/${parseInt(d)}`;
+                }}
+              />
+              <YAxis tick={{ fontSize: 11 }} width={50} />
+              <Tooltip
+                labelFormatter={(l) => {
+                  const [y, m, d] = l.split("-");
+                  return `${y}年${parseInt(m)}月${parseInt(d)}日`;
+                }}
+                formatter={(v, name) => {
+                  const label = { foreign_net: "外資", trust_net: "投信", dealer_net: "自營商", total_net: "合計" }[name] || name;
+                  return [`${v} 張`, label];
+                }}
+              />
+              <Bar dataKey="total_net" name="total_net">
+                {instTrades.map((r, i) => (
+                  <Cell key={i} fill={r.total_net >= 0 ? "#f87171" : "#4ade80"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          <table className="inst-table">
+            <thead>
+              <tr>
+                <th>日期</th><th>外資</th><th>投信</th><th>自營商</th><th>合計</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...instTrades].reverse().map((r) => (
+                <tr key={r.date}>
+                  <td>{r.date.slice(5)}</td>
+                  <td className={r.foreign_net > 0 ? "up" : r.foreign_net < 0 ? "down" : ""}>{r.foreign_net}</td>
+                  <td className={r.trust_net > 0 ? "up" : r.trust_net < 0 ? "down" : ""}>{r.trust_net}</td>
+                  <td className={r.dealer_net > 0 ? "up" : r.dealer_net < 0 ? "down" : ""}>{r.dealer_net}</td>
+                  <td className={r.total_net > 0 ? "up" : r.total_net < 0 ? "down" : ""}>{r.total_net}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="analysis-section">
         <div className="analysis-header">

@@ -26,6 +26,7 @@ export const getTurnoverRanking   = (limit = 50, force = false) => api.get("/api
 export const getMoversRanking     = (direction = "up", limit = 50, force = false) => api.get("/api/stocks/ranking/movers", { params: { direction, limit, force } });
 export const getWatchlistQuotes   = (tickers = []) => api.get("/api/stocks/watchlist-quotes", { params: { tickers: tickers.join(",") } });
 export const getOrderbook         = (ticker)     => api.get(`/api/stocks/${ticker}/orderbook`);
+export const getInstitutionalTrades = (ticker, days = 30) => api.get(`/api/stocks/${ticker}/institutional-trades`, { params: { days } });
 
 // 台指期
 export const getFuturesQuote         = (product = "TXF")                  => api.get("/api/futures/quote",         { params: { product } });
