@@ -34,3 +34,38 @@ async def stock_ws(websocket: WebSocket, symbol: str):
         pass
     finally:
         remove_ws_listener(symbol, queue)
+
+
+@router.websocket("/ws/stocks")
+async def stocks_ws(websocket: WebSocket, symbols: str):
+    """多檔股票即時推播（左側排行清單用），symbols 為逗號分隔的代號字串。"""
+    await websocket.accept()
+    symbol_list = [s.strip() for s in symbols.split(",") if s.strip()][:100]   # 安全上限
+    loop  = asyncio.get_event_loop()
+    queue = asyncio.Queue()
+    queue._loop = loop
+
+    added = []
+    for sym in symbol_list:
+        try:
+            await asyncio.to_thread(add_ws_listener, sym, queue)
+            added.append(sym)
+        except Exception as e:
+            print(f"[WS] add_ws_listener 失敗（{sym}）: {e}")
+    try:
+        while True:
+            try:
+                data = await asyncio.wait_for(queue.get(), timeout=25)
+                await websocket.send_json(data)
+            except asyncio.TimeoutError:
+                try:
+                    await websocket.send_json({"event": "keepalive"})
+                except Exception:
+                    break
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        for sym in added:
+            remove_ws_listener(sym, queue)

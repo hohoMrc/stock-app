@@ -32,6 +32,8 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
   const [listLoading, setListLoading]   = useState({ value: false, turnover: false });
   const [listUpdatedAt, setListUpdatedAt] = useState({ value: null, turnover: null });
   const loaded = useRef({ value: false, turnover: false });
+  const [listWsKey, setListWsKey] = useState(0);   // 遞增觸發排行清單 WebSocket 重連
+  const listWsRef = useRef(null);
 
   const [holdings, setHoldings]               = useState([]);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
@@ -114,6 +116,70 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
   useEffect(() => {
     if (!loaded.current[activeTab] && activeTab !== "watch" && activeTab !== "holdings") loadList(activeTab);
   }, [activeTab]);
+
+  // ── 排行清單 WebSocket 即時更新（成交值/成交量分頁，依目前清單的股票代號訂閱）──
+  const listTickers = (activeTab === "value" || activeTab === "turnover")
+    ? (listData[activeTab] || []).map((s) => s.ticker).join(",")
+    : "";
+
+  useEffect(() => {
+    if (!listTickers) return;
+    if (listWsRef.current) { listWsRef.current.close(); listWsRef.current = null; }
+    const tabKey = activeTab;
+    const ws = new WebSocket(`${WS_BASE}/ws/stocks?symbols=${encodeURIComponent(listTickers)}`);
+    listWsRef.current = ws;
+    ws.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.event === "keepalive" || !data.symbol) return;
+        setListData((prev) => {
+          const rows = prev[tabKey];
+          if (!rows) return prev;
+          const idx = rows.findIndex((r) => r.ticker === data.symbol);
+          if (idx === -1) return prev;
+          const row = rows[idx];
+          let updated = row;
+          if (data.channel === "books") {
+            const bid = data.bids?.[0] ? Math.round(data.bids[0].price * 100) / 100 : row.best_bid;
+            const ask = data.asks?.[0] ? Math.round(data.asks[0].price * 100) / 100 : row.best_ask;
+            updated = { ...row, best_bid: bid, best_ask: ask };
+          } else if (data.channel === "trades") {
+            const ref = row.close != null && row.change != null ? row.close - row.change : null;
+            let change = row.change, changePct = row.change_pct;
+            if (ref != null && data.price != null) {
+              change = Math.round((data.price - ref) * 100) / 100;
+              changePct = ref ? Math.round((change / ref) * 10000) / 100 : changePct;
+            }
+            const isBuy  = data.price != null && data.ask != null && data.price >= data.ask;
+            const isSell = data.price != null && data.bid != null && data.price <= data.bid;
+            updated = {
+              ...row,
+              close: data.price ?? row.close,
+              change,
+              change_pct: changePct,
+              trade_volume_zhang: data.volume ?? row.trade_volume_zhang,
+              last_size_zhang: data.size ?? row.last_size_zhang,
+              last_trade_dir: isBuy ? "buy" : isSell ? "sell" : row.last_trade_dir,
+            };
+          }
+          if (updated === row) return prev;
+          const newRows = [...rows];
+          newRows[idx] = updated;
+          return { ...prev, [tabKey]: newRows };
+        });
+      } catch (_) {}
+    };
+    ws.onerror = () => {};
+    ws.onclose = () => {
+      // 斷線後 3 秒自動重連
+      setTimeout(() => setListWsKey((k) => k + 1), 3000);
+    };
+    return () => {
+      ws.onclose = null;   // 清掉 onclose 避免 cleanup 時觸發重連
+      ws.close();
+      listWsRef.current = null;
+    };
+  }, [listTickers, activeTab, listWsKey]);
 
   // ── 持股（模擬下單）──────────────────────────────────────────────────
   const loadHoldings = async () => {
