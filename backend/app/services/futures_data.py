@@ -17,18 +17,16 @@ _symbol_cache: dict[str, tuple[float, str]] = {}   # product → (查詢時間, 
 _SYMBOL_CACHE_TTL = 3600  # 近月合約一天最多換一次，1 小時內重複查詢直接用快取
 
 
-def _in_day_session(epoch: int) -> bool:
-    """判斷某個 unix timestamp 是否落在台指期日盤時段（08:45–13:45）。"""
-    dt = datetime.fromtimestamp(epoch, tz=TZ_TAIPEI)
-    mins = dt.hour * 60 + dt.minute
-    return 8 * 60 + 45 <= mins <= 13 * 60 + 45
-
-
-def _in_night_session(epoch: int) -> bool:
-    """判斷某個 unix timestamp 是否落在台指期夜盤時段（15:00–隔日05:00）。"""
-    dt = datetime.fromtimestamp(epoch, tz=TZ_TAIPEI)
-    mins = dt.hour * 60 + dt.minute
-    return mins >= 15 * 60 or mins < 5 * 60
+def _is_night_session_now() -> bool:
+    """判斷現在是否為台指期夜盤交易時段（15:00–隔日05:00），決定即時報價要查日盤還夜盤。"""
+    now = datetime.now(tz=TZ_TAIPEI)
+    day  = now.weekday()   # 0=一 ... 6=日
+    mins = now.hour * 60 + now.minute
+    if 0 <= day <= 4 and mins >= 15 * 60:   # 週一到週五 15:00 之後
+        return True
+    if 1 <= day <= 5 and mins < 5 * 60:     # 週二到週六 05:00 前（延續前一晚）
+        return True
+    return False
 
 
 def _current_symbol_fallback(product: str = "TXF") -> str:
@@ -93,10 +91,11 @@ def _get_client():
     return _rest_client
 
 
-def get_futures_quote(symbol: str | None = None, session: str = "regular") -> dict:
+def get_futures_quote(symbol: str | None = None) -> dict:
+    """即時報價：日夜盤不分開顯示，自動依現在時間查目前實際在交易的那一段。"""
     symbol = symbol or _current_symbol()
     kwargs = {"symbol": symbol}
-    if session == "afterhours":
+    if _is_night_session_now():
         kwargs["session"] = "afterhours"
     data   = _get_client().futopt.intraday.quote(**kwargs)
     price  = data.get("closePrice") or (data.get("lastTrade") or {}).get("price")
@@ -117,7 +116,8 @@ def get_futures_quote(symbol: str | None = None, session: str = "regular") -> di
     }
 
 
-def get_futures_candles(symbol: str | None = None, timeframe: str = "60", session: str = "regular") -> list:
+def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> list:
+    """K 線：日盤＋夜盤接續成一條連續走勢，不分開查。"""
     symbol = symbol or _current_symbol()
 
     if timeframe == "D":
@@ -143,35 +143,34 @@ def get_futures_candles(symbol: str | None = None, timeframe: str = "60", sessio
     from app.db import get_futures_candles_db
     product = symbol[:3]  # "TXF" or "MTX"
 
-    # 今日盤中即時資料
-    today_candles = []
-    kwargs = {"symbol": symbol, "timeframe": timeframe}
-    if session == "afterhours":
-        kwargs["session"] = "afterhours"
-    try:
-        data = _get_client().futopt.intraday.candles(**kwargs)
-        for c in data.get("data", []):
-            dt = datetime.fromisoformat(c["date"])
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=TZ_TAIPEI)
-            today_candles.append({
-                "time":   int(dt.timestamp()),
-                "open":   c["open"],
-                "high":   c["high"],
-                "low":    c["low"],
-                "close":  c["close"],
-                "volume": c.get("volume", 0),
-            })
-    except Exception as e:
-        print(f"[futures] intraday.candles 失敗: {e}")
+    # 今日盤中即時資料：日盤＋夜盤都查，依時間排序合併（兩者時段本來就不重疊）
+    today_candles = {}
+    for kwargs in ({"symbol": symbol, "timeframe": timeframe},
+                    {"symbol": symbol, "timeframe": timeframe, "session": "afterhours"}):
+        try:
+            data = _get_client().futopt.intraday.candles(**kwargs)
+            for c in data.get("data", []):
+                dt = datetime.fromisoformat(c["date"])
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=TZ_TAIPEI)
+                t = int(dt.timestamp())
+                today_candles[t] = {
+                    "time":   t,
+                    "open":   c["open"],
+                    "high":   c["high"],
+                    "low":    c["low"],
+                    "close":  c["close"],
+                    "volume": c.get("volume", 0),
+                }
+        except Exception as e:
+            print(f"[futures] intraday.candles 失敗: {e}")
+    today_candles = sorted(today_candles.values(), key=lambda c: c["time"])
 
-    # DB 歷史資料：日盤／夜盤共用同一個 (product, timeframe) 存放（時間本來就不重疊，
-    # 天然接續成連續走勢），這裡依目前分頁只挑對應時段的歷史，避免兩邊混在一起顯示
+    # DB 歷史資料：日盤／夜盤共用同一個 (product, timeframe) 存放，時間本來就不重疊，
+    # 直接接續成一條連續走勢
     hist = get_futures_candles_db(product, timeframe)
-    session_filter = _in_night_session if session == "afterhours" else _in_day_session
-    hist = [c for c in hist if session_filter(c["time"])]
     if today_candles:
-        today_min_time = min(c["time"] for c in today_candles)
+        today_min_time = today_candles[0]["time"]
         hist = [c for c in hist if c["time"] < today_min_time]
 
     return hist + today_candles

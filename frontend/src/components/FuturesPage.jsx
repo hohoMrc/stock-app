@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from "lightweight-charts";
 import { getFuturesQuote, getFuturesCandles, getFuturesInstitutional } from "../api";
-import { isDaySessionHours, isNightSessionHours } from "../marketHours";
+import { isFuturesTradingHours } from "../marketHours";
 
 const MA_LINES = [
   { key: "ma5",   period: 5,  label: "MA5",   color: "#f59e0b" },
@@ -60,15 +60,6 @@ const PRODUCTS = [
   { key: "TMF", label: "微型台指（近月）" },
 ];
 
-const SESSIONS = [
-  { key: "regular",    label: "日盤" },
-  { key: "afterhours", label: "夜盤" },
-];
-
-// 目前選的分頁（日盤/夜盤）此刻是否正在交易，決定要不要輪詢/接收即時更新
-function isSessionLive(session) {
-  return session === "afterhours" ? isNightSessionHours() : isDaySessionHours();
-}
 
 const IDENTITY_LABEL = { foreign: "外資", trust: "投信", dealer: "自營商" };
 const IDENTITY_COLOR = { foreign: "#38bdf8", trust: "#f59e0b", dealer: "#a78bfa" };
@@ -355,7 +346,6 @@ function InstitutionalChart({ data }) {
 
 export default function FuturesPage() {
   const [product,      setProduct]      = useState("TXF");
-  const [session,      setSession]      = useState("regular");
   const [timeframe,    setTimeframe]    = useState("60");
   const [quote,        setQuote]        = useState(null);
   const [candles,      setCandles]      = useState([]);
@@ -371,23 +361,23 @@ export default function FuturesPage() {
   const prevPriceRef = useRef(null);
   const chartRef     = useRef(null);
 
-  // 初始報價
+  // 初始報價（後端會依現在時間自動判斷查日盤還夜盤）
   useEffect(() => {
     setQuoteLoading(true);
     setQuote(null);
     setLivePrice(null);
     prevPriceRef.current = null;
-    getFuturesQuote(product, session)
+    getFuturesQuote(product)
       .then(r => { setQuote(r.data); setLivePrice(r.data.price); prevPriceRef.current = r.data.price; })
       .catch(e => setError(e?.response?.data?.detail || e.message))
       .finally(() => setQuoteLoading(false));
-  }, [product, session]);
+  }, [product]);
 
-  // REST 輪詢報價（WebSocket 不穩定時的保底，每 5 秒；只在目前分頁對應的盤別交易中才輪詢）
+  // REST 輪詢報價（WebSocket 不穩定時的保底，每 5 秒）
   useEffect(() => {
-    if (!isSessionLive(session)) return;
+    if (!isFuturesTradingHours()) return;
     const timer = setInterval(() => {
-      getFuturesQuote(product, session).then(r => {
+      getFuturesQuote(product).then(r => {
         const p = r.data?.price;
         if (!p) return;
         const prev = prevPriceRef.current;
@@ -405,17 +395,15 @@ export default function FuturesPage() {
       }).catch(() => {});
     }, 5000);
     return () => clearInterval(timer);
-  }, [product, session]);
+  }, [product]);
 
-  // WebSocket 即時更新（wsKey 遞增觸發重連；同一合約日夜盤共用同個 symbol，
-  // 所以連線不分盤別，只在目前分頁對應的盤別交易中才套用收到的成交更新，避免日盤資料混進夜盤圖表）
+  // WebSocket 即時更新（wsKey 遞增觸發重連；日盤/夜盤是同一個合約 symbol，連線不分盤別）
   useEffect(() => {
     if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
     const ws = new WebSocket(`${WS_BASE}/ws/futures?product=${product}`);
     wsRef.current = ws;
     ws.onmessage = (e) => {
       try {
-        if (!isSessionLive(session)) return;
         const data  = JSON.parse(e.data);
         if (data.event === "keepalive") return;   // 忽略心跳
         const trades = data.trades || [];
@@ -447,7 +435,7 @@ export default function FuturesPage() {
       ws.close();
       wsRef.current = null;
     };
-  }, [product, session, wsKey]);
+  }, [product, wsKey]);
 
   useEffect(() => {
     getFuturesInstitutional()
@@ -459,12 +447,12 @@ export default function FuturesPage() {
     let retryTimer = null;
     const load = () => {
       setCandleLoading(true);
-      getFuturesCandles(timeframe, product, session)
+      getFuturesCandles(timeframe, product)
         .then(r => {
           const data = r.data.data || [];
           setCandles(data);
           // 交易時段若回空，15 秒後重試（開盤初期 API 需要一兩分鐘才有資料）
-          if (data.length === 0 && timeframe !== "D" && isSessionLive(session)) {
+          if (data.length === 0 && timeframe !== "D" && isFuturesTradingHours()) {
             retryTimer = setTimeout(load, 15000);
           }
         })
@@ -474,7 +462,7 @@ export default function FuturesPage() {
     setCandles([]);
     load();
     return () => clearTimeout(retryTimer);
-  }, [timeframe, product, session]);
+  }, [timeframe, product]);
 
   return (
     <div className="page futures-page">
@@ -487,16 +475,6 @@ export default function FuturesPage() {
             onClick={() => setProduct(p.key)}
           >
             {p.label}
-          </button>
-        ))}
-        <span className="futures-session-divider" />
-        {SESSIONS.map(s => (
-          <button
-            key={s.key}
-            className={`futures-product-btn ${session === s.key ? "active" : ""}`}
-            onClick={() => setSession(s.key)}
-          >
-            {s.label}
           </button>
         ))}
       </div>
@@ -534,9 +512,7 @@ export default function FuturesPage() {
       {candleLoading
         ? <div className="futures-chart-loading">K 線載入中...</div>
         : candles.length === 0 && timeframe !== "D"
-          ? <div className="futures-chart-empty">
-              盤中 K 線資料暫無（{session === "afterhours" ? "夜盤交易時段 15:00–隔日05:00" : "日盤交易時段 08:45–13:45"}）
-            </div>
+          ? <div className="futures-chart-empty">盤中 K 線資料暫無（交易時段 08:45–13:45、15:00–隔日05:00）</div>
           : <FuturesChart ref={chartRef} candles={candles} timeframe={timeframe} activeMA={activeMA} />
       }
 
