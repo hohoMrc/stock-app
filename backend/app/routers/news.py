@@ -6,7 +6,7 @@ router = APIRouter(prefix="/api/news", tags=["news"])
 
 
 @router.get("/hot")
-async def hot_news(limit: int = Query(default=20, le=50)):
+async def hot_news(limit: int = Query(default=20, le=100)):
     try:
         news = await run_in_threadpool(get_hot_news, limit)
         return {"count": len(news), "news": news}

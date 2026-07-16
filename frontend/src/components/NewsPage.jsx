@@ -18,12 +18,16 @@ export default function NewsPage() {
   const load = () => {
     setLoading(true);
     setError(null);
-    getHotNews(60)
+    getHotNews(50)
       .then((res) => {
         setNews(res.data.news || []);
         setUpdatedAt(new Date().toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" }));
       })
-      .catch((e) => setError(e?.response?.data?.detail || e.message))
+      .catch((e) => {
+        const detail = e?.response?.data?.detail;
+        // FastAPI 422 驗證錯誤的 detail 是物件陣列，不能直接當 JSX 顯示，只能用 e.message 代替
+        setError(typeof detail === "string" ? detail : e.message);
+      })
       .finally(() => setLoading(false));
   };
 
