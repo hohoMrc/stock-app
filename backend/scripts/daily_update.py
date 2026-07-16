@@ -16,21 +16,32 @@ import urllib.request, urllib.parse, json as _json
 
 SITE_URL = "https://stock-app-lilac-nine.vercel.app"
 
+def _tg_chat_ids() -> list:
+    """通知目標：個人 + 群組（TELEGRAM_GROUP_CHAT_ID 未設定時只發個人）。"""
+    ids = []
+    personal = os.environ.get("TELEGRAM_CHAT_ID")
+    group    = os.environ.get("TELEGRAM_GROUP_CHAT_ID")
+    if personal:
+        ids.append(personal)
+    if group:
+        ids.append(group)
+    return ids
+
 def _tg_notify(text: str, html: bool = False):
-    token   = os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
-    if not token or not chat_id:
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not token:
         return
-    try:
-        params = {"chat_id": chat_id, "text": text}
-        if html:
-            params["parse_mode"] = "HTML"
-        payload = urllib.parse.urlencode(params).encode()
-        urllib.request.urlopen(
-            f"https://api.telegram.org/bot{token}/sendMessage", payload, timeout=10
-        )
-    except Exception as e:
-        print(f"[TG] 通知失敗: {e}")
+    for chat_id in _tg_chat_ids():
+        try:
+            params = {"chat_id": chat_id, "text": text}
+            if html:
+                params["parse_mode"] = "HTML"
+            payload = urllib.parse.urlencode(params).encode()
+            urllib.request.urlopen(
+                f"https://api.telegram.org/bot{token}/sendMessage", payload, timeout=10
+            )
+        except Exception as e:
+            print(f"[TG] 通知失敗 (chat_id={chat_id}): {e}")
 
 def _stock_link(ticker: str, name: str, extra: str = "", scan: str = "") -> str:
     url = f"{SITE_URL}/?ticker={ticker}"
