@@ -29,6 +29,29 @@ def _is_night_session_now() -> bool:
     return False
 
 
+def _next_trading_date(d: date) -> date:
+    """往後找下一個交易日（跳過週六日）。"""
+    d += timedelta(days=1)
+    while d.weekday() >= 5:   # 5=六, 6=日
+        d += timedelta(days=1)
+    return d
+
+
+def _trading_day_of(epoch: int) -> str:
+    """依台指期「交易日」定義（前一天15:00夜盤起算～當天13:45日盤收盤算同一個交易日）
+    判斷某個 unix timestamp 屬於哪個交易日，回傳日期字串。"""
+    dt   = datetime.fromtimestamp(epoch, tz=TZ_TAIPEI)
+    mins = dt.hour * 60 + dt.minute
+    d    = dt.date()
+    if mins >= 15 * 60:
+        # 15:00 之後開始的夜盤，算下一個交易日
+        return _next_trading_date(d).strftime("%Y-%m-%d")
+    if d.weekday() >= 5:
+        # 週六/週日凌晨（週五夜盤延續到週六05:00），算下一個交易日（週一）
+        return _next_trading_date(d - timedelta(days=1)).strftime("%Y-%m-%d")
+    return d.strftime("%Y-%m-%d")
+
+
 def _current_symbol_fallback(product: str = "TXF") -> str:
     """日期推算備援：台指期結算日固定是每月第三個星期三（未考慮國定假日順延）。"""
     today = date.today()
@@ -122,23 +145,61 @@ def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> lis
 
     if timeframe == "D":
         import yfinance as yf
-        # 用加權指數（^TWII）做日K，走勢與台指期高度一致
+        from app.db import get_futures_candles_db
+
+        # 底：加權指數（^TWII）近6個月日K，涵蓋還沒累積到期貨自己資料的較早期間
+        result: dict[str, dict] = {}
         hist = yf.Ticker("^TWII").history(period="6mo", interval="1d")
-        if hist.empty:
-            return []
-        if hist.index.tz is not None:
-            hist.index = hist.index.tz_convert("Asia/Taipei")
-        result = []
-        for ts, row in hist.iterrows():
-            result.append({
-                "date":   ts.strftime("%Y-%m-%d"),
-                "open":   round(float(row["Open"])),
-                "high":   round(float(row["High"])),
-                "low":    round(float(row["Low"])),
-                "close":  round(float(row["Close"])),
-                "volume": int(row["Volume"]),
-            })
-        return result
+        if not hist.empty:
+            if hist.index.tz is not None:
+                hist.index = hist.index.tz_convert("Asia/Taipei")
+            for ts, row in hist.iterrows():
+                d = ts.strftime("%Y-%m-%d")
+                result[d] = {
+                    "date":   d,
+                    "open":   round(float(row["Open"])),
+                    "high":   round(float(row["High"])),
+                    "low":    round(float(row["Low"])),
+                    "close":  round(float(row["Close"])),
+                    "volume": int(row["Volume"]),
+                }
+
+        # 蓋：把有累積到日盤+夜盤的交易日換成真正的期貨資料（含夜盤價格波動，
+        # 指數只涵蓋現貨盤中 09:00–13:30，看不到夜盤的漲跌），依台指期交易日定義分組
+        # （用 {day: {time: candle}} 依時間去重，避免 DB 跟即時資料重疊時重複計入成交量）
+        product = symbol[:3]
+        grouped: dict[str, dict[int, dict]] = {}
+        for c in get_futures_candles_db(product, "60"):
+            grouped.setdefault(_trading_day_of(c["time"]), {})[c["time"]] = c
+
+        # 加：當下正在進行、還沒被排程存進 DB 的今日盤中資料（讓還在走的交易日也能即時反映）
+        for kwargs in ({"symbol": symbol, "timeframe": "60"},
+                        {"symbol": symbol, "timeframe": "60", "session": "afterhours"}):
+            try:
+                data = _get_client().futopt.intraday.candles(**kwargs)
+                for c in data.get("data", []):
+                    dt = datetime.fromisoformat(c["date"])
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=TZ_TAIPEI)
+                    t = int(dt.timestamp())
+                    grouped.setdefault(_trading_day_of(t), {})[t] = {
+                        "time": t, "open": c["open"], "high": c["high"],
+                        "low": c["low"], "close": c["close"], "volume": c.get("volume", 0),
+                    }
+            except Exception as e:
+                print(f"[futures] 日K 即時資料失敗: {e}")
+        for d, candle_map in grouped.items():
+            candles = sorted(candle_map.values(), key=lambda c: c["time"])
+            result[d] = {
+                "date":   d,
+                "open":   candles[0]["open"],
+                "high":   max(c["high"] for c in candles),
+                "low":    min(c["low"] for c in candles),
+                "close":  candles[-1]["close"],
+                "volume": sum(c.get("volume", 0) for c in candles),
+            }
+
+        return sorted(result.values(), key=lambda r: r["date"])
 
     from app.db import get_futures_candles_db
     product = symbol[:3]  # "TXF" or "MTX"
