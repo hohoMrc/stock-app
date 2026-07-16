@@ -229,7 +229,7 @@ if __name__ == "__main__":
         try:
             from app.services.news_data import get_hot_news
             news = get_hot_news(15)
-            lines = [f'<a href="{n["link"]}">{n["title"]}</a>' for n in news]
+            lines = [f'<a href="{n["link"]}">{n["title"]}</a>　({n["source"]})' for n in news]
             _tg_notify_lines(
                 f"[熱門新聞] 今日財經新聞 Top {len(news)}",
                 lines,

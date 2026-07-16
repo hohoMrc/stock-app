@@ -2033,6 +2033,15 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .news-updated { font-size: 12px; color: var(--text-muted); }
 .news-loading, .news-empty { color: var(--text-muted); font-size: 14px; padding: 20px 0; }
 
+.news-source-tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.news-source-tabs button {
+  padding: 5px 14px; border-radius: 20px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-muted); cursor: pointer;
+  font-size: 13px; font-weight: 500;
+}
+.news-source-tabs button.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+.news-source-tabs button:hover:not(.active) { background: var(--bg-card); color: var(--text-primary); }
+
 .news-list {
   display: flex;
   flex-direction: column;
@@ -2059,6 +2068,16 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   font-size: 14.5px;
   line-height: 1.5;
   flex: 1;
+}
+.news-item-source {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-right: 8px;
+  vertical-align: middle;
 }
 .news-item-date {
   font-size: 12px;

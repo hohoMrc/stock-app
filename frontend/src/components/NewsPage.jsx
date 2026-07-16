@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { getHotNews } from "../api";
 
 function formatPubDate(pubDate) {
@@ -13,11 +13,12 @@ export default function NewsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(null);
+  const [sourceFilter, setSourceFilter] = useState("all");
 
   const load = () => {
     setLoading(true);
     setError(null);
-    getHotNews(30)
+    getHotNews(60)
       .then((res) => {
         setNews(res.data.news || []);
         setUpdatedAt(new Date().toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" }));
@@ -27,6 +28,9 @@ export default function NewsPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const sources = useMemo(() => [...new Set(news.map((n) => n.source))], [news]);
+  const filtered = sourceFilter === "all" ? news : news.filter((n) => n.source === sourceFilter);
 
   return (
     <div className="page news-page">
@@ -38,15 +42,35 @@ export default function NewsPage() {
         </div>
       </div>
 
+      {sources.length > 0 && (
+        <div className="news-source-tabs">
+          <button
+            className={sourceFilter === "all" ? "active" : ""}
+            onClick={() => setSourceFilter("all")}
+          >
+            全部
+          </button>
+          {sources.map((s) => (
+            <button
+              key={s}
+              className={sourceFilter === s ? "active" : ""}
+              onClick={() => setSourceFilter(s)}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+
       {loading && <p className="news-loading">載入中...</p>}
       {error && <p className="error">❌ {error}</p>}
 
-      {!loading && !error && news.length === 0 && (
+      {!loading && !error && filtered.length === 0 && (
         <p className="news-empty">暫無新聞</p>
       )}
 
       <div className="news-list">
-        {news.map((n, i) => (
+        {filtered.map((n, i) => (
           <a
             key={i}
             className="news-item"
@@ -54,7 +78,10 @@ export default function NewsPage() {
             target="_blank"
             rel="noopener noreferrer"
           >
-            <span className="news-item-title">{n.title}</span>
+            <span className="news-item-title">
+              {n.source && <span className="news-item-source">{n.source}</span>}
+              {n.title}
+            </span>
             <span className="news-item-date">{formatPubDate(n.pub_date)}</span>
           </a>
         ))}
