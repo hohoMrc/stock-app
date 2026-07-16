@@ -17,6 +17,20 @@ _symbol_cache: dict[str, tuple[float, str]] = {}   # product → (查詢時間, 
 _SYMBOL_CACHE_TTL = 3600  # 近月合約一天最多換一次，1 小時內重複查詢直接用快取
 
 
+def _in_day_session(epoch: int) -> bool:
+    """判斷某個 unix timestamp 是否落在台指期日盤時段（08:45–13:45）。"""
+    dt = datetime.fromtimestamp(epoch, tz=TZ_TAIPEI)
+    mins = dt.hour * 60 + dt.minute
+    return 8 * 60 + 45 <= mins <= 13 * 60 + 45
+
+
+def _in_night_session(epoch: int) -> bool:
+    """判斷某個 unix timestamp 是否落在台指期夜盤時段（15:00–隔日05:00）。"""
+    dt = datetime.fromtimestamp(epoch, tz=TZ_TAIPEI)
+    mins = dt.hour * 60 + dt.minute
+    return mins >= 15 * 60 or mins < 5 * 60
+
+
 def _current_symbol_fallback(product: str = "TXF") -> str:
     """日期推算備援：台指期結算日固定是每月第三個星期三（未考慮國定假日順延）。"""
     today = date.today()
@@ -151,12 +165,11 @@ def get_futures_candles(symbol: str | None = None, timeframe: str = "60", sessio
     except Exception as e:
         print(f"[futures] intraday.candles 失敗: {e}")
 
-    # 夜盤目前沒有落地存 DB（跟日盤不同），只回傳 Fugle 當下能查到的區間（約當晚15:00起）
-    if session == "afterhours":
-        return today_candles
-
-    # DB 歷史資料（過去各交易日，僅日盤）
+    # DB 歷史資料：日盤／夜盤共用同一個 (product, timeframe) 存放（時間本來就不重疊，
+    # 天然接續成連續走勢），這裡依目前分頁只挑對應時段的歷史，避免兩邊混在一起顯示
     hist = get_futures_candles_db(product, timeframe)
+    session_filter = _in_night_session if session == "afterhours" else _in_day_session
+    hist = [c for c in hist if session_filter(c["time"])]
     if today_candles:
         today_min_time = min(c["time"] for c in today_candles)
         hist = [c for c in hist if c["time"] < today_min_time]

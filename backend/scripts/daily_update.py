@@ -225,34 +225,34 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[三大法人/法人連買] 失敗: {e}")
 
-    # 儲存台指期當日各 timeframe 盤中 K 棒到 DB
+    # 儲存台指期/微型台指當日各 timeframe 日盤 K 棒到 DB（夜盤由另一支排程 night_update.py 在隔天 05:30 存）
     print("[期貨K線] 儲存當日各 timeframe K 棒...")
     try:
         from app.services.futures_data import _current_symbol, _get_client, TZ_TAIPEI
         from app.db import save_futures_candles
         import datetime as _dt
-        symbol  = _current_symbol("TXF")
-        product = "TXF"
-        for tf in ["1", "5", "15", "30", "60"]:
-            try:
-                data    = _get_client().futopt.intraday.candles(symbol=symbol, timeframe=tf)
-                candles = []
-                for c in data.get("data", []):
-                    raw_dt = _dt.datetime.fromisoformat(c["date"])
-                    if raw_dt.tzinfo is None:
-                        raw_dt = raw_dt.replace(tzinfo=TZ_TAIPEI)
-                    candles.append({
-                        "time":   int(raw_dt.timestamp()),
-                        "open":   c["open"],
-                        "high":   c["high"],
-                        "low":    c["low"],
-                        "close":  c["close"],
-                        "volume": c.get("volume", 0),
-                    })
-                if candles:
-                    save_futures_candles(product, tf, candles)
-                    print(f"[期貨K線] TXF {tf}min: 存入 {len(candles)} 根")
-            except Exception as e:
-                print(f"[期貨K線] TXF {tf}min 失敗: {e}")
+        for product in ["TXF", "TMF"]:
+            symbol = _current_symbol(product)
+            for tf in ["1", "5", "15", "30", "60"]:
+                try:
+                    data    = _get_client().futopt.intraday.candles(symbol=symbol, timeframe=tf)
+                    candles = []
+                    for c in data.get("data", []):
+                        raw_dt = _dt.datetime.fromisoformat(c["date"])
+                        if raw_dt.tzinfo is None:
+                            raw_dt = raw_dt.replace(tzinfo=TZ_TAIPEI)
+                        candles.append({
+                            "time":   int(raw_dt.timestamp()),
+                            "open":   c["open"],
+                            "high":   c["high"],
+                            "low":    c["low"],
+                            "close":  c["close"],
+                            "volume": c.get("volume", 0),
+                        })
+                    if candles:
+                        save_futures_candles(product, tf, candles)
+                        print(f"[期貨K線] {product} {tf}min: 存入 {len(candles)} 根")
+                except Exception as e:
+                    print(f"[期貨K線] {product} {tf}min 失敗: {e}")
     except Exception as e:
         print(f"[期貨K線] 整體失敗: {e}")
