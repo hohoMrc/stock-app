@@ -55,3 +55,6 @@ export const getPaperPositions = ()                          => api.get("/api/pa
 export const getPaperOrders    = (limit = 50)                => api.get("/api/paper/orders", { params: { limit } });
 export const placePaperOrder   = (ticker, side, lots, price)  => api.post("/api/paper/order", { ticker, side, lots, ...(price != null ? { price } : {}) });
 export const depositPaperCash  = ()                          => api.post("/api/paper/deposit");
+
+// 新聞
+export const getHotNews = (limit = 30) => api.get("/api/news/hot", { params: { limit } });

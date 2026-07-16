@@ -11,6 +11,7 @@ import TradingTerminal from "./components/TradingTerminal";
 import AdminPage from "./components/AdminPage";
 import FuturesPage from "./components/FuturesPage";
 import PaperTrading from "./components/PaperTrading";
+import NewsPage from "./components/NewsPage";
 import { fetchWatchlist, addWatch, removeWatch, updateWatchNote } from "./api";
 
 const ADMIN_USERNAME = "hoholin";
@@ -206,6 +207,12 @@ export default function App() {
             選股篩選
           </button>
           <button
+            className={activePage === "news" ? "active" : ""}
+            onClick={() => setActivePage("news")}
+          >
+            新聞
+          </button>
+          <button
             className={activePage === "watchlist" ? "active" : ""}
             onClick={() => setActivePage("watchlist")}
           >
@@ -250,6 +257,10 @@ export default function App() {
               className={activePage === "screener" ? "active" : ""}
               onClick={() => setActivePage("screener")}
             >選股篩選</button>
+            <button
+              className={activePage === "news" ? "active" : ""}
+              onClick={() => setActivePage("news")}
+            >新聞</button>
             <button
               className={activePage === "watchlist" ? "active" : ""}
               onClick={() => setActivePage("watchlist")}
@@ -327,6 +338,7 @@ export default function App() {
           <TradingTerminal watchlist={watchlist} onToggleWatch={toggleWatch} username={username} />
         )}
         {activePage === "futures" && <FuturesPage />}
+        {activePage === "news" && <NewsPage />}
         {activePage === "paper" && (
           <PaperTrading
             username={username}

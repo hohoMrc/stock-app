@@ -225,6 +225,19 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[三大法人/法人連買] 失敗: {e}")
 
+        print("[熱門新聞] 抓取財經新聞...")
+        try:
+            from app.services.news_data import get_hot_news
+            news = get_hot_news(15)
+            lines = [f'<a href="{n["link"]}">{n["title"]}</a>' for n in news]
+            _tg_notify_lines(
+                f"[熱門新聞] 今日財經新聞 Top {len(news)}",
+                lines,
+                "[熱門新聞] 抓取失敗，暫無新聞",
+            )
+        except Exception as e:
+            print(f"[熱門新聞] 失敗: {e}")
+
     # 儲存台指期/微型台指當日各 timeframe 日盤 K 棒到 DB（夜盤由另一支排程 night_update.py 在隔天 05:30 存）
     print("[期貨K線] 儲存當日各 timeframe K 棒...")
     try:
