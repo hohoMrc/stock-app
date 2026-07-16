@@ -171,7 +171,7 @@ if __name__ == "__main__":
             from app.services.stock_data import scan_ma_squeeze
             hits = scan_ma_squeeze(500)
             lines = [
-                _stock_link(s["ticker"], s.get("name", ""), f"  {s.get('close') or s.get('price', '')}元", scan="bird_beak")
+                _stock_link(s["ticker"], s.get("name", ""), scan="bird_beak")
                 for s in hits
             ]
             _tg_notify_lines(
@@ -187,7 +187,7 @@ if __name__ == "__main__":
             from app.services.stock_data import scan_near_ema60
             ema_hits = scan_near_ema60(500)
             lines = [
-                _stock_link(s["ticker"], s.get("name", ""), f"  {s['close']}元 (+{s['dev_pct']}%)", scan="near_ema60")
+                _stock_link(s["ticker"], s.get("name", ""), scan="near_ema60")
                 for s in ema_hits
             ]
             _tg_notify_lines(
@@ -203,7 +203,7 @@ if __name__ == "__main__":
             from app.services.stock_data import scan_volume_breakout
             vb_hits = scan_volume_breakout(200)
             lines = [
-                _stock_link(s["ticker"], s.get("name", ""), f"  {s['close']}元 量比{s['vol_ratio']}x")
+                _stock_link(s["ticker"], s.get("name", ""))
                 for s in vb_hits
             ]
             _tg_notify_lines(
