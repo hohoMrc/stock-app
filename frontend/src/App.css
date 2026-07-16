@@ -1934,7 +1934,8 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 
 .inst-legend { display: flex; gap: 16px; margin-top: 10px; font-size: 12px; }
 
-.futures-product-bar { display: flex; gap: 6px; margin-bottom: 12px; }
+.futures-product-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+.futures-session-divider { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
 .futures-product-btn { padding: 6px 18px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; font-size: 14px; font-weight: 500; }
 .futures-product-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
 .futures-product-btn:hover:not(.active) { background: var(--card); color: var(--text); }

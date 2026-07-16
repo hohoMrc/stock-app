@@ -79,9 +79,12 @@ def _get_client():
     return _rest_client
 
 
-def get_futures_quote(symbol: str | None = None) -> dict:
+def get_futures_quote(symbol: str | None = None, session: str = "regular") -> dict:
     symbol = symbol or _current_symbol()
-    data   = _get_client().futopt.intraday.quote(symbol=symbol)
+    kwargs = {"symbol": symbol}
+    if session == "afterhours":
+        kwargs["session"] = "afterhours"
+    data   = _get_client().futopt.intraday.quote(**kwargs)
     price  = data.get("closePrice") or (data.get("lastTrade") or {}).get("price")
     prev   = data.get("previousClose")
     change = round(price - prev, 0) if price and prev else None
@@ -100,7 +103,7 @@ def get_futures_quote(symbol: str | None = None) -> dict:
     }
 
 
-def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> list:
+def get_futures_candles(symbol: str | None = None, timeframe: str = "60", session: str = "regular") -> list:
     symbol = symbol or _current_symbol()
 
     if timeframe == "D":
@@ -128,8 +131,11 @@ def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> lis
 
     # 今日盤中即時資料
     today_candles = []
+    kwargs = {"symbol": symbol, "timeframe": timeframe}
+    if session == "afterhours":
+        kwargs["session"] = "afterhours"
     try:
-        data = _get_client().futopt.intraday.candles(symbol=symbol, timeframe=timeframe)
+        data = _get_client().futopt.intraday.candles(**kwargs)
         for c in data.get("data", []):
             dt = datetime.fromisoformat(c["date"])
             if dt.tzinfo is None:
@@ -145,7 +151,11 @@ def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> lis
     except Exception as e:
         print(f"[futures] intraday.candles 失敗: {e}")
 
-    # DB 歷史資料（過去各交易日）
+    # 夜盤目前沒有落地存 DB（跟日盤不同），只回傳 Fugle 當下能查到的區間（約當晚15:00起）
+    if session == "afterhours":
+        return today_candles
+
+    # DB 歷史資料（過去各交易日，僅日盤）
     hist = get_futures_candles_db(product, timeframe)
     if today_candles:
         today_min_time = min(c["time"] for c in today_candles)

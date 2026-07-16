@@ -29,8 +29,8 @@ export const getOrderbook         = (ticker)     => api.get(`/api/stocks/${ticke
 export const getInstitutionalTrades = (ticker, days = 30) => api.get(`/api/stocks/${ticker}/institutional-trades`, { params: { days } });
 
 // 台指期
-export const getFuturesQuote         = (product = "TXF")                  => api.get("/api/futures/quote",         { params: { product } });
-export const getFuturesCandles       = (timeframe = "60", product = "TXF") => api.get("/api/futures/candles",        { params: { timeframe, product } });
+export const getFuturesQuote         = (product = "TXF", session = "regular")                  => api.get("/api/futures/quote",         { params: { product, session } });
+export const getFuturesCandles       = (timeframe = "60", product = "TXF", session = "regular") => api.get("/api/futures/candles",        { params: { timeframe, product, session } });
 export const getFuturesInstitutional = ()                                   => api.get("/api/futures/institutional");
 export const getTrades            = (ticker, limit = 30) => api.get(`/api/stocks/${ticker}/trades`, { params: { limit } });
 
