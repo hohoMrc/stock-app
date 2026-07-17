@@ -1224,7 +1224,7 @@ def _calc_ma_squeeze(closes_list: list) -> bool:
 
 
 def scan_near_ema60(limit: int = 500) -> list:
-    """掃全市場，回傳收盤價在 EMA60 上方 0~3% 內、日量 ≥ 2000 張、非金融保險的股票。"""
+    """掃全市場，回傳收盤價在 EMA60 上方 0~3% 內、日量 ≥ 2000 張、股價 ≥ 10 元、非金融保險的股票。"""
     from app.db import get_all_db_tickers_with_meta, get_candles
     from datetime import date, timedelta
 
@@ -1243,6 +1243,8 @@ def scan_near_ema60(limit: int = 500) -> list:
         last = records[-1]
         vol_shares = last.get("volume") or 0
         if vol_shares < 2_000_000:
+            continue
+        if (last.get("close") or 0) < 10:
             continue
         closes = [r["close"] for r in records if r["close"] is not None]
         # 逐日計算 EMA60，保留最後 20 個交易日的 EMA 值
