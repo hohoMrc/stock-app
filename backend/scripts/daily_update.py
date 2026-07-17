@@ -225,8 +225,9 @@ if __name__ == "__main__":
             print("[法人連買] 開始掃描...")
             buy_hits = scan_institutional_buying(min_days=3, limit=200, min_total_net_zhang=5000)
             lines = [
-                _stock_link(s["ticker"], s.get("name", ""), f"  {s['close']}元 連{s['streak_days']}天 合計{s['total_net_zhang']}張")
-                for s in buy_hits
+                f'{i}. ' + _stock_link(s["ticker"], s.get("name", "")) +
+                f'　連{s["streak_days"]}天・合計 {s["total_net_zhang"]:,}張'
+                for i, s in enumerate(buy_hits, 1)
             ]
             _tg_notify_lines(
                 f"[法人連買] 外資+投信連續買超≥3天且合計≥5000張，今日找到 {len(buy_hits)} 支",
