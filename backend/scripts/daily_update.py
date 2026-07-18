@@ -74,6 +74,29 @@ def _tg_notify_lines(title: str, lines: list[str], empty_text: str):
         print(msg)
         _tg_notify(msg, html=True)
 
+SCAN_LABEL = {
+    "bird_beak": "鳥嘴與分歧",
+    "near_ema60": "EMA60近線",
+    "volume_breakout": "量價突破",
+    "institutional_buying": "法人連買",
+}
+
+def _check_scan_alerts(scan_type: str, hits: list):
+    """個人化訊號提醒：使用者為某股票+掃描類型設定的提醒，若該股票今日出現在掃描結果中就單獨通知。"""
+    from app.db import get_active_scan_alerts, mark_alert_triggered
+    hit_map = {h["ticker"]: h for h in hits}
+    for alert in get_active_scan_alerts(scan_type):
+        hit = hit_map.get(alert["ticker"])
+        if not hit:
+            continue
+        msg = (
+            f'🔔 [訊號提醒] {_stock_link(hit["ticker"], hit.get("name", ""))}　'
+            f'出現 {SCAN_LABEL[scan_type]} 訊號'
+        )
+        print(msg)
+        _tg_notify(msg, html=True)
+        mark_alert_triggered(alert["id"])
+
 from app.db import init_db, save_candles, bulk_save_stock_meta, _conn
 from app.services.stock_data import (
     _fugle_candles, _load_tw_stock_names,
@@ -170,6 +193,7 @@ if __name__ == "__main__":
         try:
             from app.services.stock_data import scan_ma_squeeze
             hits = scan_ma_squeeze(500)
+            _check_scan_alerts("bird_beak", hits)
             lines = [
                 _stock_link(s["ticker"], s.get("name", ""), scan="bird_beak")
                 for s in hits
@@ -186,6 +210,7 @@ if __name__ == "__main__":
         try:
             from app.services.stock_data import scan_near_ema60
             ema_hits = scan_near_ema60(500)
+            _check_scan_alerts("near_ema60", ema_hits)
             lines = [
                 _stock_link(s["ticker"], s.get("name", ""), scan="near_ema60")
                 for s in ema_hits
@@ -202,6 +227,7 @@ if __name__ == "__main__":
         try:
             from app.services.stock_data import scan_volume_breakout
             vb_hits = scan_volume_breakout(200)
+            _check_scan_alerts("volume_breakout", vb_hits)
             lines = [
                 _stock_link(s["ticker"], s.get("name", ""))
                 for s in vb_hits
@@ -224,6 +250,7 @@ if __name__ == "__main__":
 
             print("[法人連買] 開始掃描...")
             buy_hits = scan_institutional_buying(min_days=3, limit=200, min_total_net_zhang=5000)
+            _check_scan_alerts("institutional_buying", buy_hits)
             lines = [
                 f'{i}. ' + _stock_link(s["ticker"], s.get("name", "")) +
                 f'　連{s["streak_days"]}天・合計 {s["total_net_zhang"]:,}張'

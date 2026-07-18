@@ -1233,7 +1233,7 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   color: #fff;
 }
 .auth-form { display: flex; flex-direction: column; gap: 12px; }
-.auth-form input {
+.auth-form input, .auth-form select {
   padding: 11px 14px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-light);
@@ -1243,7 +1243,7 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   outline: none;
   transition: border-color 0.2s;
 }
-.auth-form input:focus { border-color: var(--accent); }
+.auth-form input:focus, .auth-form select:focus { border-color: var(--accent); }
 .auth-error { font-size: 13px; color: #f87171; }
 .auth-submit {
   padding: 12px;

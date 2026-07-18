@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import CandlestickChart from "./CandlestickChart";
+import AlertModal from "./AlertModal";
 import { getStock, getHistory, analyzeStock, getInstitutionalTrades } from "../api";
 import { isTradingHours } from "../marketHours";
 
@@ -33,8 +34,9 @@ function mergeLiveBar(historyArr, info, interval) {
   return historyArr;
 }
 
-export default function StockDetail({ ticker, scanContext = null, onBack, onIndustry, watchlist = [], onToggleWatch, onPaperTrade }) {
+export default function StockDetail({ ticker, scanContext = null, onBack, onIndustry, watchlist = [], onToggleWatch, onPaperTrade, username, onRequireLogin }) {
   const [info, setInfo] = useState(null);
+  const [showAlertModal, setShowAlertModal] = useState(false);
   const [history, setHistory] = useState([]);
   const [analysis, setAnalysis] = useState("");
   const [period, setPeriod] = useState("3mo");
@@ -134,6 +136,12 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
                 模擬下單
               </button>
             )}
+            <button
+              className="paper-trade-btn"
+              onClick={() => (username ? setShowAlertModal(true) : onRequireLogin?.())}
+            >
+              🔔 設定提醒
+            </button>
           </div>
           <span className="ticker-badge">{ticker}</span>
           {info.source && (
@@ -303,6 +311,14 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
           <p className="analysis-hint">點擊「開始分析」讓 AI 幫你分析這支股票</p>
         )}
       </div>
+
+      {showAlertModal && (
+        <AlertModal
+          ticker={ticker}
+          name={info.name}
+          onClose={() => setShowAlertModal(false)}
+        />
+      )}
     </div>
   );
 }

@@ -12,6 +12,7 @@ import AdminPage from "./components/AdminPage";
 import FuturesPage from "./components/FuturesPage";
 import PaperTrading from "./components/PaperTrading";
 import NewsPage from "./components/NewsPage";
+import AlertsPage from "./components/AlertsPage";
 import { fetchWatchlist, addWatch, removeWatch, updateWatchNote } from "./api";
 
 const ADMIN_USERNAME = "hoholin";
@@ -227,6 +228,12 @@ export default function App() {
           >
             模擬下單
           </button>
+          <button
+            className={activePage === "alerts" ? "active" : ""}
+            onClick={() => setActivePage("alerts")}
+          >
+            提醒
+          </button>
           {username === ADMIN_USERNAME && (
             <button
               className={activePage === "admin" ? "active" : ""}
@@ -279,6 +286,10 @@ export default function App() {
               className={activePage === "paper" ? "active" : ""}
               onClick={() => goToPaperTrading()}
             >模擬下單</button>
+            <button
+              className={activePage === "alerts" ? "active" : ""}
+              onClick={() => setActivePage("alerts")}
+            >提醒</button>
             {username === ADMIN_USERNAME && (
               <button
                 className={activePage === "admin" ? "active" : ""}
@@ -311,6 +322,8 @@ export default function App() {
             watchlist={watchlist}
             onToggleWatch={toggleWatch}
             onPaperTrade={goToPaperTrading}
+            username={username}
+            onRequireLogin={() => setShowAuth(true)}
           />
         )}
         {activePage === "industry" && selectedIndustry && (
@@ -339,6 +352,13 @@ export default function App() {
         )}
         {activePage === "futures" && <FuturesPage />}
         {activePage === "news" && <NewsPage />}
+        {activePage === "alerts" && (
+          <AlertsPage
+            username={username}
+            onRequireLogin={() => setShowAuth(true)}
+            onSelect={(t) => handleSelectStock(t)}
+          />
+        )}
         {activePage === "paper" && (
           <PaperTrading
             username={username}

@@ -123,6 +123,24 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_paper_orders_user
             ON paper_orders(user_id, created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS price_alerts (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id      INTEGER NOT NULL,
+            ticker       TEXT NOT NULL,
+            alert_type   TEXT NOT NULL,
+            target_price REAL,
+            scan_type    TEXT,
+            active       INTEGER NOT NULL DEFAULT 1,
+            triggered_at REAL,
+            created_at   REAL NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_price_alerts_user
+            ON price_alerts(user_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_price_alerts_ticker
+            ON price_alerts(ticker);
         """)
         # Migration: 舊版 DB 沒有 parent_industry 欄位
         try:
@@ -561,5 +579,67 @@ def get_paper_bought_qty_since(user_id: int, ticker: str, since_ts: float) -> in
             (user_id, ticker, since_ts)
         ).fetchone()
     return row["total"]
+
+
+# ── price_alerts（個人化提醒：到價 / 掃描訊號）────────────
+
+def create_price_alert(user_id: int, ticker: str, alert_type: str,
+                        target_price: float | None = None, scan_type: str | None = None) -> int:
+    with _conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO price_alerts(user_id, ticker, alert_type, target_price, scan_type, active, created_at) "
+            "VALUES (?, ?, ?, ?, ?, 1, ?)",
+            (user_id, ticker, alert_type, target_price, scan_type, time.time())
+        )
+        return cur.lastrowid
+
+
+def get_alerts_for_user(user_id: int) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, ticker, alert_type, target_price, scan_type, active, triggered_at, created_at "
+            "FROM price_alerts WHERE user_id=? ORDER BY created_at DESC",
+            (user_id,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_active_price_alerts() -> list[dict]:
+    """供 alert_price_check.py 用：全部啟用中的到價提醒（跨使用者）。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, user_id, ticker, alert_type, target_price FROM price_alerts "
+            "WHERE active=1 AND alert_type IN ('price_above', 'price_below')"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_active_scan_alerts(scan_type: str) -> list[dict]:
+    """供 daily_update.py 用：某個掃描類型下全部啟用中的訊號提醒（跨使用者）。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, user_id, ticker FROM price_alerts "
+            "WHERE active=1 AND alert_type='scan_signal' AND scan_type=?",
+            (scan_type,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def mark_alert_triggered(alert_id: int):
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE price_alerts SET active=0, triggered_at=? WHERE id=?",
+            (time.time(), alert_id)
+        )
+
+
+def delete_alert(alert_id: int, user_id: int) -> bool:
+    """刪除提醒，需驗證擁有者。回傳是否有刪除成功。"""
+    with _conn() as conn:
+        cur = conn.execute(
+            "DELETE FROM price_alerts WHERE id=? AND user_id=?",
+            (alert_id, user_id)
+        )
+        return cur.rowcount > 0
 
 
