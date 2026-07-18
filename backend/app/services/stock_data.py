@@ -628,6 +628,20 @@ def get_stock_info(ticker: str) -> dict:
     return result
 
 
+def _enrich_with_live_quotes(rows: list) -> list:
+    """把 DB 查出來的股票清單（只有昨收價）補上即時成交價、漲跌、漲跌幅，供產業個股清單顯示用。"""
+    if not rows:
+        return rows
+    quote_map = {q["ticker"]: q for q in get_watchlist_quotes([r["ticker"] for r in rows])}
+    for r in rows:
+        q = quote_map.get(r["ticker"], {})
+        if q.get("close") is not None:
+            r["price"] = q["close"]
+        r["change"] = q.get("change")
+        r["change_pct"] = q.get("change_pct")
+    return rows
+
+
 def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None, use_parent: bool = False) -> list:
     """找出相同產業的其他股票。
     優先從 DB 直接回傳（昨收價），不打外部 API。
@@ -638,12 +652,13 @@ def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None, use_par
     _load_tw_stock_names()
 
     if use_parent:
-        return get_industry_stocks_with_price(industry_zh, exclude_ticker, limit=100, use_parent=True)
+        db_results = get_industry_stocks_with_price(industry_zh, exclude_ticker, limit=100, use_parent=True)
+        return _enrich_with_live_quotes(db_results)
 
     # 快速路徑：DB 直接回傳細分類（含昨收價）
     db_results = get_industry_stocks_with_price(industry_zh, exclude_ticker, limit=40)
     if len(db_results) >= 3:
-        return db_results
+        return _enrich_with_live_quotes(db_results)
 
     # 細分類結果不足（如「記憶體IC」），從 DB 查這個細分類的 parent_industry
     parent = (
@@ -655,7 +670,7 @@ def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None, use_par
     if parent and parent != industry_zh:
         db_results = get_industry_stocks_with_price(parent, exclude_ticker, limit=40)
         if len(db_results) >= 3:
-            return db_results
+            return _enrich_with_live_quotes(db_results)
 
     # 最後退到 DEFAULT_TICKERS，打即時 API
     candidates = [t for t in DEFAULT_TICKERS if t != exclude_ticker]

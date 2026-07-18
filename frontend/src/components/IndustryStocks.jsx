@@ -35,25 +35,33 @@ export default function IndustryStocks({ industry, excludeTicker, useParent = fa
             <tr>
               <th>代號</th>
               <th>名稱</th>
-              <th>股價</th>
-              <th>殖利率</th>
+              <th>成交價</th>
+              <th>漲跌幅</th>
+              <th>漲跌</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
-            {stocks.map((s) => (
-              <tr key={s.ticker}>
-                <td>{s.ticker}</td>
-                <td>{s.name}</td>
-                <td>{s.price ?? "—"}</td>
-                <td>{s.dividend_yield ? `${s.dividend_yield}%` : "—"}</td>
-                <td>
-                  <button className="view-btn" onClick={() => onSelect(s.ticker)}>
-                    查看
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {stocks.map((s) => {
+              const up   = s.change > 0;
+              const down = s.change < 0;
+              const sign = up ? "+" : "";
+              const dir  = up ? "up" : down ? "down" : "";
+              return (
+                <tr key={s.ticker} className={up ? "row-up" : down ? "row-down" : ""}>
+                  <td>{s.ticker}</td>
+                  <td>{s.name}</td>
+                  <td>{s.price ?? "—"}</td>
+                  <td className={dir}>{s.change_pct != null ? `${sign}${s.change_pct}%` : "—"}</td>
+                  <td className={dir}>{s.change != null ? `${sign}${s.change}` : "—"}</td>
+                  <td>
+                    <button className="view-btn" onClick={() => onSelect(s.ticker)}>
+                      查看
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
