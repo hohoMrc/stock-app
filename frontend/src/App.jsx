@@ -148,8 +148,8 @@ export default function App() {
     setActivePage("detail");
   };
 
-  const handleSelectIndustry = (industry, fromTicker) => {
-    setSelectedIndustry({ name: industry, excludeTicker: fromTicker });
+  const handleSelectIndustry = (industry, fromTicker, useParent = false) => {
+    setSelectedIndustry({ name: industry, excludeTicker: fromTicker, useParent });
     setPageHistory((prev) => [...prev, activePage]);
     setActivePage("industry");
   };
@@ -330,6 +330,7 @@ export default function App() {
           <IndustryStocks
             industry={selectedIndustry.name}
             excludeTicker={selectedIndustry.excludeTicker}
+            useParent={selectedIndustry.useParent}
             onSelect={(t) => handleSelectStock(t)}
             onBack={goBack}
           />
@@ -345,7 +346,10 @@ export default function App() {
           />
         )}
         {activePage === "ranking" && (
-          <TradeValueRanking onSelect={(t) => handleSelectStock(t)} />
+          <TradeValueRanking
+            onSelect={(t) => handleSelectStock(t)}
+            onSelectIndustry={(ind) => handleSelectIndustry(ind, null, true)}
+          />
         )}
         {activePage === "terminal" && (
           <TradingTerminal watchlist={watchlist} onToggleWatch={toggleWatch} username={username} />

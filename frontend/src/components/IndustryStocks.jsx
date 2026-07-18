@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { getIndustryStocks } from "../api";
 
-export default function IndustryStocks({ industry, excludeTicker, onSelect, onBack }) {
+export default function IndustryStocks({ industry, excludeTicker, useParent = false, onSelect, onBack }) {
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -9,14 +9,14 @@ export default function IndustryStocks({ industry, excludeTicker, onSelect, onBa
     const load = async () => {
       setLoading(true);
       try {
-        const res = await getIndustryStocks(industry, excludeTicker);
+        const res = await getIndustryStocks(industry, excludeTicker, useParent);
         setStocks(res.data.stocks);
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, [industry, excludeTicker]);
+  }, [industry, excludeTicker, useParent]);
 
   return (
     <div className="page">

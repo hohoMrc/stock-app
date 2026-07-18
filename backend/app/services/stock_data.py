@@ -628,13 +628,17 @@ def get_stock_info(ticker: str) -> dict:
     return result
 
 
-def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None) -> list:
+def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None, use_parent: bool = False) -> list:
     """找出相同產業的其他股票。
     優先從 DB 直接回傳（昨收價），不打外部 API。
     細分類無資料時退到上層 TWSE 產業，最後才退到 DEFAULT_TICKERS + 即時 API。
+    use_parent=True 時直接當作 TWSE 產業大分類查（例如產業表現排行點進來的），跳過細分類/模糊比對。
     """
     from app.db import get_industry_stocks_with_price, get_tickers_by_industry, get_parent_industry, _get_parent_from_industry
     _load_tw_stock_names()
+
+    if use_parent:
+        return get_industry_stocks_with_price(industry_zh, exclude_ticker, limit=100, use_parent=True)
 
     # 快速路徑：DB 直接回傳細分類（含昨收價）
     db_results = get_industry_stocks_with_price(industry_zh, exclude_ticker, limit=40)
@@ -2160,6 +2164,62 @@ def get_movers_ranking(direction: str = "up", limit: int = 50, force: bool = Fal
 
     _cache_set(_ranking_cache, cache_key, results)
     return results[:limit]
+
+
+def get_industry_performance(force: bool = False) -> list:
+    """依 TWSE 產業大分類（parent_industry）計算今日各產業平均漲跌幅與成交值，
+    用 Fugle snapshot/quotes 全市場即時報價（盤中即時），找出當天熱門產業。
+    """
+    if not force:
+        cached = _cache_get(_ranking_cache, "industry_performance", RANKING_TTL)
+        if cached is not None:
+            return cached
+
+    client = _get_fugle()
+    if not client:
+        return []
+
+    quotes: dict[str, dict] = {}
+    for market in ("TSE", "OTC"):
+        try:
+            resp = client.stock.snapshot.quotes(market=market)
+            for item in (resp.get("data", []) if isinstance(resp, dict) else []):
+                symbol  = item.get("symbol", "")
+                chg_pct = item.get("changePercent")
+                tv      = item.get("tradeValue")
+                if symbol and chg_pct is not None:
+                    quotes[symbol] = {"change_pct": float(chg_pct), "trade_value": float(tv or 0)}
+        except Exception as e:
+            print(f"[Fugle] snapshot quotes {market} 失敗: {e}")
+
+    if not quotes:
+        return []
+
+    from app.db import get_all_db_tickers_with_meta
+    groups: dict[str, list] = {}
+    for row in get_all_db_tickers_with_meta():
+        industry = row.get("parent_industry")
+        # 排除未分類到中文名稱、還是原始數字代碼的產業（TWSE_INDUSTRY_CODE_MAP 沒收錄）
+        if not industry or industry.isdigit():
+            continue
+        q = quotes.get(row["ticker"])
+        if q:
+            groups.setdefault(industry, []).append(q)
+
+    results = []
+    for industry, items in groups.items():
+        avg_chg  = sum(i["change_pct"] for i in items) / len(items)
+        total_tv = sum(i["trade_value"] for i in items)
+        results.append({
+            "industry":        industry,
+            "avg_change_pct":  round(avg_chg, 2),
+            "trade_value_yi":  round(total_tv / 1e8, 2),
+            "stock_count":     len(items),
+        })
+
+    results.sort(key=lambda x: x["avg_change_pct"], reverse=True)
+    _cache_set(_ranking_cache, "industry_performance", results)
+    return results
 
 
 # 委買委賣快照快取（盤中更新，盤後繼續顯示最後快照，保留 24 小時）

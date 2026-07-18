@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { getTradeValueRanking, getTurnoverRanking, getMoversRanking } from "../api";
+import { getTradeValueRanking, getTurnoverRanking, getMoversRanking, getIndustryPerformance } from "../api";
 import { isTradingHours } from "../marketHours";
 
 const TABS = [
@@ -7,17 +7,18 @@ const TABS = [
   { key: "turnover", label: "週轉率" },
   { key: "up",       label: "漲幅" },
   { key: "down",     label: "跌幅" },
+  { key: "industry", label: "產業" },
 ];
 
-const INIT_STATE = { value: [], turnover: [], up: [], down: [] };
+const INIT_STATE = { value: [], turnover: [], up: [], down: [], industry: [] };
 
-export default function TradeValueRanking({ onSelect }) {
+export default function TradeValueRanking({ onSelect, onSelectIndustry }) {
   const [activeTab, setActiveTab]   = useState("value");
   const [data, setData]             = useState(INIT_STATE);
-  const [loading, setLoading]       = useState({ value: false, turnover: false, up: false, down: false });
-  const [error, setError]           = useState({ value: null, turnover: null, up: null, down: null });
-  const [updatedAt, setUpdatedAt]   = useState({ value: null, turnover: null, up: null, down: null });
-  const loaded = useRef({ value: false, turnover: false, up: false, down: false });
+  const [loading, setLoading]       = useState({ value: false, turnover: false, up: false, down: false, industry: false });
+  const [error, setError]           = useState({ value: null, turnover: null, up: null, down: null, industry: null });
+  const [updatedAt, setUpdatedAt]   = useState({ value: null, turnover: null, up: null, down: null, industry: null });
+  const loaded = useRef({ value: false, turnover: false, up: false, down: false, industry: false });
 
   const load = async (tab, force = false) => {
     setLoading((p) => ({ ...p, [tab]: true }));
@@ -25,8 +26,9 @@ export default function TradeValueRanking({ onSelect }) {
     try {
       const res = tab === "value"    ? await getTradeValueRanking(50, force)
                 : tab === "turnover" ? await getTurnoverRanking(50, force)
+                : tab === "industry" ? await getIndustryPerformance(force)
                 : await getMoversRanking(tab, 50, force); // tab === "up" | "down"
-      setData((p) => ({ ...p, [tab]: res.data.stocks }));
+      setData((p) => ({ ...p, [tab]: tab === "industry" ? res.data.industries : res.data.stocks }));
       setUpdatedAt((p) => ({
         ...p,
         [tab]: new Date().toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" }),
@@ -68,6 +70,7 @@ export default function TradeValueRanking({ onSelect }) {
     turnover: "週轉率 = 成交量 ÷ 在外流通股數（以實收資本額 ÷ 面額 10 元估算）。快取 5 分鐘。",
     up:       "盤中即時漲幅排行（Fugle snapshot/movers），合併上市＋上櫃。快取 5 分鐘。",
     down:     "盤中即時跌幅排行（Fugle snapshot/movers），合併上市＋上櫃。快取 5 分鐘。",
+    industry: "依 TWSE 產業大分類計算各產業平均漲跌幅（盤中即時），找出當天熱門產業。快取 5 分鐘。",
   };
 
   return (
@@ -103,7 +106,9 @@ export default function TradeValueRanking({ onSelect }) {
 
       {stocks.length > 0 && (
         <div className="ranking-table-wrap">
-          {activeTab === "turnover" ? (
+          {activeTab === "industry" ? (
+            <IndustryTable industries={stocks} onSelect={onSelectIndustry} />
+          ) : activeTab === "turnover" ? (
             <TurnoverTable stocks={stocks} onSelect={onSelect} />
           ) : (
             <ValueTable stocks={stocks} onSelect={onSelect} />
@@ -184,6 +189,35 @@ function ValueTable({ stocks, onSelect }) {
             <td><button className="view-btn" onClick={() => onSelect(s.ticker)}>查看</button></td>
           </RowWrapper>
         ))}
+      </tbody>
+    </table>
+  );
+}
+
+function IndustryTable({ industries, onSelect }) {
+  return (
+    <table className="result-table">
+      <thead>
+        <tr>
+          <th>#</th><th>產業</th><th>平均漲跌幅</th><th>成交值(億)</th><th>檔數</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {industries.map((ind, i) => {
+          const up   = ind.avg_change_pct > 0;
+          const down = ind.avg_change_pct < 0;
+          const sign = up ? "+" : "";
+          return (
+            <tr key={ind.industry} className={up ? "row-up" : down ? "row-down" : ""}>
+              <td className="rank-num">{i + 1}</td>
+              <td className="col-name">{ind.industry}</td>
+              <td>{sign}{ind.avg_change_pct}%</td>
+              <td className="trade-value-cell">{ind.trade_value_yi}</td>
+              <td>{ind.stock_count}</td>
+              <td><button className="view-btn" onClick={() => onSelect(ind.industry)}>查看</button></td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
