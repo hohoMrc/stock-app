@@ -665,6 +665,17 @@ def get_paper_realized_pl_total(user_id: int) -> float:
     return row["total"]
 
 
+def get_paper_closed_trades(user_id: int) -> list[dict]:
+    """取全部已平倉交易（賣出且有 realized_pl 的紀錄），依時間由舊到新，供績效分析用。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker, name, qty, price, realized_pl, created_at FROM paper_orders "
+            "WHERE user_id=? AND side='sell' AND realized_pl IS NOT NULL ORDER BY created_at ASC",
+            (user_id,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_paper_bought_qty_since(user_id: int, ticker: str, since_ts: float) -> int:
     """回傳某股票自 since_ts（通常是今日 00:00）以來累計買進的股數，供禁止當沖判斷用。"""
     with _conn() as conn:

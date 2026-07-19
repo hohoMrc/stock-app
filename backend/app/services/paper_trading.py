@@ -4,7 +4,7 @@ from app.db import (
     get_or_create_paper_account, update_paper_cash,
     get_paper_position, upsert_paper_position, get_paper_positions,
     insert_paper_order, get_paper_orders, get_paper_realized_pl_total,
-    get_paper_bought_qty_since,
+    get_paper_bought_qty_since, get_paper_closed_trades,
 )
 from app.services.stock_data import get_stock_info, _enrich_with_intraday
 
@@ -134,6 +134,43 @@ def get_account_summary(user_id: int) -> dict:
         "equity":             round(equity, 2),
         "unrealized_pl":      round(unrealized_total, 2),
         "realized_pl":        round(realized_total, 2),
+    }
+
+
+def get_performance_stats(user_id: int) -> dict:
+    """已平倉交易統計：勝率、平均獲利/虧損、損益比、累計已實現損益走勢。"""
+    trades = get_paper_closed_trades(user_id)
+    total = len(trades)
+    wins   = [t for t in trades if t["realized_pl"] > 0]
+    losses = [t for t in trades if t["realized_pl"] < 0]
+
+    win_rate = round(len(wins) / total * 100, 1) if total else None
+    avg_win  = round(sum(t["realized_pl"] for t in wins) / len(wins), 2) if wins else None
+    avg_loss = round(sum(t["realized_pl"] for t in losses) / len(losses), 2) if losses else None
+    gross_win  = sum(t["realized_pl"] for t in wins)
+    gross_loss = abs(sum(t["realized_pl"] for t in losses))
+    profit_factor = round(gross_win / gross_loss, 2) if gross_loss else None
+    total_realized_pl = round(sum(t["realized_pl"] for t in trades), 2)
+
+    cumulative = 0
+    curve = []
+    for t in trades:
+        cumulative += t["realized_pl"]
+        curve.append({
+            "date": datetime.fromtimestamp(t["created_at"]).strftime("%Y-%m-%d"),
+            "cumulative_pl": round(cumulative, 2),
+        })
+
+    return {
+        "total_trades":     total,
+        "win_count":        len(wins),
+        "loss_count":       len(losses),
+        "win_rate":         win_rate,
+        "avg_win":          avg_win,
+        "avg_loss":         avg_loss,
+        "profit_factor":    profit_factor,
+        "total_realized_pl": total_realized_pl,
+        "curve":            curve,
     }
 
 

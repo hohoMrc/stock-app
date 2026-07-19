@@ -38,6 +38,12 @@ async def orders(limit: int = Query(default=50, le=200), authorization: str | No
     return {"orders": await run_in_threadpool(svc.get_order_history, user_id, limit)}
 
 
+@router.get("/performance")
+async def performance(authorization: str | None = Header(None)):
+    user_id = _get_user(authorization)
+    return await run_in_threadpool(svc.get_performance_stats, user_id)
+
+
 @router.post("/order")
 async def place_order(body: OrderBody, authorization: str | None = Header(None)):
     user_id = _get_user(authorization)

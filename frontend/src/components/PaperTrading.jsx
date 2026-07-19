@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { searchStocks, getStock, getPaperAccount, getPaperPositions, getPaperOrders, placePaperOrder, depositPaperCash } from "../api";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { searchStocks, getStock, getPaperAccount, getPaperPositions, getPaperOrders, placePaperOrder, depositPaperCash, getPaperPerformance } from "../api";
 import { calcFee, calcTax } from "../feeCalc";
 import PaperOrderModal from "./PaperOrderModal";
 
@@ -7,6 +8,7 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
   const [account, setAccount]     = useState(null);
   const [positions, setPositions] = useState([]);
   const [orders, setOrders]       = useState([]);
+  const [performance, setPerformance] = useState(null);
   const [loading, setLoading]     = useState(false);
 
   // 下單表單
@@ -28,12 +30,13 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [accRes, posRes, ordRes] = await Promise.all([
-        getPaperAccount(), getPaperPositions(), getPaperOrders(50),
+      const [accRes, posRes, ordRes, perfRes] = await Promise.all([
+        getPaperAccount(), getPaperPositions(), getPaperOrders(50), getPaperPerformance(),
       ]);
       setAccount(accRes.data);
       setPositions(posRes.data.positions);
       setOrders(ordRes.data.orders);
+      setPerformance(perfRes.data);
     } catch {
       // 未登入或載入失敗時保持空白，不额外報錯打擾使用者
     } finally {
@@ -289,6 +292,68 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
             </tbody>
           </table>
         </div>
+      )}
+
+      <h3 className="paper-section-title">交易績效</h3>
+      {!performance || performance.total_trades === 0 ? (
+        <p className="no-data">尚無已平倉交易，賣出後才會累積績效統計</p>
+      ) : (
+        <>
+          <div className="info-grid paper-summary">
+            <div className="info-item">
+              <span className="info-label">已平倉交易次數</span>
+              <span className="info-value">{performance.total_trades}</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">勝率</span>
+              <span className="info-value">{performance.win_rate}%（{performance.win_count}勝{performance.loss_count}敗）</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">平均獲利</span>
+              <span className="info-value up">{performance.avg_win != null ? performance.avg_win.toLocaleString() : "—"}</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">平均虧損</span>
+              <span className="info-value down">{performance.avg_loss != null ? performance.avg_loss.toLocaleString() : "—"}</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">損益比</span>
+              <span className="info-value">{performance.profit_factor ?? "—"}</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">累計已實現損益</span>
+              <span className={`info-value ${performance.total_realized_pl > 0 ? "up" : performance.total_realized_pl < 0 ? "down" : ""}`}>
+                {performance.total_realized_pl.toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          {performance.curve.length > 1 && (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={performance.curve}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(v) => {
+                    const [, m, d] = v.split("-");
+                    return `${parseInt(m)}/${parseInt(d)}`;
+                  }}
+                  interval="preserveStartEnd"
+                />
+                <YAxis tick={{ fontSize: 11 }} width={60} />
+                <Tooltip
+                  formatter={(v) => [v.toLocaleString(), "累計已實現損益"]}
+                  labelFormatter={(l) => {
+                    const [y, m, d] = l.split("-");
+                    return `${y}年${parseInt(m)}月${parseInt(d)}日`;
+                  }}
+                />
+                <Line type="monotone" dataKey="cumulative_pl" stroke="#2563eb" dot={false} strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </>
       )}
 
       <h3 className="paper-section-title">歷史成交紀錄</h3>
