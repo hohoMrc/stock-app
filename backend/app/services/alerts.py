@@ -1,5 +1,5 @@
 from app.db import (
-    create_price_alert, get_alerts_for_user, delete_alert,
+    create_price_alert, get_alerts_for_user, delete_alert, update_alert,
 )
 
 VALID_ALERT_TYPES = {"price_above", "price_below", "scan_signal"}
@@ -36,3 +36,13 @@ def list_alerts(user_id: int) -> list[dict]:
 def remove_alert(user_id: int, alert_id: int):
     if not delete_alert(alert_id, user_id):
         raise AlertError("提醒不存在或無權限刪除")
+
+
+def edit_alert(user_id: int, alert_id: int, target_price: float | None = None,
+                scan_type: str | None = None):
+    if target_price is not None and target_price <= 0:
+        raise AlertError("target_price 需大於 0")
+    if scan_type is not None and scan_type not in VALID_SCAN_TYPES:
+        raise AlertError(f"scan_type 需為 {VALID_SCAN_TYPES} 其中之一")
+    if not update_alert(alert_id, user_id, target_price, scan_type):
+        raise AlertError("提醒不存在或無權限編輯")

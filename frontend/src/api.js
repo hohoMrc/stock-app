@@ -65,4 +65,5 @@ export const getHotNews = (limit = 30) => api.get("/api/news/hot", { params: { l
 // 個人化提醒
 export const createAlert = (body) => api.post("/api/alerts", body);
 export const getAlerts   = () => api.get("/api/alerts");
+export const updateAlert = (id, body) => api.patch(`/api/alerts/${id}`, body);
 export const deleteAlert = (id) => api.delete(`/api/alerts/${id}`);

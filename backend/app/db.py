@@ -749,3 +749,19 @@ def delete_alert(alert_id: int, user_id: int) -> bool:
         return cur.rowcount > 0
 
 
+def update_alert(alert_id: int, user_id: int, target_price: float | None = None,
+                  scan_type: str | None = None) -> bool:
+    """編輯提醒的目標價/訊號類型，並重新啟用（active=1, triggered_at=NULL），
+    等同「改完繼續監控」。需驗證擁有者。回傳是否有更新成功。"""
+    with _conn() as conn:
+        cur = conn.execute(
+            "UPDATE price_alerts SET "
+            "target_price=COALESCE(?, target_price), "
+            "scan_type=COALESCE(?, scan_type), "
+            "active=1, triggered_at=NULL "
+            "WHERE id=? AND user_id=?",
+            (target_price, scan_type, alert_id, user_id)
+        )
+        return cur.rowcount > 0
+
+

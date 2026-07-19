@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { getAlerts, deleteAlert } from "../api";
+import AlertModal from "./AlertModal";
 
 const SCAN_LABEL = {
   bird_beak: "鳥嘴與分歧",
@@ -18,6 +19,7 @@ export default function AlertsPage({ username, onRequireLogin, onSelect }) {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [editingAlert, setEditingAlert] = useState(null);
 
   const load = () => {
     setLoading(true);
@@ -86,12 +88,23 @@ export default function AlertsPage({ username, onRequireLogin, onSelect }) {
                 </td>
                 <td className="watchlist-actions">
                   {onSelect && <button className="view-btn" onClick={() => onSelect(a.ticker)}>查看</button>}
+                  <button className="view-btn" onClick={() => setEditingAlert(a)}>編輯</button>
                   <button className="remove-btn" onClick={() => handleDelete(a.id)}>移除</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      )}
+
+      {editingAlert && (
+        <AlertModal
+          ticker={editingAlert.ticker}
+          name=""
+          editAlert={editingAlert}
+          onClose={() => setEditingAlert(null)}
+          onSuccess={load}
+        />
       )}
     </div>
   );

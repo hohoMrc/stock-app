@@ -20,6 +20,11 @@ class AlertBody(BaseModel):
     scan_type: str | None = None
 
 
+class AlertUpdateBody(BaseModel):
+    target_price: float | None = None
+    scan_type: str | None = None
+
+
 @router.get("")
 async def list_alerts(authorization: str | None = Header(None)):
     user_id = _get_user(authorization)
@@ -34,6 +39,16 @@ async def create_alert(body: AlertBody, authorization: str | None = Header(None)
             svc.add_alert, user_id, body.ticker, body.alert_type, body.target_price, body.scan_type
         )
         return {"id": alert_id}
+    except svc.AlertError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch("/{alert_id}")
+async def edit_alert(alert_id: int, body: AlertUpdateBody, authorization: str | None = Header(None)):
+    user_id = _get_user(authorization)
+    try:
+        await run_in_threadpool(svc.edit_alert, user_id, alert_id, body.target_price, body.scan_type)
+        return {"ok": True}
     except svc.AlertError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

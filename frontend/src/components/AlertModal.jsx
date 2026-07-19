@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createAlert } from "../api";
+import { createAlert, updateAlert } from "../api";
 
 const SCAN_OPTIONS = [
   { key: "bird_beak", label: "鳥嘴與分歧" },
@@ -8,10 +8,11 @@ const SCAN_OPTIONS = [
   { key: "institutional_buying", label: "法人連買" },
 ];
 
-export default function AlertModal({ ticker, name, onClose, onSuccess }) {
-  const [alertType, setAlertType] = useState("price_above"); // "price_above" | "price_below" | "scan_signal"
-  const [targetPrice, setTargetPrice] = useState("");
-  const [scanType, setScanType] = useState(SCAN_OPTIONS[0].key);
+export default function AlertModal({ ticker, name, editAlert = null, onClose, onSuccess }) {
+  const isEdit = !!editAlert;
+  const [alertType, setAlertType] = useState(editAlert?.alert_type ?? "price_above"); // "price_above" | "price_below" | "scan_signal"
+  const [targetPrice, setTargetPrice] = useState(editAlert?.target_price != null ? String(editAlert.target_price) : "");
+  const [scanType, setScanType] = useState(editAlert?.scan_type ?? SCAN_OPTIONS[0].key);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -24,16 +25,23 @@ export default function AlertModal({ ticker, name, onClose, onSuccess }) {
     }
     setSubmitting(true);
     try {
-      await createAlert({
-        ticker,
-        alert_type: alertType,
-        target_price: alertType !== "scan_signal" ? Number(targetPrice) : undefined,
-        scan_type: alertType === "scan_signal" ? scanType : undefined,
-      });
+      if (isEdit) {
+        await updateAlert(editAlert.id, {
+          target_price: alertType !== "scan_signal" ? Number(targetPrice) : undefined,
+          scan_type: alertType === "scan_signal" ? scanType : undefined,
+        });
+      } else {
+        await createAlert({
+          ticker,
+          alert_type: alertType,
+          target_price: alertType !== "scan_signal" ? Number(targetPrice) : undefined,
+          scan_type: alertType === "scan_signal" ? scanType : undefined,
+        });
+      }
       onSuccess?.();
       onClose();
     } catch (e) {
-      setError(e.response?.data?.detail || "建立提醒失敗");
+      setError(e.response?.data?.detail || (isEdit ? "更新提醒失敗" : "建立提醒失敗"));
     } finally {
       setSubmitting(false);
     }
@@ -42,16 +50,31 @@ export default function AlertModal({ ticker, name, onClose, onSuccess }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box watch-note-modal" onClick={(e) => e.stopPropagation()}>
-        <h3 className="watch-note-title">設定提醒 — {ticker} {name}</h3>
+        <h3 className="watch-note-title">{isEdit ? "編輯提醒" : "設定提醒"} — {ticker}{name ? ` ${name}` : ""}</h3>
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="paper-side-tabs">
-            <button type="button" className={alertType === "price_above" ? "active" : ""} onClick={() => setAlertType("price_above")}>
+            <button
+              type="button"
+              className={alertType === "price_above" ? "active" : ""}
+              onClick={() => setAlertType("price_above")}
+              disabled={isEdit}
+            >
               價格 ≥
             </button>
-            <button type="button" className={alertType === "price_below" ? "active" : ""} onClick={() => setAlertType("price_below")}>
+            <button
+              type="button"
+              className={alertType === "price_below" ? "active" : ""}
+              onClick={() => setAlertType("price_below")}
+              disabled={isEdit}
+            >
               價格 ≤
             </button>
-            <button type="button" className={alertType === "scan_signal" ? "active" : ""} onClick={() => setAlertType("scan_signal")}>
+            <button
+              type="button"
+              className={alertType === "scan_signal" ? "active" : ""}
+              onClick={() => setAlertType("scan_signal")}
+              disabled={isEdit}
+            >
               技術訊號
             </button>
           </div>
@@ -78,7 +101,7 @@ export default function AlertModal({ ticker, name, onClose, onSuccess }) {
           <div className="watch-note-actions">
             <button type="button" className="logout-btn" onClick={onClose}>取消</button>
             <button type="submit" className="auth-submit" disabled={submitting}>
-              {submitting ? "建立中..." : "建立提醒"}
+              {submitting ? "送出中..." : isEdit ? "更新提醒" : "建立提醒"}
             </button>
           </div>
         </form>
