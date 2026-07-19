@@ -166,24 +166,6 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         </div>
       </div>
 
-      <div className="info-grid">
-        <InfoItem label="52週高" value={info.week_52_high ?? "—"} />
-        <InfoItem label="52週低" value={info.week_52_low ?? "—"} />
-        <InfoItem label="本益比" value={info.pe_ratio ?? "—"} />
-        <InfoItem label="股價淨值比" value={info.pb_ratio ?? "—"} />
-        <InfoItem label="殖利率" value={info.dividend_yield != null ? `${info.dividend_yield}%` : "—"} />
-        <InfoItem
-          label="資券使用率"
-          value={
-            info.margin_balance != null && info.margin_quota
-              ? `${((info.margin_balance / info.margin_quota) * 100).toFixed(1)}%`
-              : "—"
-          }
-        />
-        <InfoItem label="融資餘額(張)" value={info.margin_balance != null ? info.margin_balance.toLocaleString() : "—"} />
-        <InfoItem label="融券餘額(張)" value={info.short_balance != null ? info.short_balance.toLocaleString() : "—"} />
-      </div>
-
       <div className="chart-section">
         <div className="chart-header">
           <div className="chart-header-left">
@@ -256,6 +238,24 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         ) : (
           <p className="no-data">無股價資料</p>
         )}
+      </div>
+
+      <div className="info-grid">
+        <InfoItem label="52週高" value={info.week_52_high ?? "—"} />
+        <InfoItem label="52週低" value={info.week_52_low ?? "—"} />
+        <InfoItem label="本益比" value={info.pe_ratio ?? "—"} />
+        <InfoItem label="股價淨值比" value={info.pb_ratio ?? "—"} />
+        <InfoItem label="殖利率" value={info.dividend_yield != null ? `${info.dividend_yield}%` : "—"} />
+        <InfoItem
+          label="資券使用率"
+          value={
+            info.margin_balance != null && info.margin_quota
+              ? `${((info.margin_balance / info.margin_quota) * 100).toFixed(1)}%`
+              : "—"
+          }
+        />
+        <InfoItem label="融資餘額(張)" value={info.margin_balance != null ? info.margin_balance.toLocaleString() : "—"} />
+        <InfoItem label="融券餘額(張)" value={info.short_balance != null ? info.short_balance.toLocaleString() : "—"} />
       </div>
 
       {!instLoading && instTrades.length > 0 && (
