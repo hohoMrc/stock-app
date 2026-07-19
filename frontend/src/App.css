@@ -890,6 +890,10 @@
 .ranking-table-wrap .result-table td,
 .screen-results .result-table td { font-size: 18px; }
 
+/* 產業相關個股頁：字體放大 */
+.industry-stocks-page .result-table th { font-size: 14px; }
+.industry-stocks-page .result-table td { font-size: 18px; }
+
 .view-btn {
   background: rgba(6, 182, 212, 0.08);
   color: var(--accent);

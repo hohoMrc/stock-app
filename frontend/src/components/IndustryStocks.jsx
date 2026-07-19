@@ -19,7 +19,7 @@ export default function IndustryStocks({ industry, excludeTicker, useParent = fa
   }, [industry, excludeTicker, useParent]);
 
   return (
-    <div className="page">
+    <div className="page industry-stocks-page">
       <button className="back-btn" onClick={onBack}>← 返回</button>
       <h2>{industry} 相關個股</h2>
 
