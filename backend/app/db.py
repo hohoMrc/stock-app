@@ -74,6 +74,31 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_institutional_ticker
             ON institutional_trades(ticker, date DESC);
 
+        CREATE TABLE IF NOT EXISTS fundamentals (
+            ticker         TEXT NOT NULL,
+            date           TEXT NOT NULL,
+            pe_ratio       REAL,
+            dividend_yield REAL,
+            pb_ratio       REAL,
+            PRIMARY KEY (ticker, date)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_fundamentals_ticker
+            ON fundamentals(ticker, date DESC);
+
+        CREATE TABLE IF NOT EXISTS margin_trading (
+            ticker         TEXT NOT NULL,
+            date           TEXT NOT NULL,
+            margin_balance INTEGER,
+            margin_quota   INTEGER,
+            short_balance  INTEGER,
+            short_quota    INTEGER,
+            PRIMARY KEY (ticker, date)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_margin_trading_ticker
+            ON margin_trading(ticker, date DESC);
+
         CREATE TABLE IF NOT EXISTS futures_candles (
             symbol    TEXT NOT NULL,
             timeframe TEXT NOT NULL,
@@ -366,6 +391,76 @@ def get_institutional_trades_for_ticker(ticker: str, from_date: str, to_date: st
             (ticker, from_date, to_date)
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ── fundamentals（本益比/殖利率/股價淨值比）────────────────
+
+def save_fundamentals(records: list[dict]):
+    if not records:
+        return
+    with _conn() as conn:
+        conn.executemany(
+            "INSERT OR REPLACE INTO fundamentals"
+            "(ticker, date, pe_ratio, dividend_yield, pb_ratio) "
+            "VALUES (?, ?, ?, ?, ?)",
+            [
+                (r["ticker"], r["date"], r.get("pe_ratio"), r.get("dividend_yield"), r.get("pb_ratio"))
+                for r in records if r.get("ticker") and r.get("date")
+            ]
+        )
+
+
+def get_all_latest_fundamentals() -> dict[str, dict]:
+    """一次取出全市場各 ticker 最新一筆基本面資料，供 screen_stocks 全市場掃描用。"""
+    with _conn() as conn:
+        rows = conn.execute("""
+            SELECT f.ticker, f.pe_ratio, f.dividend_yield, f.pb_ratio
+            FROM fundamentals f
+            INNER JOIN (
+                SELECT ticker, MAX(date) AS max_date FROM fundamentals GROUP BY ticker
+            ) latest ON f.ticker = latest.ticker AND f.date = latest.max_date
+        """).fetchall()
+    return {r["ticker"]: dict(r) for r in rows}
+
+
+def get_latest_fundamentals(ticker: str) -> dict | None:
+    """取單一股票最新一筆基本面資料，供個股頁用。"""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT pe_ratio, dividend_yield, pb_ratio FROM fundamentals "
+            "WHERE ticker=? ORDER BY date DESC LIMIT 1",
+            (ticker,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+# ── margin_trading（融資融券）───────────────────────────────
+
+def save_margin_trading(records: list[dict]):
+    if not records:
+        return
+    with _conn() as conn:
+        conn.executemany(
+            "INSERT OR REPLACE INTO margin_trading"
+            "(ticker, date, margin_balance, margin_quota, short_balance, short_quota) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                (r["ticker"], r["date"], r.get("margin_balance"), r.get("margin_quota"),
+                 r.get("short_balance"), r.get("short_quota"))
+                for r in records if r.get("ticker") and r.get("date")
+            ]
+        )
+
+
+def get_latest_margin_trading(ticker: str) -> dict | None:
+    """取單一股票最新一筆融資融券資料，供個股頁用。"""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT margin_balance, margin_quota, short_balance, short_quota FROM margin_trading "
+            "WHERE ticker=? ORDER BY date DESC LIMIT 1",
+            (ticker,)
+        ).fetchone()
+    return dict(row) if row else None
 
 
 # ── futures_candles ─────────────────────────────────────

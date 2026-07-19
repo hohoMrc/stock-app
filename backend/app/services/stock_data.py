@@ -575,6 +575,16 @@ def get_stock_info(ticker: str) -> dict:
 
     # 52週高低由 Fugle stats 提供，不再呼叫 yfinance（避免 rate limit）
 
+    # 本益比/股價淨值比/融資融券：來自每日排程存的 TWSE/TPEx 官方資料（DB-only，不打外部 API）
+    from app.db import get_latest_fundamentals, get_latest_margin_trading
+    fund   = get_latest_fundamentals(ticker) or {}
+    margin = get_latest_margin_trading(ticker) or {}
+    pe_ratio = fund.get("pe_ratio")
+    pb_ratio = fund.get("pb_ratio")
+    # dividend_yield 優先用上面 Fugle 即時股利算出來的值，算不出來才 fallback 用官方數字
+    if dividend_yield is None:
+        dividend_yield = fund.get("dividend_yield")
+
     # 名稱：ETF 手動表 → Fugle ticker → Fugle quote → TWSE 清單 → 代號本身
     is_etf = ticker in ETF_NAMES
     fugle_name = fugle_t.get("name") or fugle_q.get("name")
@@ -606,6 +616,12 @@ def get_stock_info(ticker: str) -> dict:
         "low":            fugle_q.get("low"),
         "quote_date":     fugle_q.get("quote_date"),
         "dividend_yield": dividend_yield,
+        "pe_ratio":       pe_ratio,
+        "pb_ratio":       pb_ratio,
+        "margin_balance": margin.get("margin_balance"),
+        "margin_quota":   margin.get("margin_quota"),
+        "short_balance":  margin.get("short_balance"),
+        "short_quota":    margin.get("short_quota"),
         "volume":         volume,
         "volume_zhang":   volume_zhang,
         "week_52_high":   week_52_high,
@@ -1408,6 +1424,94 @@ def fetch_institutional_trades_today() -> list[dict]:
     return results
 
 
+def fetch_fundamentals_today() -> list[dict]:
+    """抓當天全市場本益比/殖利率/股價淨值比（上市 TWSE BWIBBU_ALL + 上櫃 TPEx），供 daily_update.py 存 DB 用。"""
+    today_iso = date.today().strftime("%Y-%m-%d")
+    results: list[dict] = []
+
+    # 上市（TWSE BWIBBU_ALL）
+    try:
+        resp = requests.get(
+            "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL",
+            timeout=15, headers=_TWSE_HEADERS,
+        )
+        for row in resp.json():
+            code = str(row.get("Code", "")).strip()
+            if not code.isdigit() or not (4 <= len(code) <= 5):
+                continue
+            results.append({
+                "ticker": code, "date": today_iso,
+                "pe_ratio":       _parse_num(row.get("PEratio")),
+                "dividend_yield": _parse_num(row.get("DividendYield")),
+                "pb_ratio":       _parse_num(row.get("PBratio")),
+            })
+    except Exception as e:
+        print(f"[TWSE] BWIBBU_ALL 本益比/殖利率失敗: {e}")
+
+    # 上櫃（TPEx）
+    try:
+        resp = _tpex_get("https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis", timeout=15)
+        for row in resp.json():
+            code = str(row.get("SecuritiesCompanyCode", "")).strip()
+            if not code.isdigit() or not (4 <= len(code) <= 5):
+                continue
+            results.append({
+                "ticker": code, "date": today_iso,
+                "pe_ratio":       _parse_num(row.get("PriceEarningRatio")),
+                "dividend_yield": _parse_num(row.get("YieldRatio")),
+                "pb_ratio":       _parse_num(row.get("PriceBookRatio")),
+            })
+    except Exception as e:
+        print(f"[TPEx] 本益比/殖利率失敗: {e}")
+
+    return results
+
+
+def fetch_margin_trading_today() -> list[dict]:
+    """抓當天全市場融資融券餘額（上市 TWSE MI_MARGN + 上櫃 TPEx），供 daily_update.py 存 DB 用。"""
+    today_iso = date.today().strftime("%Y-%m-%d")
+    results: list[dict] = []
+
+    # 上市（TWSE MI_MARGN）
+    try:
+        resp = requests.get(
+            "https://openapi.twse.com.tw/v1/exchangeReport/MI_MARGN",
+            timeout=15, headers=_TWSE_HEADERS,
+        )
+        for row in resp.json():
+            code = str(row.get("股票代號", "")).strip()
+            if not code.isdigit() or not (4 <= len(code) <= 5):
+                continue
+            results.append({
+                "ticker": code, "date": today_iso,
+                "margin_balance": _parse_num(row.get("融資今日餘額")),
+                "margin_quota":   _parse_num(row.get("融資限額")),
+                "short_balance":  _parse_num(row.get("融券今日餘額")),
+                "short_quota":    _parse_num(row.get("融券限額")),
+            })
+    except Exception as e:
+        print(f"[TWSE] MI_MARGN 融資融券失敗: {e}")
+
+    # 上櫃（TPEx）
+    try:
+        resp = _tpex_get("https://www.tpex.org.tw/openapi/v1/tpex_mainboard_margin_balance", timeout=15)
+        for row in resp.json():
+            code = str(row.get("SecuritiesCompanyCode", "")).strip()
+            if not code.isdigit() or not (4 <= len(code) <= 5):
+                continue
+            results.append({
+                "ticker": code, "date": today_iso,
+                "margin_balance": _parse_num(row.get("MarginPurchaseBalance")),
+                "margin_quota":   _parse_num(row.get("MarginPurchaseQuota")),
+                "short_balance":  _parse_num(row.get("ShortSaleBalance")),
+                "short_quota":    _parse_num(row.get("ShortSaleQuota")),
+            })
+    except Exception as e:
+        print(f"[TPEx] 融資融券失敗: {e}")
+
+    return results
+
+
 def get_institutional_trades_history(ticker: str, days: int = 30) -> list[dict]:
     """取單一股票近 N 天的三大法人買賣超（換算成張），供個股頁顯示用。"""
     from app.db import get_institutional_trades_for_ticker
@@ -1588,9 +1692,11 @@ def _check_technical_signals(ticker: str, db_only: bool = False) -> dict | None:
     }
 
 
-def _get_info_from_db(ticker: str) -> dict | None:
+def _get_info_from_db(ticker: str, fundamentals_map: dict | None = None) -> dict | None:
     """從 DB candles + meta 取得基本資訊，不打外部 API。
     price/volume 用最後一筆收盤，capital 用 _tw_stock_capital。
+    fundamentals_map：screen_stocks 全市場掃描時預先撈好的 {ticker: {pe_ratio, dividend_yield, pb_ratio}}，
+    避免 2000 檔迴圈內各查一次 DB。
     """
     from app.db import get_candles, get_all_db_tickers_with_meta
     from datetime import date, timedelta
@@ -1612,6 +1718,7 @@ def _get_info_from_db(ticker: str) -> dict | None:
     exchange = _tw_stock_exchange.get(ticker, "TW")
     prev_close = rows[-2].get("close") if len(rows) >= 2 else None
     change_pct = round((price - prev_close) / prev_close * 100, 2) if prev_close else None
+    fund = (fundamentals_map or {}).get(ticker, {})
     return {
         "ticker":      ticker,
         "name":        name,
@@ -1620,8 +1727,9 @@ def _get_info_from_db(ticker: str) -> dict | None:
         "volume_zhang": volume_zhang,
         "capital_yi":  capital_yi,
         "exchange":    exchange,
-        "pe_ratio":    None,
-        "dividend_yield": None,
+        "pe_ratio":       fund.get("pe_ratio"),
+        "dividend_yield": fund.get("dividend_yield"),
+        "pb_ratio":       fund.get("pb_ratio"),
         "market_cap_yi":  None,
     }
 
@@ -1636,15 +1744,18 @@ def screen_stocks(tickers: list, filters: dict) -> list:
 
     use_db = not tickers
     meta_name_db = {}
+    fundamentals_map = {}
     if use_db:
         meta_list    = get_all_db_tickers_with_meta()
         tickers      = [m["ticker"] for m in meta_list]
         meta_name_db = {m["ticker"]: m.get("name") for m in meta_list if m.get("name")}
+        from app.db import get_all_latest_fundamentals
+        fundamentals_map = get_all_latest_fundamentals()
 
     results = []
     for ticker in tickers:
         try:
-            info = _get_info_from_db(ticker) if use_db else get_stock_info(ticker)
+            info = _get_info_from_db(ticker, fundamentals_map) if use_db else get_stock_info(ticker)
             if info is None:
                 continue
             # 用 stock_meta DB 的名字補正（避免 _tw_stock_names API 載入失敗時顯示代號）

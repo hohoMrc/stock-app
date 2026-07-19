@@ -264,6 +264,26 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[三大法人/法人連買] 失敗: {e}")
 
+        print("[基本面] 抓取本益比/殖利率/淨值比...")
+        try:
+            from app.services.stock_data import fetch_fundamentals_today
+            from app.db import save_fundamentals
+            fund_records = fetch_fundamentals_today()
+            save_fundamentals(fund_records)
+            print(f"[基本面] 存入 {len(fund_records)} 筆")
+        except Exception as e:
+            print(f"[基本面] 失敗: {e}")
+
+        print("[融資融券] 抓取資料...")
+        try:
+            from app.services.stock_data import fetch_margin_trading_today
+            from app.db import save_margin_trading
+            margin_records = fetch_margin_trading_today()
+            save_margin_trading(margin_records)
+            print(f"[融資融券] 存入 {len(margin_records)} 筆")
+        except Exception as e:
+            print(f"[融資融券] 失敗: {e}")
+
     # 儲存台指期/微型台指當日各 timeframe 日盤 K 棒到 DB（夜盤由另一支排程 night_update.py 在隔天 05:30 存）
     print("[期貨K線] 儲存當日各 timeframe K 棒...")
     try:
