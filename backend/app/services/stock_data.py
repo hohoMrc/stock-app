@@ -532,6 +532,8 @@ def get_stock_info(ticker: str) -> dict:
 
     # Fugle historical stats：52週高低
     dividend_yield = None
+    next_ex_dividend_date = None
+    next_ex_dividend_cash = None
     fugle_client = _get_fugle()
     if fugle_client:
         try:
@@ -547,11 +549,12 @@ def get_stock_info(ticker: str) -> dict:
         except Exception as e:
             print(f"[Fugle] stats {ticker} 失敗: {e}")
 
-        # Fugle corporate actions dividends：近一年現金股利加總算殖利率
+        # Fugle corporate actions dividends：近一年現金股利加總算殖利率，順便找下一次除權息日
         if price:
             try:
                 one_year_ago  = (date.today() - timedelta(days=365)).strftime("%Y-%m-%d")
                 three_mo_later = (date.today() + timedelta(days=90)).strftime("%Y-%m-%d")
+                today_str = date.today().strftime("%Y-%m-%d")
                 div_resp = fugle_client.stock.corporate_actions.dividends(
                     symbol=ticker, start_date=one_year_ago, end_date=three_mo_later
                 )
@@ -568,6 +571,11 @@ def get_stock_info(ticker: str) -> dict:
                         if v is not None:
                             total_cash += float(v)
                             break
+                    row_date = row.get("date")
+                    if row_date and row_date >= today_str:
+                        if next_ex_dividend_date is None or row_date < next_ex_dividend_date:
+                            next_ex_dividend_date = row_date
+                            next_ex_dividend_cash = row.get("cashDividend")
                 if total_cash > 0:
                     dividend_yield = round(total_cash / price * 100, 2)
             except Exception as e:
@@ -616,6 +624,8 @@ def get_stock_info(ticker: str) -> dict:
         "low":            fugle_q.get("low"),
         "quote_date":     fugle_q.get("quote_date"),
         "dividend_yield": dividend_yield,
+        "next_ex_dividend_date": next_ex_dividend_date,
+        "next_ex_dividend_cash": next_ex_dividend_cash,
         "pe_ratio":       pe_ratio,
         "pb_ratio":       pb_ratio,
         "margin_balance": margin.get("margin_balance"),
@@ -2345,6 +2355,58 @@ def get_industry_performance(force: bool = False) -> list:
 
     results.sort(key=lambda x: x["avg_change_pct"], reverse=True)
     _cache_set(_ranking_cache, "industry_performance", results)
+    return results
+
+
+def get_upcoming_dividends(days: int = 60, force: bool = False) -> list:
+    """近 N 天全市場即將除權息清單。Fugle corporate-actions/dividends 這個端點不管傳哪個
+    symbol，實際上都會回傳全市場資料（已驗證），所以只需要打一次 API，不用逐股查。
+    注意：這個端點的 start_date 參數實測也不會真的過濾（會夾帶範圍外的舊資料），
+    所以日期範圍要自己在這裡過濾，不能信任 API 回傳的內容都在請求範圍內。
+    """
+    cache_key = f"upcoming_dividends_{days}"
+    if not force:
+        cached = _cache_get(_ranking_cache, cache_key, RANKING_TTL)
+        if cached is not None:
+            return cached
+
+    client = _get_fugle()
+    if not client:
+        return []
+
+    results = []
+    try:
+        today_str  = date.today().strftime("%Y-%m-%d")
+        future_str = (date.today() + timedelta(days=days)).strftime("%Y-%m-%d")
+        # symbol 參數必填但不影響回傳內容，隨便帶一個常見代號即可
+        resp = client.stock.corporate_actions.dividends(
+            symbol="2330", start_date=today_str, end_date=future_str
+        )
+        data = resp.get("data", resp) if isinstance(resp, dict) else []
+        if not isinstance(data, list):
+            data = []
+        for row in data:
+            symbol = row.get("symbol")
+            name   = row.get("name")
+            ex_date = row.get("date")
+            if not symbol or not name or not ex_date:
+                continue
+            # API 的 start_date/end_date 過濾不可靠，自己再過濾一次
+            if not (today_str <= ex_date <= future_str):
+                continue
+            results.append({
+                "ticker":        symbol,
+                "name":          name,
+                "date":          ex_date,
+                "dividend_type": row.get("dividendType"),
+                "cash_dividend": row.get("cashDividend"),
+                "stock_dividend_shares": row.get("stockDividendShares"),
+            })
+    except Exception as e:
+        print(f"[Fugle] corporate-actions dividends 失敗: {e}")
+
+    results.sort(key=lambda x: (x["date"], x["ticker"]))
+    _cache_set(_ranking_cache, cache_key, results)
     return results
 
 

@@ -256,6 +256,14 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         />
         <InfoItem label="融資餘額(張)" value={info.margin_balance != null ? info.margin_balance.toLocaleString() : "—"} />
         <InfoItem label="融券餘額(張)" value={info.short_balance != null ? info.short_balance.toLocaleString() : "—"} />
+        <InfoItem
+          label="下次除權息"
+          value={
+            info.next_ex_dividend_date
+              ? `${info.next_ex_dividend_date}${info.next_ex_dividend_cash != null ? `（${info.next_ex_dividend_cash}元）` : ""}`
+              : "—"
+          }
+        />
       </div>
 
       {!instLoading && instTrades.length > 0 && (

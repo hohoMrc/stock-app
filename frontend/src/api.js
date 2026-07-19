@@ -25,6 +25,7 @@ export const getTradeValueRanking = (limit = 50, force = false) => api.get("/api
 export const getTurnoverRanking   = (limit = 50, force = false) => api.get("/api/stocks/ranking/turnover",     { params: { limit, force } });
 export const getMoversRanking     = (direction = "up", limit = 50, force = false) => api.get("/api/stocks/ranking/movers", { params: { direction, limit, force } });
 export const getIndustryPerformance = (force = false) => api.get("/api/stocks/ranking/industry", { params: { force } });
+export const getUpcomingDividends = (days = 60, force = false) => api.get("/api/stocks/dividends/upcoming", { params: { days, force } });
 export const getWatchlistQuotes   = (tickers = []) => api.get("/api/stocks/watchlist-quotes", { params: { tickers: tickers.join(",") } });
 export const getOrderbook         = (ticker)     => api.get(`/api/stocks/${ticker}/orderbook`);
 export const getInstitutionalTrades = (ticker, days = 30) => api.get(`/api/stocks/${ticker}/institutional-trades`, { params: { days } });

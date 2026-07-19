@@ -13,6 +13,7 @@ import FuturesPage from "./components/FuturesPage";
 import PaperTrading from "./components/PaperTrading";
 import NewsPage from "./components/NewsPage";
 import AlertsPage from "./components/AlertsPage";
+import DividendCalendar from "./components/DividendCalendar";
 import { fetchWatchlist, addWatch, removeWatch, updateWatchNote } from "./api";
 
 const ADMIN_USERNAME = "hoholin";
@@ -234,6 +235,12 @@ export default function App() {
           >
             提醒
           </button>
+          <button
+            className={activePage === "dividends" ? "active" : ""}
+            onClick={() => setActivePage("dividends")}
+          >
+            除權息
+          </button>
           {username === ADMIN_USERNAME && (
             <button
               className={activePage === "admin" ? "active" : ""}
@@ -290,6 +297,10 @@ export default function App() {
               className={activePage === "alerts" ? "active" : ""}
               onClick={() => setActivePage("alerts")}
             >提醒</button>
+            <button
+              className={activePage === "dividends" ? "active" : ""}
+              onClick={() => setActivePage("dividends")}
+            >除權息</button>
             {username === ADMIN_USERNAME && (
               <button
                 className={activePage === "admin" ? "active" : ""}
@@ -362,6 +373,9 @@ export default function App() {
             onRequireLogin={() => setShowAuth(true)}
             onSelect={(t) => handleSelectStock(t)}
           />
+        )}
+        {activePage === "dividends" && (
+          <DividendCalendar onSelect={(t) => handleSelectStock(t)} />
         )}
         {activePage === "paper" && (
           <PaperTrading
