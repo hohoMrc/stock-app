@@ -493,17 +493,19 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
           )}
         </div>
 
-        {/* ── 委買委賣 + 當日走勢 + 成交明細（選股後顯示）── */}
+        {/* ── 委買委賣 + 成交明細 + 當日走勢（選股後顯示）── */}
         {selected && (
           <div className="terminal-orderbook">
             <div className="ob-panels">
-              <OrderBook data={orderbook} loading={obLoading} />
+              <div className="ob-left-col">
+                <OrderBook data={orderbook} loading={obLoading} />
+                <TradeList trades={trades} />
+              </div>
               <IntradayMiniChart
                 data={intradayData}
                 prevClose={orderbook.close != null && orderbook.change != null ? orderbook.close - orderbook.change : null}
               />
             </div>
-            <TradeList trades={trades} />
           </div>
         )}
       </div>

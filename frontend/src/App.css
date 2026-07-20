@@ -1690,13 +1690,15 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   gap: 0;
 }
 
-.ob-panels .ob-wrap {
+.ob-left-col {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   border-right: 1px solid var(--border);
 }
 
 .tradelist-wrap {
-  flex: 1;
   min-width: 0;
   padding: 10px 10px 12px;
   overflow: hidden;
@@ -1704,7 +1706,7 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   flex-direction: column;
 }
 
-.terminal-orderbook > .tradelist-wrap {
+.ob-left-col > .tradelist-wrap {
   border-top: 1px solid var(--border);
 }
 
