@@ -912,6 +912,12 @@
 
 .result-table tr:last-child td { border-bottom: none; }
 
+.result-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.result-table th.sortable:hover { color: var(--text-primary); }
+
 .result-table tbody tr {
   transition: background 0.15s;
 }

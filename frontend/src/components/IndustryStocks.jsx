@@ -1,10 +1,20 @@
 import { useState, useEffect } from "react";
 import { getIndustryStocks } from "../api";
 
+const SORT_COLUMNS = [
+  { key: "ticker",     label: "代號" },
+  { key: "name",       label: "名稱" },
+  { key: "price",      label: "成交價" },
+  { key: "change_pct", label: "漲跌幅" },
+  { key: "change",     label: "漲跌" },
+];
+
 export default function IndustryStocks({ industry, excludeTicker, useParent = false, onSelect, onBack }) {
   const [stocks, setStocks] = useState([]);
   const [resolvedIndustry, setResolvedIndustry] = useState(industry);
   const [loading, setLoading] = useState(true);
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState("desc");
 
   useEffect(() => {
     const load = async () => {
@@ -21,6 +31,28 @@ export default function IndustryStocks({ industry, excludeTicker, useParent = fa
   }, [industry, excludeTicker, useParent]);
 
   const expanded = resolvedIndustry !== industry;
+
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  };
+
+  const sortedStocks = sortKey
+    ? [...stocks].sort((a, b) => {
+        const av = a[sortKey], bv = b[sortKey];
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        if (typeof av === "string") {
+          return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+        }
+        return sortDir === "asc" ? av - bv : bv - av;
+      })
+    : stocks;
 
   return (
     <div className="page industry-stocks-page">
@@ -42,16 +74,16 @@ export default function IndustryStocks({ industry, excludeTicker, useParent = fa
         <table className="result-table">
           <thead>
             <tr>
-              <th>代號</th>
-              <th>名稱</th>
-              <th>成交價</th>
-              <th>漲跌幅</th>
-              <th>漲跌</th>
+              {SORT_COLUMNS.map(({ key, label }) => (
+                <th key={key} className="sortable" onClick={() => handleSort(key)}>
+                  {label}{sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+                </th>
+              ))}
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
-            {stocks.map((s) => {
+            {sortedStocks.map((s) => {
               const up   = s.change > 0;
               const down = s.change < 0;
               const sign = up ? "+" : "";
