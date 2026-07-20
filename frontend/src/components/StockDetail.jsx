@@ -238,7 +238,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
                 <XAxis dataKey="time" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-                <YAxis domain={intradayYDomain} tick={{ fontSize: 10 }} width={55} />
+                <YAxis domain={intradayYDomain} tick={{ fontSize: 10 }} width={55} tickFormatter={(v) => v.toFixed(2)} />
                 <Tooltip
                   formatter={(v, name) => [`${v} 元`, name === "average" ? "均價" : "成交價"]}
                   labelFormatter={(l) => `${l}`}

@@ -707,7 +707,7 @@ function IntradayMiniChart({ data, prevClose }) {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
               <XAxis dataKey="time" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
-              <YAxis domain={yDomain} tick={{ fontSize: 9 }} width={42} />
+              <YAxis domain={yDomain} tick={{ fontSize: 9 }} width={42} tickFormatter={(v) => v.toFixed(2)} />
               <Tooltip formatter={(v, name) => [`${v} 元`, name === "average" ? "均價" : "成交價"]} />
               {prevClose != null && <ReferenceLine y={prevClose} stroke="#888" strokeDasharray="4 4" />}
               <Line type="monotone" dataKey="average" stroke="#ccc" dot={false} strokeWidth={1} />
