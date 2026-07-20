@@ -416,6 +416,15 @@
   color: var(--text-primary);
 }
 
+.intraday-section .chart-header {
+  margin-bottom: 6px;
+}
+
+.intraday-avg {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
 /* Chart type 按鈕群 */
 .chart-type-btns {
   display: flex;

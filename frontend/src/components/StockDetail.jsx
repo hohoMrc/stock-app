@@ -99,9 +99,8 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
     return () => { alive = false; };
   }, [ticker]);
 
-  // 當日分時走勢圖：只在切到「分時」分頁時才抓，交易時段內每15秒刷新
+  // 當日分時走勢圖，切換股票時抓一次，交易時段內每15秒刷新
   useEffect(() => {
-    if (chartType !== "intraday") return;
     let alive = true;
     const load = () =>
       getIntradayChart(ticker)
@@ -115,7 +114,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
       intradayPollRef.current = setInterval(load, 15_000);
     }
     return () => { alive = false; clearInterval(intradayPollRef.current); };
-  }, [ticker, chartType]);
+  }, [ticker]);
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
@@ -143,6 +142,13 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
     const min = Math.min(...values), max = Math.max(...values);
     const pad = Math.max((max - min) * 0.08, 0.5);
     return [min - pad, max + pad];
+  })();
+  // 價格線紅漲綠跌：用漸層在昨收的 Y 座標分色，不用逐點判斷
+  const intradayGradientOffset = (() => {
+    if (intradayPrevClose == null || intradayYDomain[0] === "auto") return 0.5;
+    const [min, max] = intradayYDomain;
+    if (max === min) return 0.5;
+    return Math.min(1, Math.max(0, (max - intradayPrevClose) / (max - min)));
   })();
 
   return (
@@ -199,13 +205,63 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         </div>
       </div>
 
+      <div className="chart-section intraday-section">
+        <div className="chart-header">
+          <h3>當日走勢</h3>
+          {intradayData.length > 0 && intradayData[intradayData.length - 1].average != null && (
+            <span className="intraday-avg">均價 {intradayData[intradayData.length - 1].average}</span>
+          )}
+        </div>
+
+        {intradayLoading && intradayData.length === 0 ? (
+          <p className="loading-hint">載入中...</p>
+        ) : intradayData.length > 0 ? (
+          <>
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart data={intradayData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="intradayPriceColor" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset={intradayGradientOffset} stopColor="var(--up)" />
+                    <stop offset={intradayGradientOffset} stopColor="var(--down)" />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                <XAxis dataKey="time" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                <YAxis domain={intradayYDomain} tick={{ fontSize: 10 }} width={55} />
+                <Tooltip
+                  formatter={(v, name) => [`${v} 元`, name === "average" ? "均價" : "成交價"]}
+                  labelFormatter={(l) => `${l}`}
+                />
+                {intradayPrevClose != null && (
+                  <ReferenceLine y={intradayPrevClose} stroke="#888" strokeDasharray="4 4" />
+                )}
+                <Line type="monotone" dataKey="average" stroke="#ccc" dot={false} strokeWidth={1} />
+                <Line type="monotone" dataKey="price" stroke="url(#intradayPriceColor)" dot={false} strokeWidth={1.5} />
+              </LineChart>
+            </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={60}>
+              <BarChart data={intradayData} margin={{ top: 0, right: 4, left: 0, bottom: 0 }}>
+                <XAxis dataKey="time" hide />
+                <YAxis hide />
+                <Bar dataKey="volume">
+                  {intradayData.map((d, i) => (
+                    <Cell key={i} fill={intradayPrevClose == null || d.price >= intradayPrevClose ? "var(--up)" : "var(--down)"} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </>
+        ) : (
+          <p className="no-data">今日尚無分時資料</p>
+        )}
+      </div>
+
       <div className="chart-section">
         <div className="chart-header">
           <div className="chart-header-left">
             <h3>股價走勢</h3>
             <div className="chart-type-btns">
               {[
-                { label: "分時",  type: "intraday", iv: null },
                 { label: "15分K", type: "candle", iv: "15m" },
                 { label: "60分K", type: "candle", iv: "60m" },
                 { label: "日K",   type: "candle", iv: "1d" },
@@ -215,7 +271,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
               ].map(({ label, type, iv }) => (
                 <button
                   key={label}
-                  className={(chartType === type && (type !== "candle" || interval === iv)) ? "active" : ""}
+                  className={(chartType === type && (type === "line" || interval === iv)) ? "active" : ""}
                   onClick={() => { setChartType(type); if (type === "candle") setIntervalKey(iv); }}
                 >
                   {label}
@@ -223,7 +279,6 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
               ))}
             </div>
           </div>
-          {chartType !== "intraday" && (
           <div className="period-btns">
             {INTERVAL_CONFIG[interval].periods.map((p) => (
               <button
@@ -235,33 +290,9 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
               </button>
             ))}
           </div>
-          )}
         </div>
 
-        {chartType === "intraday" ? (
-          intradayLoading && intradayData.length === 0 ? (
-            <p className="loading-hint">載入中...</p>
-          ) : intradayData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={320}>
-              <LineChart data={intradayData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="time" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                <YAxis domain={intradayYDomain} tick={{ fontSize: 11 }} width={65} tickFormatter={(v) => `${v} 元`} />
-                <Tooltip
-                  formatter={(v, name) => [`${v} 元`, name === "average" ? "均價" : "成交價"]}
-                  labelFormatter={(l) => `${l}`}
-                />
-                {intradayPrevClose != null && (
-                  <ReferenceLine y={intradayPrevClose} stroke="#888" strokeDasharray="4 4" label={{ value: "昨收", position: "insideTopRight", fontSize: 11, fill: "#888" }} />
-                )}
-                <Line type="monotone" dataKey="average" stroke="#f59e0b" dot={false} strokeWidth={1.5} strokeDasharray="4 2" />
-                <Line type="monotone" dataKey="price" stroke="#2563eb" dot={false} strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="no-data">今日尚無分時資料</p>
-          )
-        ) : history.length > 0 ? (
+        {history.length > 0 ? (
           chartType === "candle" ? (
             <CandlestickChart data={history} period={period} interval={interval} height={320} defaultMA={SCAN_DEFAULT_MA[scanContext] ?? null} />
           ) : (
