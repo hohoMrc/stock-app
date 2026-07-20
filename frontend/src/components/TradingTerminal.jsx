@@ -54,6 +54,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
   const [obLoading, setObLoading]       = useState(false);
   const [wsKey, setWsKey]               = useState(0);   // 遞增觸發 WebSocket 重連
   const wsRef                           = useRef(null);
+  const [obTab, setObTab]               = useState("book"); // "book" | "trades"
   const [intradayData, setIntradayData] = useState([]);
   const intradayPollRef                 = useRef(null);
 
@@ -493,13 +494,30 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
           )}
         </div>
 
-        {/* ── 委買委賣 + 成交明細 + 當日走勢（選股後顯示）── */}
+        {/* ── 委買委賣/成交明細（分頁切換）+ 當日走勢（選股後顯示）── */}
         {selected && (
           <div className="terminal-orderbook">
             <div className="ob-panels">
               <div className="ob-left-col">
-                <OrderBook data={orderbook} loading={obLoading} />
-                <TradeList trades={trades} />
+                <div className="terminal-list-tabs ob-tabs">
+                  {[
+                    { key: "book",   label: "委買委賣" },
+                    { key: "trades", label: "成交明細" },
+                  ].map(({ key, label }) => (
+                    <button
+                      key={key}
+                      className={obTab === key ? "active" : ""}
+                      onClick={() => setObTab(key)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {obTab === "book" ? (
+                  <OrderBook data={orderbook} loading={obLoading} />
+                ) : (
+                  <TradeList trades={trades} />
+                )}
               </div>
               <IntradayMiniChart
                 data={intradayData}
@@ -592,7 +610,6 @@ function OrderBook({ data, loading }) {
   return (
     <div className="ob-wrap">
       <div className="ob-header-row">
-        <span className="ob-title">委買委賣五檔</span>
         {!loading && bids.length > 0 && (
           <span className={`ob-data-tag ${isRealtime ? "ob-tag-live" : "ob-tag-snapshot"}`}>
             {isRealtime ? "即時" : "收盤快照"}
@@ -717,11 +734,12 @@ function IntradayMiniChart({ data, prevClose }) {
 }
 
 function TradeList({ trades }) {
-  if (!trades || trades.length === 0) return null;
+  if (!trades || trades.length === 0) {
+    return <div className="tradelist-wrap"><p className="tl-empty">暫無成交明細</p></div>;
+  }
 
   return (
     <div className="tradelist-wrap">
-      <div className="ob-title" style={{ marginBottom: 6 }}>成交明細</div>
       <div className="tradelist-header">
         <span>時間</span>
         <span>成交價</span>

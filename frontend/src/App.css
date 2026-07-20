@@ -1706,8 +1706,8 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   flex-direction: column;
 }
 
-.ob-left-col > .tradelist-wrap {
-  border-top: 1px solid var(--border);
+.ob-tabs {
+  padding: 6px 8px 0;
 }
 
 .intraday-mini-wrap {
