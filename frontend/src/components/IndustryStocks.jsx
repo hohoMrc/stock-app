@@ -3,6 +3,7 @@ import { getIndustryStocks } from "../api";
 
 export default function IndustryStocks({ industry, excludeTicker, useParent = false, onSelect, onBack }) {
   const [stocks, setStocks] = useState([]);
+  const [resolvedIndustry, setResolvedIndustry] = useState(industry);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -11,6 +12,7 @@ export default function IndustryStocks({ industry, excludeTicker, useParent = fa
       try {
         const res = await getIndustryStocks(industry, excludeTicker, useParent);
         setStocks(res.data.stocks);
+        setResolvedIndustry(res.data.resolved_industry || industry);
       } finally {
         setLoading(false);
       }
@@ -18,10 +20,17 @@ export default function IndustryStocks({ industry, excludeTicker, useParent = fa
     load();
   }, [industry, excludeTicker, useParent]);
 
+  const expanded = resolvedIndustry !== industry;
+
   return (
     <div className="page industry-stocks-page">
       <button className="back-btn" onClick={onBack}>← 返回</button>
       <h2>{industry} 相關個股</h2>
+      {!loading && expanded && (
+        <p className="industry-expanded-hint">
+          「{industry}」歸類的股票較少，以下改顯示所屬的「{resolvedIndustry}」產業
+        </p>
+      )}
 
       {loading && <p className="loading-hint">查詢中...</p>}
 

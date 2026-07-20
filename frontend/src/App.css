@@ -1157,6 +1157,12 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .empty-watchlist p { margin-bottom: 8px; }
 .empty-hint { font-size: 13px; color: var(--text-muted); }
 
+.industry-expanded-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 4px 0 16px;
+}
+
 /* ── 加入自選備注 modal ── */
 .watch-note-modal { max-width: 360px; }
 

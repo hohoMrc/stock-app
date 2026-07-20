@@ -682,23 +682,26 @@ def _enrich_with_live_quotes(rows: list) -> list:
     return rows
 
 
-def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None, use_parent: bool = False) -> list:
+def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None, use_parent: bool = False) -> tuple[list, str]:
     """找出相同產業的其他股票。
     優先從 DB 直接回傳（昨收價），不打外部 API。
     細分類無資料時退到上層 TWSE 產業，最後才退到 DEFAULT_TICKERS + 即時 API。
     use_parent=True 時直接當作 TWSE 產業大分類查（例如產業表現排行點進來的），跳過細分類/模糊比對。
+    回傳 (股票清單, 實際使用的產業分類名稱)——細分類結果不足退到大分類時，
+    resolved 會是大分類名稱，讓前端能提示使用者顯示範圍已擴大，避免「封裝測試」清單
+    卻混入一堆 info.industry 顯示「半導體業」的股票，看起來像資料矛盾。
     """
     from app.db import get_industry_stocks_with_price, get_tickers_by_industry, get_parent_industry, _get_parent_from_industry
     _load_tw_stock_names()
 
     if use_parent:
         db_results = get_industry_stocks_with_price(industry_zh, exclude_ticker, limit=100, use_parent=True)
-        return _enrich_with_live_quotes(db_results)
+        return _enrich_with_live_quotes(db_results), industry_zh
 
     # 快速路徑：DB 直接回傳細分類（含昨收價）
     db_results = get_industry_stocks_with_price(industry_zh, exclude_ticker, limit=40)
     if len(db_results) >= 3:
-        return _enrich_with_live_quotes(db_results)
+        return _enrich_with_live_quotes(db_results), industry_zh
 
     # 細分類結果不足（如「記憶體IC」），從 DB 查這個細分類的 parent_industry
     parent = (
@@ -708,9 +711,9 @@ def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None, use_par
     if not parent:
         parent = _get_parent_from_industry(industry_zh)
     if parent and parent != industry_zh:
-        db_results = get_industry_stocks_with_price(parent, exclude_ticker, limit=40)
+        db_results = get_industry_stocks_with_price(parent, exclude_ticker, limit=40, use_parent=True)
         if len(db_results) >= 3:
-            return _enrich_with_live_quotes(db_results)
+            return _enrich_with_live_quotes(db_results), parent
 
     # 最後退到 DEFAULT_TICKERS，打即時 API
     candidates = [t for t in DEFAULT_TICKERS if t != exclude_ticker]
@@ -727,7 +730,7 @@ def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None, use_par
         for info in pool.map(_fetch, candidates[:40]):
             if info:
                 results.append(info)
-    return results
+    return results, industry_zh
 
 
 MA_PERIODS = {

@@ -170,8 +170,13 @@ async def screen(filters: ScreenFilter):
 @router.get("/industry/{industry}")
 async def get_by_industry(industry: str, exclude: str = "", use_parent: bool = Query(default=False)):
     try:
-        stocks = get_stocks_by_industry(industry, exclude_ticker=exclude or None, use_parent=use_parent)
-        return {"industry": industry, "count": len(stocks), "stocks": stocks}
+        stocks, resolved_industry = get_stocks_by_industry(industry, exclude_ticker=exclude or None, use_parent=use_parent)
+        return {
+            "industry": industry,
+            "resolved_industry": resolved_industry,
+            "count": len(stocks),
+            "stocks": stocks,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
