@@ -72,21 +72,26 @@ export default function WatchList({ watchlist, watchNotes = {}, watchAddedAt = {
               <th>代號</th>
               <th>名稱</th>
               <th>股價</th>
-              <th>52週高</th>
-              <th>52週低</th>
+              <th>漲跌</th>
+              <th>漲跌幅</th>
               <th>加入日期</th>
               <th>備注</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
-            {stocks.map((s) => (
-              <tr key={s.ticker}>
+            {stocks.map((s) => {
+              const up   = s.change > 0;
+              const down = s.change < 0;
+              const sign = up ? "+" : "";
+              const dir  = up ? "up" : down ? "down" : "";
+              return (
+              <tr key={s.ticker} className={up ? "row-up" : down ? "row-down" : ""}>
                 <td>{s.ticker}</td>
                 <td>{s.name}</td>
                 <td>{s.price ?? "—"}</td>
-                <td>{s.week_52_high ?? "—"}</td>
-                <td>{s.week_52_low ?? "—"}</td>
+                <td className={dir}>{s.change != null ? `${sign}${s.change}` : "—"}</td>
+                <td className={dir}>{s.change_pct != null ? `${sign}${s.change_pct}%` : "—"}</td>
                 <td>
                   {watchAddedAt[s.ticker]
                     ? new Date(watchAddedAt[s.ticker] * 1000).toLocaleDateString("zh-TW")
@@ -120,7 +125,8 @@ export default function WatchList({ watchlist, watchNotes = {}, watchAddedAt = {
                   <button className="remove-btn" onClick={() => onRemove(s.ticker)}>移除</button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       )}
