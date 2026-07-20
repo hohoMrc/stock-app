@@ -133,6 +133,18 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   if (loading) return <div className="page"><p>載入中...</p></div>;
   if (!info) return <div className="page"><p>無法載入資料</p></div>;
 
+  // Y軸範圍要涵蓋昨收，不然股價跳空時參考線會被裁到圖外，看不出跟昨收的落差
+  const intradayPrevClose = info.price != null && info.change != null ? info.price - info.change : null;
+  const intradayYDomain = (() => {
+    if (!intradayData.length) return ["auto", "auto"];
+    const values = intradayData.flatMap((d) => [d.price, d.average]).filter((v) => v != null);
+    if (intradayPrevClose != null) values.push(intradayPrevClose);
+    if (!values.length) return ["auto", "auto"];
+    const min = Math.min(...values), max = Math.max(...values);
+    const pad = Math.max((max - min) * 0.08, 0.5);
+    return [min - pad, max + pad];
+  })();
+
   return (
     <div className="page">
       <button className="back-btn" onClick={onBack}>← 返回</button>
@@ -234,13 +246,13 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
               <LineChart data={intradayData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="time" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                <YAxis domain={["auto", "auto"]} tick={{ fontSize: 11 }} width={65} tickFormatter={(v) => `${v} 元`} />
+                <YAxis domain={intradayYDomain} tick={{ fontSize: 11 }} width={65} tickFormatter={(v) => `${v} 元`} />
                 <Tooltip
                   formatter={(v, name) => [`${v} 元`, name === "average" ? "均價" : "成交價"]}
                   labelFormatter={(l) => `${l}`}
                 />
-                {info?.price != null && info?.change != null && (
-                  <ReferenceLine y={info.price - info.change} stroke="#888" strokeDasharray="4 4" label={{ value: "昨收", position: "insideTopRight", fontSize: 11, fill: "#888" }} />
+                {intradayPrevClose != null && (
+                  <ReferenceLine y={intradayPrevClose} stroke="#888" strokeDasharray="4 4" label={{ value: "昨收", position: "insideTopRight", fontSize: 11, fill: "#888" }} />
                 )}
                 <Line type="monotone" dataKey="average" stroke="#f59e0b" dot={false} strokeWidth={1.5} strokeDasharray="4 2" />
                 <Line type="monotone" dataKey="price" stroke="#2563eb" dot={false} strokeWidth={2} />
