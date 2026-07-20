@@ -242,7 +242,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
             <ResponsiveContainer width="100%" height={60}>
               <BarChart data={intradayData} margin={{ top: 0, right: 4, left: 0, bottom: 0 }}>
                 <XAxis dataKey="time" hide />
-                <YAxis hide />
+                <YAxis width={55} tick={false} axisLine={false} tickLine={false} />
                 <Bar dataKey="volume">
                   {intradayData.map((d, i) => (
                     <Cell key={i} fill={intradayPrevClose == null || d.price >= intradayPrevClose ? "var(--up)" : "var(--down)"} />
