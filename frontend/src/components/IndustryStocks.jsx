@@ -15,6 +15,7 @@ export default function IndustryStocks({ industry, excludeTicker, useParent = fa
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState("desc");
+  const [activeSub, setActiveSub] = useState(null); // null = 全部
 
   useEffect(() => {
     const load = async () => {
@@ -23,6 +24,7 @@ export default function IndustryStocks({ industry, excludeTicker, useParent = fa
         const res = await getIndustryStocks(industry, excludeTicker, useParent);
         setStocks(res.data.stocks);
         setResolvedIndustry(res.data.resolved_industry || industry);
+        setActiveSub(null);
       } finally {
         setLoading(false);
       }
@@ -41,8 +43,18 @@ export default function IndustryStocks({ industry, excludeTicker, useParent = fa
     }
   };
 
+  // 大分類（如「半導體業」）股票數較多時，用個股自己的細分類（如果有標記）做子分類篩選，
+  // 沒被標記細分類的股票（industry 直接等於大分類本身）歸在「其他」
+  const subLabel = (s) => (s.industry && s.industry !== resolvedIndustry ? s.industry : "其他");
+  const subCounts = {};
+  for (const s of stocks) subCounts[subLabel(s)] = (subCounts[subLabel(s)] || 0) + 1;
+  const subEntries = Object.entries(subCounts).sort((a, b) => b[1] - a[1]);
+  const showSubFilter = subEntries.length > 1;
+
+  const scopedStocks = activeSub ? stocks.filter((s) => subLabel(s) === activeSub) : stocks;
+
   const sortedStocks = sortKey
-    ? [...stocks].sort((a, b) => {
+    ? [...scopedStocks].sort((a, b) => {
         const av = a[sortKey], bv = b[sortKey];
         if (av == null && bv == null) return 0;
         if (av == null) return 1;
@@ -52,7 +64,7 @@ export default function IndustryStocks({ industry, excludeTicker, useParent = fa
         }
         return sortDir === "asc" ? av - bv : bv - av;
       })
-    : stocks;
+    : scopedStocks;
 
   return (
     <div className="page industry-stocks-page">
@@ -62,6 +74,19 @@ export default function IndustryStocks({ industry, excludeTicker, useParent = fa
         <p className="industry-expanded-hint">
           「{industry}」歸類的股票較少，以下改顯示所屬的「{resolvedIndustry}」產業
         </p>
+      )}
+
+      {!loading && showSubFilter && (
+        <div className="industry-sub-filters">
+          <button className={activeSub === null ? "active" : ""} onClick={() => setActiveSub(null)}>
+            全部 {stocks.length}
+          </button>
+          {subEntries.map(([label, count]) => (
+            <button key={label} className={activeSub === label ? "active" : ""} onClick={() => setActiveSub(label)}>
+              {label} {count}
+            </button>
+          ))}
+        </div>
       )}
 
       {loading && <p className="loading-hint">查詢中...</p>}

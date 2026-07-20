@@ -1169,6 +1169,33 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   margin: 4px 0 16px;
 }
 
+.industry-sub-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 16px;
+}
+
+.industry-sub-filters button {
+  padding: 5px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.industry-sub-filters button:hover { border-color: var(--accent); color: var(--text-primary); }
+
+.industry-sub-filters button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #04202b;
+  font-weight: 600;
+}
+
 /* ── 加入自選備注 modal ── */
 .watch-note-modal { max-width: 360px; }
 

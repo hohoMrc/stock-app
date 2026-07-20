@@ -788,7 +788,7 @@ def get_stocks_by_industry(industry_zh: str, exclude_ticker: str = None, use_par
     _load_tw_stock_names()
 
     if use_parent:
-        db_results = get_industry_stocks_with_price(industry_zh, exclude_ticker, limit=100, use_parent=True)
+        db_results = get_industry_stocks_with_price(industry_zh, exclude_ticker, limit=300, use_parent=True)
         return _enrich_with_live_quotes(db_results), industry_zh
 
     # 快速路徑：DB 直接回傳細分類（含昨收價）
