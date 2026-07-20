@@ -2,7 +2,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
-from app.services.stock_data import get_stock_info, get_stock_history, screen_stocks, get_stocks_by_industry, scan_all_weekly_surge, scan_ma_squeeze, scan_near_ema60, scan_volume_breakout, scan_institutional_buying, search_stocks, get_trade_value_ranking, get_turnover_ranking, get_movers_ranking, get_industry_performance, get_upcoming_dividends, get_stock_orderbook, get_stock_trades, get_watchlist_quotes, get_institutional_trades_history, get_intraday_chart, get_stock_signals
+from app.services.stock_data import get_stock_info, get_stock_history, screen_stocks, get_stocks_by_industry, scan_all_weekly_surge, scan_ma_squeeze, scan_near_ema60, scan_volume_breakout, scan_institutional_buying, search_stocks, get_trade_value_ranking, get_turnover_ranking, get_movers_ranking, get_industry_performance, get_upcoming_dividends, get_stock_orderbook, get_stock_trades, get_watchlist_quotes, get_institutional_trades_history, get_intraday_chart, get_stock_signals, get_intraday_candles
 from app.services.ai_analysis import analyze_stock
 
 router = APIRouter(prefix="/api/stocks", tags=["stocks"])
@@ -211,6 +211,15 @@ async def get_intraday_chart_endpoint(ticker: str):
     try:
         points = await run_in_threadpool(get_intraday_chart, ticker)
         return {"ticker": ticker, "points": points}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{ticker}/intraday-candles")
+async def get_intraday_candles_endpoint(ticker: str, timeframe: str = Query(default="15", pattern="^(15|60)$")):
+    try:
+        candles = await run_in_threadpool(get_intraday_candles, ticker, timeframe)
+        return {"ticker": ticker, "timeframe": timeframe, "candles": candles}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -2740,6 +2740,31 @@ def get_intraday_chart(ticker: str) -> list:
         return []
 
 
+def get_intraday_candles(ticker: str, timeframe: str = "15") -> list:
+    """取得當日指定分鐘K棒（Fugle 即時資料，不快取），供 15分K/60分K 圖表即時更新今天這幾根棒用。"""
+    client = _get_fugle()
+    if not client:
+        return []
+    try:
+        resp = client.stock.intraday.candles(symbol=ticker, timeframe=timeframe)
+        data = resp.get("data", []) if isinstance(resp, dict) else []
+        result = []
+        for c in (data if isinstance(data, list) else []):
+            dt = datetime.fromisoformat(c["date"])
+            result.append({
+                "date":   int(dt.timestamp()),
+                "open":   c.get("open"),
+                "high":   c.get("high"),
+                "low":    c.get("low"),
+                "close":  c.get("close"),
+                "volume": c.get("volume", 0),
+            })
+        return result
+    except Exception as e:
+        print(f"[Fugle] intraday candles(timeframe={timeframe}) {ticker} 失敗: {e}")
+        return []
+
+
 def search_stocks(q: str, limit: int = 10) -> list[dict]:
     """模糊搜尋股票代號或名稱，優先使用完整清單，備援靜態表"""
     _load_tw_stock_names()
