@@ -1704,6 +1704,16 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   flex-direction: column;
 }
 
+.terminal-orderbook > .tradelist-wrap {
+  border-top: 1px solid var(--border);
+}
+
+.intraday-mini-wrap {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 10px 12px;
+}
+
 .tradelist-header {
   display: grid;
   grid-template-columns: 72px 56px 44px 30px;

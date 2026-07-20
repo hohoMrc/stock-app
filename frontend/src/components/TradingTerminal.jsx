@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
+import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import CandlestickChart from "./CandlestickChart";
-import { getTradeValueRanking, getTurnoverRanking, getHistory, getOrderbook, getTrades, getPaperPositions, getWatchlistQuotes } from "../api";
+import { getTradeValueRanking, getTurnoverRanking, getHistory, getOrderbook, getTrades, getPaperPositions, getWatchlistQuotes, getIntradayChart } from "../api";
+import { isTradingHours } from "../marketHours";
 
 const WS_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000")
   .replace(/^http/, "ws");
@@ -52,6 +54,8 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
   const [obLoading, setObLoading]       = useState(false);
   const [wsKey, setWsKey]               = useState(0);   // 遞增觸發 WebSocket 重連
   const wsRef                           = useRef(null);
+  const [intradayData, setIntradayData] = useState([]);
+  const intradayPollRef                 = useRef(null);
 
   // 手機版：顯示哪個面板 ("list" | "chart")
   const [mobileView, setMobileView] = useState("list");
@@ -278,6 +282,22 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
     return () => { alive = false; clearInterval(timer); };
   }, [selected?.ticker]);
 
+  // ── 當日分時走勢圖（交易時段內每15秒刷新）────────────────────────
+  useEffect(() => {
+    if (!selected) { setIntradayData([]); return; }
+    let alive = true;
+    const load = () =>
+      getIntradayChart(selected.ticker)
+        .then((res) => { if (alive) setIntradayData(res.data.points); })
+        .catch(() => { if (alive) setIntradayData([]); });
+    load();
+    clearInterval(intradayPollRef.current);
+    if (isTradingHours()) {
+      intradayPollRef.current = setInterval(load, 15000);
+    }
+    return () => { alive = false; clearInterval(intradayPollRef.current); };
+  }, [selected?.ticker]);
+
   // ── WebSocket 即時委買委賣 + 成交明細（REST 輪詢仍保留作保底）────────
   useEffect(() => {
     if (!selected) return;
@@ -473,13 +493,17 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
           )}
         </div>
 
-        {/* ── 委買委賣 + 成交明細（選股後顯示）── */}
+        {/* ── 委買委賣 + 當日走勢 + 成交明細（選股後顯示）── */}
         {selected && (
           <div className="terminal-orderbook">
             <div className="ob-panels">
               <OrderBook data={orderbook} loading={obLoading} />
-              <TradeList trades={trades} />
+              <IntradayMiniChart
+                data={intradayData}
+                prevClose={orderbook.close != null && orderbook.change != null ? orderbook.close - orderbook.change : null}
+              />
             </div>
+            <TradeList trades={trades} />
           </div>
         )}
       </div>
@@ -627,6 +651,64 @@ function OrderBook({ data, loading }) {
           </div>
           <span className="ob-pct down">{askPct}% 賣</span>
         </div>
+      )}
+    </div>
+  );
+}
+
+function IntradayMiniChart({ data, prevClose }) {
+  const yDomain = (() => {
+    if (!data.length) return ["auto", "auto"];
+    const values = data.flatMap((d) => [d.price, d.average]).filter((v) => v != null);
+    if (prevClose != null) values.push(prevClose);
+    if (!values.length) return ["auto", "auto"];
+    const min = Math.min(...values), max = Math.max(...values);
+    const pad = Math.max((max - min) * 0.08, 0.5);
+    return [min - pad, max + pad];
+  })();
+  const gradientOffset = (() => {
+    if (prevClose == null || yDomain[0] === "auto") return 0.5;
+    const [min, max] = yDomain;
+    if (max === min) return 0.5;
+    return Math.min(1, Math.max(0, (max - prevClose) / (max - min)));
+  })();
+
+  return (
+    <div className="intraday-mini-wrap">
+      <div className="ob-title" style={{ marginBottom: 6 }}>當日走勢</div>
+      {data.length > 0 ? (
+        <>
+          <ResponsiveContainer width="100%" height={110}>
+            <LineChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="terminalIntradayColor" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset={gradientOffset} stopColor="var(--up)" />
+                  <stop offset={gradientOffset} stopColor="var(--down)" />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+              <XAxis dataKey="time" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
+              <YAxis domain={yDomain} tick={{ fontSize: 9 }} width={42} />
+              <Tooltip formatter={(v, name) => [`${v} 元`, name === "average" ? "均價" : "成交價"]} />
+              {prevClose != null && <ReferenceLine y={prevClose} stroke="#888" strokeDasharray="4 4" />}
+              <Line type="monotone" dataKey="average" stroke="#ccc" dot={false} strokeWidth={1} />
+              <Line type="monotone" dataKey="price" stroke="url(#terminalIntradayColor)" dot={false} strokeWidth={1.5} />
+            </LineChart>
+          </ResponsiveContainer>
+          <ResponsiveContainer width="100%" height={36}>
+            <BarChart data={data} margin={{ top: 0, right: 4, left: 0, bottom: 0 }}>
+              <XAxis dataKey="time" hide />
+              <YAxis width={42} tick={false} axisLine={false} tickLine={false} />
+              <Bar dataKey="volume">
+                {data.map((d, i) => (
+                  <Cell key={i} fill={prevClose == null || d.price >= prevClose ? "var(--up)" : "var(--down)"} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </>
+      ) : (
+        <p className="tl-loading">今日尚無分時資料</p>
       )}
     </div>
   );
