@@ -1556,6 +1556,112 @@ def get_institutional_trades_history(ticker: str, days: int = 30) -> list[dict]:
     ]
 
 
+def _check_near_ema60_single(ticker: str) -> dict | None:
+    """單一股票版「EMA60近線」判斷，邏輯同 scan_near_ema60，但只查一檔（給 AI 分析用，不用跑全市場掃描）。"""
+    from app.db import get_candles
+    from datetime import date, timedelta
+    from_date = (date.today() - timedelta(days=120)).strftime("%Y-%m-%d")
+    to_date   = date.today().strftime("%Y-%m-%d")
+    records = get_candles(ticker, from_date, to_date)
+    if not records or len(records) < 62:
+        return None
+    last = records[-1]
+    if (last.get("volume") or 0) < 2_000_000 or (last.get("close") or 0) < 10:
+        return None
+    closes = [r["close"] for r in records if r["close"] is not None]
+    k, ema = 2 / 61, None
+    ema_series = []
+    for c in closes:
+        ema = c if ema is None else c * k + ema * (1 - k)
+        ema_series.append(ema)
+    close = last.get("close")
+    if not close or not ema:
+        return None
+    dev = (close - ema) / ema
+    if not (0 <= dev <= 0.03):
+        return None
+    recent_closes = closes[-20:]
+    recent_emas   = ema_series[-20:]
+    if any(c < e for c, e in zip(recent_closes, recent_emas)):
+        return None
+    return {"ema60": round(float(ema), 2), "dev_pct": round(dev * 100, 2)}
+
+
+def _check_volume_breakout_single(ticker: str) -> dict | None:
+    """單一股票版「量價突破」判斷，邏輯同 scan_volume_breakout，但只查一檔。"""
+    from app.db import get_candles
+    from datetime import date, timedelta
+    from_date = (date.today() - timedelta(days=45)).strftime("%Y-%m-%d")
+    to_date   = date.today().strftime("%Y-%m-%d")
+    records = get_candles(ticker, from_date, to_date)
+    if not records or len(records) < 21:
+        return None
+    last = records[-1]
+    today_vol = last.get("volume") or 0
+    if today_vol < 2_000_000:
+        return None
+    recent5 = records[-6:-1]
+    if len(recent5) < 5:
+        return None
+    avg_vol_5d = sum(r.get("volume") or 0 for r in recent5) / 5
+    if avg_vol_5d <= 0:
+        return None
+    vol_ratio = today_vol / avg_vol_5d
+    if vol_ratio < 3.0:
+        return None
+    close = last.get("close")
+    closes20 = [r["close"] for r in records[-20:] if r["close"] is not None]
+    if not close or not closes20 or close < max(closes20):
+        return None
+    return {"vol_ratio": round(vol_ratio, 2)}
+
+
+def get_stock_signals(ticker: str, info: dict) -> dict:
+    """彙整這支股票目前的三大法人狀況、是否命中技術面掃描訊號、三關價，供 AI 分析用。
+    刻意不直接呼叫全市場掃描函式（scan_near_ema60 等），避免每次分析都跑一次全市場逐檔掃描拖慢速度。"""
+    inst_trades = get_institutional_trades_history(ticker, 30)
+    streak, streak_total = 0, 0
+    for r in reversed(inst_trades):
+        net = (r.get("foreign_net") or 0) + (r.get("trust_net") or 0)
+        if net <= 0:
+            break
+        streak += 1
+        streak_total += net
+
+    hits = []
+    try:
+        if _detect_ma_pattern(ticker).get("bird_beak"):
+            hits.append("鳥嘴與分歧（先發散再收斂）")
+    except Exception:
+        pass
+    ema_hit = _check_near_ema60_single(ticker)
+    if ema_hit:
+        hits.append(f"EMA60近線（偏離 EMA60 {ema_hit['dev_pct']}%）")
+    vol_hit = _check_volume_breakout_single(ticker)
+    if vol_hit:
+        hits.append(f"量價突破（今日量能為近5日均量的 {vol_hit['vol_ratio']} 倍，且創20日收盤新高）")
+    if streak >= 3:
+        hits.append(f"法人連買（外資+投信連續 {streak} 天合計買超 {round(streak_total)} 張）")
+
+    gates = None
+    prev_high, prev_low = info.get("prev_high"), info.get("prev_low")
+    if prev_high is not None and prev_low is not None:
+        rng = prev_high - prev_low
+        gates = {
+            "upper": round(prev_high + rng * 0.382, 2),
+            "mid":   round((prev_high + prev_low) / 2, 2),
+            "lower": round(prev_low - rng * 0.382, 2),
+        }
+
+    return {
+        "institutional_streak_days":       streak,
+        "institutional_streak_total_zhang": round(streak_total),
+        "institutional_recent":            inst_trades[-5:],
+        "scan_hits":                       hits,
+        "gates":                           gates,
+    }
+
+
 def scan_institutional_buying(min_days: int = 3, limit: int = 200, min_total_net_zhang: int = 0) -> list:
     """掃全市場，回傳外資+投信合計連續買超 ≥ min_days 個交易日，且合計買超 ≥ min_total_net_zhang 張的股票。"""
     from app.db import get_all_db_tickers_with_meta, get_all_institutional_trades_in_range, get_candles
