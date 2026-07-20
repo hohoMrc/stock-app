@@ -2501,6 +2501,29 @@ def get_stock_trades(ticker: str, limit: int = 30) -> list:
         return []
 
 
+def get_intraday_chart(ticker: str) -> list:
+    """取得當日分時走勢（每分鐘K棒），供前端畫分時線圖用。收盤後仍可查當天資料，隔天即作廢，不存 DB。"""
+    client = _get_fugle()
+    if not client:
+        return []
+    try:
+        resp = client.stock.intraday.candles(symbol=ticker, timeframe="1")
+        data = resp.get("data", []) if isinstance(resp, dict) else []
+        result = []
+        for c in (data if isinstance(data, list) else []):
+            dt = datetime.fromisoformat(c["date"])
+            result.append({
+                "time":    dt.strftime("%H:%M"),
+                "price":   c.get("close"),
+                "average": c.get("average"),
+                "volume":  c.get("volume", 0),
+            })
+        return result
+    except Exception as e:
+        print(f"[Fugle] intraday candles {ticker} 失敗: {e}")
+        return []
+
+
 def search_stocks(q: str, limit: int = 10) -> list[dict]:
     """模糊搜尋股票代號或名稱，優先使用完整清單，備援靜態表"""
     _load_tw_stock_names()

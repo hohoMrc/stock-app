@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import CandlestickChart from "./CandlestickChart";
 import AlertModal from "./AlertModal";
-import { getStock, getHistory, analyzeStock, getInstitutionalTrades } from "../api";
+import { getStock, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart } from "../api";
 import { isTradingHours } from "../marketHours";
 
 const INTERVAL_CONFIG = {
@@ -48,6 +48,9 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   const pollRef = useRef(null);
   const [instTrades, setInstTrades] = useState([]);
   const [instLoading, setInstLoading] = useState(false);
+  const [intradayData, setIntradayData] = useState([]);
+  const [intradayLoading, setIntradayLoading] = useState(false);
+  const intradayPollRef = useRef(null);
 
   useEffect(() => {
     const cfg = INTERVAL_CONFIG[interval];
@@ -95,6 +98,24 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
       .finally(() => { if (alive) setInstLoading(false); });
     return () => { alive = false; };
   }, [ticker]);
+
+  // 當日分時走勢圖：只在切到「分時」分頁時才抓，交易時段內每15秒刷新
+  useEffect(() => {
+    if (chartType !== "intraday") return;
+    let alive = true;
+    const load = () =>
+      getIntradayChart(ticker)
+        .then((res) => { if (alive) setIntradayData(res.data.points); })
+        .catch(() => { if (alive) setIntradayData([]); });
+    setIntradayLoading(true);
+    load().finally(() => { if (alive) setIntradayLoading(false); });
+
+    clearInterval(intradayPollRef.current);
+    if (isTradingHours()) {
+      intradayPollRef.current = setInterval(load, 15_000);
+    }
+    return () => { alive = false; clearInterval(intradayPollRef.current); };
+  }, [ticker, chartType]);
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
@@ -172,6 +193,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
             <h3>股價走勢</h3>
             <div className="chart-type-btns">
               {[
+                { label: "分時",  type: "intraday", iv: null },
                 { label: "15分K", type: "candle", iv: "15m" },
                 { label: "60分K", type: "candle", iv: "60m" },
                 { label: "日K",   type: "candle", iv: "1d" },
@@ -181,7 +203,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
               ].map(({ label, type, iv }) => (
                 <button
                   key={label}
-                  className={(chartType === type && (type === "line" || interval === iv)) ? "active" : ""}
+                  className={(chartType === type && (type !== "candle" || interval === iv)) ? "active" : ""}
                   onClick={() => { setChartType(type); if (type === "candle") setIntervalKey(iv); }}
                 >
                   {label}
@@ -189,6 +211,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
               ))}
             </div>
           </div>
+          {chartType !== "intraday" && (
           <div className="period-btns">
             {INTERVAL_CONFIG[interval].periods.map((p) => (
               <button
@@ -200,9 +223,33 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
               </button>
             ))}
           </div>
+          )}
         </div>
 
-        {history.length > 0 ? (
+        {chartType === "intraday" ? (
+          intradayLoading && intradayData.length === 0 ? (
+            <p className="loading-hint">載入中...</p>
+          ) : intradayData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={320}>
+              <LineChart data={intradayData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="time" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                <YAxis domain={["auto", "auto"]} tick={{ fontSize: 11 }} width={65} tickFormatter={(v) => `${v} 元`} />
+                <Tooltip
+                  formatter={(v, name) => [`${v} 元`, name === "average" ? "均價" : "成交價"]}
+                  labelFormatter={(l) => `${l}`}
+                />
+                {info?.price != null && info?.change != null && (
+                  <ReferenceLine y={info.price - info.change} stroke="#888" strokeDasharray="4 4" label={{ value: "昨收", position: "insideTopRight", fontSize: 11, fill: "#888" }} />
+                )}
+                <Line type="monotone" dataKey="average" stroke="#f59e0b" dot={false} strokeWidth={1.5} strokeDasharray="4 2" />
+                <Line type="monotone" dataKey="price" stroke="#2563eb" dot={false} strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="no-data">今日尚無分時資料</p>
+          )
+        ) : history.length > 0 ? (
           chartType === "candle" ? (
             <CandlestickChart data={history} period={period} interval={interval} height={320} defaultMA={SCAN_DEFAULT_MA[scanContext] ?? null} />
           ) : (
