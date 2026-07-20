@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import CandlestickChart from "./CandlestickChart";
 import AlertModal from "./AlertModal";
-import { getStock, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart } from "../api";
+import { getStock, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart, getIntradayCandles } from "../api";
 import { isTradingHours } from "../marketHours";
 
 const INTERVAL_CONFIG = {
@@ -34,6 +34,15 @@ function mergeLiveBar(historyArr, info, interval) {
   return historyArr;
 }
 
+// 15分K/60分K：今天的棒直接整批換成 Fugle 即時分鐘K棒（比 yfinance 準且沒有快取延遲），
+// 較早之前幾天的棒維持原本 yfinance 資料，用時間戳比對切開，不用管兩邊分桶邊界是否對齊。
+function mergeIntradayBars(historyArr, todayCandles) {
+  if (!todayCandles || todayCandles.length === 0) return historyArr;
+  const cutoff = todayCandles[0].date;
+  const past = (historyArr || []).filter((r) => r.date < cutoff);
+  return [...past, ...todayCandles];
+}
+
 export default function StockDetail({ ticker, scanContext = null, onBack, onIndustry, watchlist = [], onToggleWatch, onPaperTrade, username, onRequireLogin }) {
   const [info, setInfo] = useState(null);
   const [showAlertModal, setShowAlertModal] = useState(false);
@@ -55,6 +64,8 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   useEffect(() => {
     const cfg = INTERVAL_CONFIG[interval];
     setPeriod(cfg.defaultPeriod);
+    const intradayTimeframe = interval === "15m" ? "15" : interval === "60m" ? "60" : null;
+
     const load = async () => {
       setLoading(true);
       try {
@@ -63,14 +74,23 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
           getHistory(ticker, cfg.fetchPeriod, interval),
         ]);
         setInfo(infoRes.data);
-        setHistory(mergeLiveBar(histRes.data.data, infoRes.data, interval));
+        let hist = histRes.data.data;
+        if (interval === "1d") {
+          hist = mergeLiveBar(hist, infoRes.data, interval);
+        } else if (intradayTimeframe) {
+          try {
+            const candleRes = await getIntradayCandles(ticker, intradayTimeframe);
+            hist = mergeIntradayBars(hist, candleRes.data.candles);
+          } catch (_) {}
+        }
+        setHistory(hist);
       } finally {
         setLoading(false);
       }
     };
     load();
 
-    // 每 10 秒自動刷新報價（交易時段才啟動）
+    // 每 10 秒自動刷新報價（交易時段才啟動），日K/15分K/60分K 同時校正圖表最後幾根棒
     clearInterval(pollRef.current);
     const startPoll = () => {
       if (!isTradingHours()) { setLive(false); return; }
@@ -80,7 +100,12 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         try {
           const res = await getStock(ticker);
           setInfo(res.data);
-          setHistory((prev) => mergeLiveBar(prev, res.data, interval));
+          if (interval === "1d") {
+            setHistory((prev) => mergeLiveBar(prev, res.data, interval));
+          } else if (intradayTimeframe) {
+            const candleRes = await getIntradayCandles(ticker, intradayTimeframe);
+            setHistory((prev) => mergeIntradayBars(prev, candleRes.data.candles));
+          }
         } catch (_) {}
       }, 10_000);
     };
