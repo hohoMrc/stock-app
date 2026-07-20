@@ -134,10 +134,21 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
 
   // Y軸範圍要涵蓋昨收，不然股價跳空時參考線會被裁到圖外，看不出跟昨收的落差
   const intradayPrevClose = info.price != null && info.change != null ? info.price - info.change : null;
+  // 三關價：用前一交易日高低算出上關/中關/下關（費波那契 0.382），常見於當沖找支撐壓力
+  const intradayGates = (() => {
+    if (info.prev_high == null || info.prev_low == null) return null;
+    const range = info.prev_high - info.prev_low;
+    return {
+      upper: +(info.prev_high + range * 0.382).toFixed(2),
+      mid:   +((info.prev_high + info.prev_low) / 2).toFixed(2),
+      lower: +(info.prev_low - range * 0.382).toFixed(2),
+    };
+  })();
   const intradayYDomain = (() => {
     if (!intradayData.length) return ["auto", "auto"];
     const values = intradayData.flatMap((d) => [d.price, d.average]).filter((v) => v != null);
     if (intradayPrevClose != null) values.push(intradayPrevClose);
+    if (intradayGates) values.push(intradayGates.upper, intradayGates.mid, intradayGates.lower);
     if (!values.length) return ["auto", "auto"];
     const min = Math.min(...values), max = Math.max(...values);
     const pad = Math.max((max - min) * 0.08, 0.5);
@@ -234,6 +245,13 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
                 />
                 {intradayPrevClose != null && (
                   <ReferenceLine y={intradayPrevClose} stroke="#888" strokeDasharray="4 4" />
+                )}
+                {intradayGates && (
+                  <>
+                    <ReferenceLine y={intradayGates.upper} stroke="#facc15" strokeDasharray="2 3" label={{ value: `上關 ${intradayGates.upper}`, position: "insideBottomLeft", fontSize: 10, fill: "#facc15" }} />
+                    <ReferenceLine y={intradayGates.mid} stroke="#a78bfa" strokeDasharray="2 3" label={{ value: `中關 ${intradayGates.mid}`, position: "insideBottomLeft", fontSize: 10, fill: "#a78bfa" }} />
+                    <ReferenceLine y={intradayGates.lower} stroke="#facc15" strokeDasharray="2 3" label={{ value: `下關 ${intradayGates.lower}`, position: "insideBottomLeft", fontSize: 10, fill: "#facc15" }} />
+                  </>
                 )}
                 <Line type="monotone" dataKey="average" stroke="#ccc" dot={false} strokeWidth={1} />
                 <Line type="monotone" dataKey="price" stroke="url(#intradayPriceColor)" dot={false} strokeWidth={1.5} />

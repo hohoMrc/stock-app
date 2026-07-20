@@ -612,6 +612,18 @@ def get_stock_info(ticker: str) -> dict:
         or _tw_stock_industry.get(ticker)
     )
 
+    # 前一交易日高低（供前端算三關價：上關/中關/下關）
+    prev_high = prev_low = None
+    try:
+        today_str = date.today().strftime("%Y-%m-%d")
+        lookback_start = (date.today() - timedelta(days=10)).strftime("%Y-%m-%d")
+        prev_bars = [c for c in get_candles(ticker, lookback_start, today_str) if c["date"] < today_str]
+        if prev_bars:
+            prev_high = prev_bars[-1].get("high")
+            prev_low  = prev_bars[-1].get("low")
+    except Exception:
+        pass
+
     result = {
         "ticker":         ticker,
         "name":           display_name,
@@ -622,6 +634,8 @@ def get_stock_info(ticker: str) -> dict:
         "open":           fugle_q.get("open"),
         "high":           fugle_q.get("high"),
         "low":            fugle_q.get("low"),
+        "prev_high":      prev_high,
+        "prev_low":       prev_low,
         "quote_date":     fugle_q.get("quote_date"),
         "dividend_yield": dividend_yield,
         "next_ex_dividend_date": next_ex_dividend_date,
