@@ -171,6 +171,12 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
           <div className="stock-name-row">
             <h2>{info.name}</h2>
             <span className="price">{info.price} 元</span>
+            {info.change != null && info.change_pct != null && (
+              <span className={`price-change ${info.change > 0 ? "up" : info.change < 0 ? "down" : ""}`}>
+                {info.change > 0 ? "▲" : info.change < 0 ? "▼" : ""}
+                {Math.abs(info.change)}（{info.change_pct > 0 ? "+" : ""}{info.change_pct}%）
+              </span>
+            )}
             {live && <span className="live-dot" title="即時報價自動更新中">●</span>}
             {onToggleWatch && (
               <button
