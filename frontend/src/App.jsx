@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import StockSearch from "./components/StockSearch";
 import StockDetail from "./components/StockDetail";
 import StockScreener from "./components/StockScreener";
@@ -62,6 +62,8 @@ export default function App() {
   const [showAuth, setShowAuth] = useState(false);
   const [pendingWatch, setPendingWatch] = useState(null); // 等待填備注的 ticker
   const [menuOpen, setMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef(null);
 
   const logout = () => {
     localStorage.removeItem("token");
@@ -92,6 +94,14 @@ export default function App() {
       localStorage.setItem("watchlist", JSON.stringify(watchlist));
     }
   }, [username]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target)) setMoreMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const handleUpdateNote = async (ticker, note) => {
     setWatchNotes((prev) => ({ ...prev, [ticker]: note }));
@@ -209,12 +219,6 @@ export default function App() {
             選股篩選
           </button>
           <button
-            className={activePage === "news" ? "active" : ""}
-            onClick={() => setActivePage("news")}
-          >
-            新聞
-          </button>
-          <button
             className={activePage === "watchlist" ? "active" : ""}
             onClick={() => setActivePage("watchlist")}
           >
@@ -229,18 +233,36 @@ export default function App() {
           >
             模擬下單
           </button>
-          <button
-            className={activePage === "alerts" ? "active" : ""}
-            onClick={() => setActivePage("alerts")}
-          >
-            提醒
-          </button>
-          <button
-            className={activePage === "dividends" ? "active" : ""}
-            onClick={() => setActivePage("dividends")}
-          >
-            除權息
-          </button>
+          <div className="nav-more-wrap" ref={moreMenuRef}>
+            <button
+              className={`nav-more-btn ${["alerts", "dividends", "news"].includes(activePage) ? "active" : ""}`}
+              onClick={() => setMoreMenuOpen((v) => !v)}
+            >
+              更多 ▾
+            </button>
+            {moreMenuOpen && (
+              <div className="nav-more-menu">
+                <button
+                  className={activePage === "alerts" ? "active" : ""}
+                  onClick={() => { setActivePage("alerts"); setMoreMenuOpen(false); }}
+                >
+                  提醒
+                </button>
+                <button
+                  className={activePage === "dividends" ? "active" : ""}
+                  onClick={() => { setActivePage("dividends"); setMoreMenuOpen(false); }}
+                >
+                  除權息
+                </button>
+                <button
+                  className={activePage === "news" ? "active" : ""}
+                  onClick={() => { setActivePage("news"); setMoreMenuOpen(false); }}
+                >
+                  新聞
+                </button>
+              </div>
+            )}
+          </div>
           {username === ADMIN_USERNAME && (
             <button
               className={activePage === "admin" ? "active" : ""}

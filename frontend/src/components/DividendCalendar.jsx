@@ -63,8 +63,8 @@ export default function DividendCalendar({ onSelect }) {
                   <td className="col-ticker">{r.ticker}</td>
                   <td className="col-name">{r.name}</td>
                   <td>{TYPE_LABEL[r.dividend_type] ?? r.dividend_type ?? "—"}</td>
-                  <td>{r.cash_dividend != null ? r.cash_dividend : "—"}</td>
-                  <td>{r.stock_dividend_shares != null ? r.stock_dividend_shares : "—"}</td>
+                  <td>{r.cash_dividend != null ? r.cash_dividend.toFixed(2) : "—"}</td>
+                  <td>{r.stock_dividend_shares != null ? r.stock_dividend_shares.toFixed(2) : "—"}</td>
                   <td><button className="view-btn" onClick={() => onSelect(r.ticker)}>查看</button></td>
                 </tr>
               ))}

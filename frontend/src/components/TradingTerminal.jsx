@@ -120,6 +120,13 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
     if (!loaded.current[activeTab] && activeTab !== "watch" && activeTab !== "holdings") loadList(activeTab);
   }, [activeTab]);
 
+  // 首次進來右側是空的，預設選成交值第一名，避免畫面一開始半邊空白
+  useEffect(() => {
+    if (!selected && listData.value.length > 0) {
+      handleSelect(listData.value[0]);
+    }
+  }, [listData.value]);
+
   // ── 排行清單 WebSocket 即時更新（成交值/成交量/持股分頁，依目前清單的股票代號訂閱）──
   const mergeWsRow = (row, data) => {
     if (data.channel === "books") {
