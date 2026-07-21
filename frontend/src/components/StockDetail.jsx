@@ -39,10 +39,23 @@ function mergeLiveBar(historyArr, info, interval) {
 // 讓線隨時間慢慢往右延伸，但橫軸範圍/刻度全程都不會變動。
 function padIntradayToFullDay(intradayData) {
   const map = new Map(intradayData.map((d) => [d.time, d]));
+  const lastRealTime = intradayData.length ? intradayData[intradayData.length - 1].time : null;
   const result = [];
+  let lastKnown = null;
   for (let mins = 9 * 60; mins <= 13 * 60 + 30; mins++) {
     const time = `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
-    result.push(map.get(time) || { time, price: null, average: null, volume: null });
+    const existing = map.get(time);
+    if (existing) {
+      lastKnown = existing;
+      result.push(existing);
+    } else if (lastRealTime != null && time <= lastRealTime) {
+      // 已經過去的時間但沒有K棒（例如漲停/跌停鎖死沒成交），價格維持前一筆不變、量為0，
+      // 不能留空值，不然 recharts 遇到 null 會斷線，看起來像斷點虛線。
+      result.push(lastKnown ? { time, price: lastKnown.price, average: lastKnown.average, volume: 0 } : { time, price: null, average: null, volume: null });
+    } else {
+      // 還沒到的時間，維持空白讓線不要畫過去
+      result.push({ time, price: null, average: null, volume: null });
+    }
   }
   return result;
 }
