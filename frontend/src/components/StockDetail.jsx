@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, ReferenceDot } from "recharts";
 import CandlestickChart from "./CandlestickChart";
 import AlertModal from "./AlertModal";
@@ -34,6 +34,19 @@ function mergeLiveBar(historyArr, info, interval) {
   return historyArr;
 }
 
+// 分時圖的時間軸要一開始就固定畫到收盤（09:00~13:30），不要隨著資料進來越畫越長，
+// 所以把還沒到的時間點也補成空值放進資料陣列，recharts 遇到 null 就自然不畫、留白，
+// 讓線隨時間慢慢往右延伸，但橫軸範圍/刻度全程都不會變動。
+function padIntradayToFullDay(intradayData) {
+  const map = new Map(intradayData.map((d) => [d.time, d]));
+  const result = [];
+  for (let mins = 9 * 60; mins <= 13 * 60 + 30; mins++) {
+    const time = `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+    result.push(map.get(time) || { time, price: null, average: null, volume: null });
+  }
+  return result;
+}
+
 // 15分K/60分K：今天的棒直接整批換成 Fugle 即時分鐘K棒（比 yfinance 準且沒有快取延遲），
 // 較早之前幾天的棒維持原本 yfinance 資料，用時間戳比對切開，不用管兩邊分桶邊界是否對齊。
 function mergeIntradayBars(historyArr, todayCandles) {
@@ -60,6 +73,10 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   const [intradayData, setIntradayData] = useState([]);
   const [intradayLoading, setIntradayLoading] = useState(false);
   const intradayPollRef = useRef(null);
+  // useMemo 固定陣列參照，避免每次 render 都產生新陣列讓 recharts 的 ResponsiveContainer
+  // 尺寸量測跟資料變化偵測互相觸發，導致無窮迴圈（看盤頁已實際踩到這個問題）。
+  // 必須放在任何 early return 之前，不然 hooks 呼叫順序在不同 render 之間會不一致。
+  const intradayDisplayData = useMemo(() => padIntradayToFullDay(intradayData), [intradayData]);
 
   useEffect(() => {
     const cfg = INTERVAL_CONFIG[interval];
@@ -265,7 +282,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         ) : intradayData.length > 0 ? (
           <>
             <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={intradayData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <LineChart data={intradayDisplayData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="intradayPriceColor" x1="0" y1="0" x2="0" y2="1">
                     <stop offset={intradayGradientOffset} stopColor="var(--up)" />
@@ -307,11 +324,11 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
               </LineChart>
             </ResponsiveContainer>
             <ResponsiveContainer width="100%" height={60}>
-              <BarChart data={intradayData} margin={{ top: 0, right: 4, left: 0, bottom: 0 }}>
+              <BarChart data={intradayDisplayData} margin={{ top: 0, right: 4, left: 0, bottom: 0 }}>
                 <XAxis dataKey="time" hide />
                 <YAxis width={55} tick={false} axisLine={false} tickLine={false} />
                 <Bar dataKey="volume">
-                  {intradayData.map((d, i) => (
+                  {intradayDisplayData.map((d, i) => (
                     <Cell key={i} fill={intradayPrevClose == null || d.price >= intradayPrevClose ? "var(--up)" : "var(--down)"} />
                   ))}
                 </Bar>

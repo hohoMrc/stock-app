@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import CandlestickChart from "./CandlestickChart";
 import { getTradeValueRanking, getTurnoverRanking, getHistory, getOrderbook, getTrades, getPaperPositions, getWatchlistQuotes, getIntradayChart } from "../api";
@@ -6,6 +6,18 @@ import { isTradingHours } from "../marketHours";
 
 const WS_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000")
   .replace(/^http/, "ws");
+
+// 分時圖時間軸固定畫到收盤（09:00~13:30），不要隨資料進來越畫越長，
+// 還沒到的時間點補空值，recharts 遇到 null 自然留白不畫。
+function padIntradayToFullDay(intradayData) {
+  const map = new Map(intradayData.map((d) => [d.time, d]));
+  const result = [];
+  for (let mins = 9 * 60; mins <= 13 * 60 + 30; mins++) {
+    const time = `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+    result.push(map.get(time) || { time, price: null, average: null, volume: null });
+  }
+  return result;
+}
 
 const INTERVAL_CONFIG = {
   "1m":  { fetchPeriod: "5d",  defaultPeriod: "1d",  periods: ["1d", "3d", "5d"] },
@@ -689,6 +701,10 @@ function IntradayMiniChart({ data, prevClose }) {
     if (max === min) return 0.5;
     return Math.min(1, Math.max(0, (max - prevClose) / (max - min)));
   })();
+  // 用 useMemo 固定住陣列參照：這個元件所在的父層因為委買委賣 WebSocket 更新會很頻繁重新
+  // render，若每次 render 都重新產生一個新陣列，會讓 recharts 的 ResponsiveContainer 量測
+  // 尺寸跟資料變化的偵測互相觸發，導致 "Maximum update depth exceeded" 無窮迴圈。
+  const displayData = useMemo(() => padIntradayToFullDay(data), [data]);
 
   return (
     <div className="intraday-mini-wrap">
@@ -696,7 +712,7 @@ function IntradayMiniChart({ data, prevClose }) {
       {data.length > 0 ? (
         <>
           <ResponsiveContainer width="100%" height={110}>
-            <LineChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <LineChart data={displayData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="terminalIntradayColor" x1="0" y1="0" x2="0" y2="1">
                   <stop offset={gradientOffset} stopColor="var(--up)" />
@@ -713,11 +729,11 @@ function IntradayMiniChart({ data, prevClose }) {
             </LineChart>
           </ResponsiveContainer>
           <ResponsiveContainer width="100%" height={36}>
-            <BarChart data={data} margin={{ top: 0, right: 4, left: 0, bottom: 0 }}>
+            <BarChart data={displayData} margin={{ top: 0, right: 4, left: 0, bottom: 0 }}>
               <XAxis dataKey="time" hide />
               <YAxis width={42} tick={false} axisLine={false} tickLine={false} />
               <Bar dataKey="volume">
-                {data.map((d, i) => (
+                {displayData.map((d, i) => (
                   <Cell key={i} fill={prevClose == null || d.price >= prevClose ? "var(--up)" : "var(--down)"} />
                 ))}
               </Bar>
