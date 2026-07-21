@@ -75,6 +75,23 @@ print("[熱門新聞] 抓取財經新聞...")
 try:
     from app.services.news_data import get_hot_news
     news = get_hot_news(15)
+
+    # AI 整理今日重點+台股觀察，失敗不影響原本的新聞列表通知照常發送
+    if news:
+        try:
+            from datetime import date
+            from app.services.news_summary import summarize_news
+            from app.db import init_db, save_news_summary
+
+            init_db()
+            summary_text = summarize_news(news)
+            today_str = date.today().strftime("%Y-%m-%d")
+            save_news_summary(today_str, summary_text)
+            print(summary_text)
+            _tg_notify(f"📰 今日新聞重點與台股觀察\n\n{summary_text[:3800]}")
+        except Exception as e:
+            print(f"[熱門新聞] AI摘要失敗: {e}")
+
     lines = [f'<a href="{n["link"]}">{n["title"]}</a>　({n["source"]})' for n in news]
     _tg_notify_lines(
         f"[熱門新聞] 今日財經新聞 Top {len(news)}",

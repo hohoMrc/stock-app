@@ -166,6 +166,12 @@ def init_db():
             ON price_alerts(user_id, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_price_alerts_ticker
             ON price_alerts(ticker);
+
+        CREATE TABLE IF NOT EXISTS news_summaries (
+            date       TEXT PRIMARY KEY,
+            summary    TEXT NOT NULL,
+            created_at REAL NOT NULL
+        );
         """)
         # Migration: 舊版 DB 沒有 parent_industry 欄位
         try:
@@ -763,5 +769,22 @@ def update_alert(alert_id: int, user_id: int, target_price: float | None = None,
             (target_price, scan_type, alert_id, user_id)
         )
         return cur.rowcount > 0
+
+
+def save_news_summary(date: str, summary: str):
+    """存每日新聞重點摘要+台股觀察（AI整理），一天一筆。"""
+    with _conn() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO news_summaries(date, summary, created_at) VALUES (?, ?, ?)",
+            (date, summary, time.time())
+        )
+
+
+def get_latest_news_summary() -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT date, summary, created_at FROM news_summaries ORDER BY date DESC LIMIT 1"
+        ).fetchone()
+    return dict(row) if row else None
 
 

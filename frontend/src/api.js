@@ -63,6 +63,7 @@ export const getPaperPerformance = ()                        => api.get("/api/pa
 
 // 新聞
 export const getHotNews = (limit = 30) => api.get("/api/news/hot", { params: { limit } });
+export const getNewsSummary = () => api.get("/api/news/summary");
 
 // 個人化提醒
 export const createAlert = (body) => api.post("/api/alerts", body);

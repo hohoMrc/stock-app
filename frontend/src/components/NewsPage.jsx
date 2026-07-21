@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { getHotNews } from "../api";
+import { getHotNews, getNewsSummary } from "../api";
 
 function formatPubDate(pubDate) {
   if (!pubDate) return "";
@@ -14,6 +14,13 @@ export default function NewsPage() {
   const [error, setError] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(null);
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [summary, setSummary] = useState(null);
+
+  useEffect(() => {
+    getNewsSummary()
+      .then((res) => { if (res.data?.summary) setSummary(res.data); })
+      .catch(() => {});
+  }, []);
 
   const load = () => {
     setLoading(true);
@@ -45,6 +52,20 @@ export default function NewsPage() {
           <button className="tl-refresh" onClick={load} title="重新整理">↻</button>
         </div>
       </div>
+
+      {summary && (
+        <div className="analysis-section">
+          <div className="analysis-header">
+            <h3>今日新聞重點與台股觀察</h3>
+            <span className="news-updated">{summary.date}</span>
+          </div>
+          <div className="analysis-content">
+            {summary.summary.split("\n").map((line, i) => (
+              <p key={i}>{line}</p>
+            ))}
+          </div>
+        </div>
+      )}
 
       {sources.length > 0 && (
         <div className="news-source-tabs">
