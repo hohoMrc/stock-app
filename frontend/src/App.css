@@ -1804,6 +1804,9 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 
 /* ── 手機版 RWD ── */
 @media (max-width: 640px) {
+  /* 防止任何子元素撐爆寬度時造成整頁橫向捲動（app 不該有橫向捲軸） */
+  body { overflow-x: hidden; }
+
   /* Header */
   .header {
     padding: 0 16px;
@@ -1936,7 +1939,23 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   /* 股票卡片 */
   .stock-card { padding: 16px; border-radius: 12px; }
   .stock-header { flex-direction: column; gap: 10px; }
-  /* stock-name-row font-size 已在全域設為 30px，不需重複 */
+
+  /* 個股頁標題列：股名+股價+漲跌+操作按鈕塞在一列在窄螢幕會撐爆整頁橫向捲動，改成允許換行、縮小字級 */
+  .stock-name-row {
+    flex-wrap: wrap;
+    overflow: visible;
+    row-gap: 8px;
+  }
+  .stock-name-row h2 { font-size: 20px !important; line-height: 1.3; }
+  .price-block .price,
+  .stock-name-row .price { font-size: 20px; line-height: 1.3; }
+  .price-change { font-size: 12px; }
+  .stock-name-row .watch-btn,
+  .stock-name-row .paper-trade-btn {
+    font-size: 12px;
+    padding: 6px 10px;
+    line-height: 1.4;
+  }
 
   /* 圖表區 */
   .chart-section { padding: 14px 12px; }
