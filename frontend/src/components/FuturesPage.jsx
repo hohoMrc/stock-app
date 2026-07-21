@@ -374,9 +374,12 @@ export default function FuturesPage() {
   }, [product]);
 
   // REST 輪詢報價（WebSocket 不穩定時的保底，每 5 秒）
+  // 注意：isFuturesTradingHours() 要放在 interval callback 裡面每次都重新判斷，不能只在
+  // effect 掛載當下判斷一次——不然使用者若在非交易時段（如午休）就開著頁面，等到開盤時刻
+  // 到了，這個 effect 不會重新執行，保底輪詢永遠不會啟動，畫面只能乾等 WebSocket。
   useEffect(() => {
-    if (!isFuturesTradingHours()) return;
     const timer = setInterval(() => {
+      if (!isFuturesTradingHours()) return;
       getFuturesQuote(product).then(r => {
         const p = r.data?.price;
         if (!p) return;
