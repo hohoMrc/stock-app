@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
+import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, ReferenceDot } from "recharts";
 import CandlestickChart from "./CandlestickChart";
 import AlertModal from "./AlertModal";
 import { getStock, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart, getIntradayCandles } from "../api";
@@ -183,6 +183,14 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
     if (max === min) return 0.5;
     return Math.min(1, Math.max(0, (max - intradayPrevClose) / (max - min)));
   })();
+  // Y軸只標上緣/中間/下緣三個刻度，配合 AxisEdgeTick 把上下緣畫成色塊，仿看盤App樣式
+  const intradayTicks = intradayYDomain[0] === "auto" ? undefined : (() => {
+    const [min, max] = intradayYDomain;
+    return [min, (min + max) / 2, max].map((v) => +v.toFixed(2));
+  })();
+  // 當天最高/最低點，標上浮動色塊價格牌
+  const intradayHighPoint = intradayData.reduce((a, d) => (d.price != null && (!a || d.price > a.price) ? d : a), null);
+  const intradayLowPoint  = intradayData.reduce((a, d) => (d.price != null && (!a || d.price < a.price) ? d : a), null);
 
   return (
     <div className="page">
@@ -266,7 +274,12 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
                 <XAxis dataKey="time" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-                <YAxis domain={intradayYDomain} tick={{ fontSize: 10 }} width={55} tickFormatter={(v) => v.toFixed(2)} />
+                <YAxis
+                  domain={intradayYDomain}
+                  ticks={intradayTicks}
+                  width={55}
+                  tick={<AxisEdgeTick ticks={intradayTicks} />}
+                />
                 <Tooltip
                   formatter={(v, name) => [`${v} 元`, name === "average" ? "均價" : "成交價"]}
                   labelFormatter={(l) => `${l}`}
@@ -283,6 +296,14 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
                 )}
                 <Line type="monotone" dataKey="average" stroke="#ccc" dot={false} strokeWidth={1} />
                 <Line type="monotone" dataKey="price" stroke="url(#intradayPriceColor)" dot={false} strokeWidth={1.5} />
+                {intradayHighPoint && (
+                  <ReferenceDot x={intradayHighPoint.time} y={intradayHighPoint.price} r={0}
+                    label={<PriceBadge value={intradayHighPoint.price} color="var(--up)" dy={-12} />} />
+                )}
+                {intradayLowPoint && (
+                  <ReferenceDot x={intradayLowPoint.time} y={intradayLowPoint.price} r={0}
+                    label={<PriceBadge value={intradayLowPoint.price} color="var(--down)" dy={12} />} />
+                )}
               </LineChart>
             </ResponsiveContainer>
             <ResponsiveContainer width="100%" height={60}>
@@ -491,5 +512,37 @@ function InfoItem({ label, value }) {
       <span className="info-label">{label}</span>
       <span className="info-value">{value}</span>
     </div>
+  );
+}
+
+// 分時圖 Y 軸上/下緣刻度畫成色塊（仿看盤App樣式），中間刻度維持普通文字
+function AxisEdgeTick({ x, y, payload, ticks }) {
+  const isTop    = !!ticks && payload.value === ticks[ticks.length - 1];
+  const isBottom = !!ticks && payload.value === ticks[0];
+  const label = payload.value.toFixed(2);
+  if (!isTop && !isBottom) {
+    return <text x={x} y={y} dy={3} textAnchor="end" fontSize={10} fill="#94a3b8">{label}</text>;
+  }
+  const color = isTop ? "var(--up)" : "var(--down)";
+  const w = label.length * 6 + 8;
+  return (
+    <g transform={`translate(${x - w},${y - 8})`}>
+      <rect width={w} height={16} rx={3} fill={color} />
+      <text x={w / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={700} fill="#04202b">{label}</text>
+    </g>
+  );
+}
+
+// 分時圖最高/最低點的浮動價格牌
+function PriceBadge({ value, color, dy = 0, viewBox }) {
+  if (!viewBox) return null;
+  const label = String(value);
+  const w = label.length * 6 + 10;
+  const x = viewBox.x, y = viewBox.y + dy;
+  return (
+    <g transform={`translate(${x - w / 2},${y - 8})`}>
+      <rect width={w} height={16} rx={3} fill={color} />
+      <text x={w / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={700} fill="#04202b">{label}</text>
+    </g>
   );
 }
