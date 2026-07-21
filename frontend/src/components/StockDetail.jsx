@@ -90,26 +90,25 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
     };
     load();
 
-    // 每 10 秒自動刷新報價（交易時段才啟動），日K/15分K/60分K 同時校正圖表最後幾根棒
+    // 每 10 秒自動刷新報價（交易時段才會真的打 API），日K/15分K/60分K 同時校正圖表最後幾根棒。
+    // isTradingHours() 要放在 interval callback 裡面每次都重新判斷，不能只在 effect 掛載當下
+    // 判斷一次——不然使用者若在非交易時段開著頁面，等到開盤時刻到了也不會自動開始輪詢。
     clearInterval(pollRef.current);
-    const startPoll = () => {
+    setLive(isTradingHours());
+    pollRef.current = setInterval(async () => {
       if (!isTradingHours()) { setLive(false); return; }
       setLive(true);
-      pollRef.current = setInterval(async () => {
-        if (!isTradingHours()) { clearInterval(pollRef.current); setLive(false); return; }
-        try {
-          const res = await getStock(ticker);
-          setInfo(res.data);
-          if (interval === "1d") {
-            setHistory((prev) => mergeLiveBar(prev, res.data, interval));
-          } else if (intradayTimeframe) {
-            const candleRes = await getIntradayCandles(ticker, intradayTimeframe);
-            setHistory((prev) => mergeIntradayBars(prev, candleRes.data.candles));
-          }
-        } catch (_) {}
-      }, 10_000);
-    };
-    startPoll();
+      try {
+        const res = await getStock(ticker);
+        setInfo(res.data);
+        if (interval === "1d") {
+          setHistory((prev) => mergeLiveBar(prev, res.data, interval));
+        } else if (intradayTimeframe) {
+          const candleRes = await getIntradayCandles(ticker, intradayTimeframe);
+          setHistory((prev) => mergeIntradayBars(prev, candleRes.data.candles));
+        }
+      } catch (_) {}
+    }, 10_000);
     return () => clearInterval(pollRef.current);
   }, [ticker, interval]);
 
@@ -135,9 +134,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
     load().finally(() => { if (alive) setIntradayLoading(false); });
 
     clearInterval(intradayPollRef.current);
-    if (isTradingHours()) {
-      intradayPollRef.current = setInterval(load, 15_000);
-    }
+    intradayPollRef.current = setInterval(() => { if (isTradingHours()) load(); }, 15_000);
     return () => { alive = false; clearInterval(intradayPollRef.current); };
   }, [ticker]);
 

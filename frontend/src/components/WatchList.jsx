@@ -28,15 +28,12 @@ export default function WatchList({ watchlist, watchNotes = {}, watchAddedAt = {
   useEffect(() => {
     fetchAll();
     clearInterval(pollRef.current);
-    if (isTradingHours()) {
+    setLive(isTradingHours());
+    pollRef.current = setInterval(() => {
+      if (!isTradingHours()) { setLive(false); return; }
       setLive(true);
-      pollRef.current = setInterval(() => {
-        if (!isTradingHours()) { clearInterval(pollRef.current); setLive(false); return; }
-        fetchAll(true);
-      }, 30_000);
-    } else {
-      setLive(false);
-    }
+      fetchAll(true);
+    }, 30_000);
     return () => clearInterval(pollRef.current);
   }, [watchlist]);
 

@@ -52,10 +52,8 @@ export default function TradeValueRanking({ onSelect, onSelectIndustry }) {
   // 交易時段每 60 秒自動刷新成交值排行
   useEffect(() => {
     clearInterval(pollRef.current);
-    if (!isTradingHours()) return;
     pollRef.current = setInterval(() => {
-      if (!isTradingHours()) { clearInterval(pollRef.current); return; }
-      load(activeTab, true);
+      if (isTradingHours()) load(activeTab, true);
     }, 60_000);
     return () => clearInterval(pollRef.current);
   }, [activeTab]);

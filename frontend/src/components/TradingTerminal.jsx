@@ -293,9 +293,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
         .catch(() => { if (alive) setIntradayData([]); });
     load();
     clearInterval(intradayPollRef.current);
-    if (isTradingHours()) {
-      intradayPollRef.current = setInterval(load, 15000);
-    }
+    intradayPollRef.current = setInterval(() => { if (isTradingHours()) load(); }, 15000);
     return () => { alive = false; clearInterval(intradayPollRef.current); };
   }, [selected?.ticker]);
 
