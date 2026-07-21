@@ -72,6 +72,7 @@ function mergeIntradayBars(historyArr, todayCandles) {
 export default function StockDetail({ ticker, scanContext = null, onBack, onIndustry, watchlist = [], onToggleWatch, onPaperTrade, username, onRequireLogin }) {
   const [info, setInfo] = useState(null);
   const [showAlertModal, setShowAlertModal] = useState(false);
+  const [mobileTab, setMobileTab] = useState("quote"); // 手機版分頁："quote"|"kline"|"inst"|"ai"，桌面版不生效
   const [history, setHistory] = useState([]);
   const [analysis, setAnalysis] = useState("");
   const [period, setPeriod] = useState("3mo");
@@ -186,6 +187,10 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
 
   // Y軸範圍要涵蓋昨收，不然股價跳空時參考線會被裁到圖外，看不出跟昨收的落差
   const intradayPrevClose = info.price != null && info.change != null ? info.price - info.change : null;
+  // 今日振幅%，手機版行情分頁的簡易統計列用
+  const todayAmplitudePct = (info.high != null && info.low != null && intradayPrevClose)
+    ? (((info.high - info.low) / intradayPrevClose) * 100).toFixed(2)
+    : null;
   // 三關價：用前一交易日高低算出上關/中關/下關（費波那契 0.382），常見於當沖找支撐壓力
   const intradayGates = (() => {
     if (info.prev_high == null || info.prev_low == null) return null;
@@ -282,7 +287,28 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         </div>
       </div>
 
-      <div className="chart-section intraday-section">
+      <div className="mobile-detail-tabs">
+        {[
+          { key: "quote", label: "行情" },
+          { key: "kline", label: "K線" },
+          { key: "inst",  label: "法人" },
+          { key: "ai",    label: "AI分析" },
+        ].map(({ key, label }) => (
+          <button key={key} className={mobileTab === key ? "active" : ""} onClick={() => setMobileTab(key)}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mobile-stat-row">
+        <div><span>開盤</span><b>{info.open ?? "—"}</b></div>
+        <div><span>最高</span><b className="up">{info.high ?? "—"}</b></div>
+        <div><span>最低</span><b className="down">{info.low ?? "—"}</b></div>
+        <div><span>振幅</span><b>{todayAmplitudePct != null ? `${todayAmplitudePct}%` : "—"}</b></div>
+        <div><span>成交量(張)</span><b>{info.volume_zhang != null ? info.volume_zhang.toLocaleString() : "—"}</b></div>
+      </div>
+
+      <div className={`chart-section intraday-section tab-quote ${mobileTab === "quote" ? "mobile-active" : ""}`}>
         <div className="chart-header">
           <h3>當日走勢</h3>
           {intradayData.length > 0 && intradayData[intradayData.length - 1].average != null && (
@@ -353,7 +379,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         )}
       </div>
 
-      <div className="chart-section">
+      <div className={`chart-section tab-kline ${mobileTab === "kline" ? "mobile-active" : ""}`}>
         <div className="chart-header">
           <div className="chart-header-left">
             <h3>股價走勢</h3>
@@ -427,7 +453,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         )}
       </div>
 
-      <div className="info-grid">
+      <div className={`info-grid tab-quote ${mobileTab === "quote" ? "mobile-active" : ""}`}>
         <InfoItem label="52週高" value={info.week_52_high ?? "—"} />
         <InfoItem label="52週低" value={info.week_52_low ?? "—"} />
         <InfoItem label="本益比" value={info.pe_ratio ?? "—"} />
@@ -454,7 +480,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
       </div>
 
       {!instLoading && instTrades.length > 0 && (
-        <div className="institutional-section">
+        <div className={`institutional-section tab-inst ${mobileTab === "inst" ? "mobile-active" : ""}`}>
           <h3>三大法人買賣超（近{instTrades.length}個交易日，張）</h3>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={instTrades} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -506,7 +532,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         </div>
       )}
 
-      <div className="analysis-section">
+      <div className={`analysis-section tab-ai ${mobileTab === "ai" ? "mobile-active" : ""}`}>
         <div className="analysis-header">
           <h3>AI 分析</h3>
           <button onClick={handleAnalyze} disabled={analyzing} className="analyze-btn">

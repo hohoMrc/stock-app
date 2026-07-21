@@ -1802,6 +1802,9 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .tl-dir.up   { color: var(--up); }
 .tl-dir.down { color: var(--down); }
 
+/* 個股頁手機版分頁/統計列，桌面版預設不顯示（桌面版所有區塊照舊全部顯示） */
+.mobile-detail-tabs, .mobile-stat-row { display: none; }
+
 /* ── 手機版 RWD ── */
 @media (max-width: 640px) {
   /* 防止任何子元素撐爆寬度時造成整頁橫向捲動（app 不該有橫向捲軸） */
@@ -1956,6 +1959,61 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
     padding: 6px 10px;
     line-height: 1.4;
   }
+
+  /* 個股頁手機版分頁：仿看盤App的「行情/K線/法人/AI分析」分頁切換，
+     不用把所有區塊一次全部塞在同一頁往下滑，比較好操作。
+     桌面版完全不受影響（.mobile-detail-tabs 桌面版是 display:none，
+     tab-quote/tab-kline/tab-inst/tab-ai 桌面版沒有這條規則所以照常全部顯示）。 */
+  .mobile-detail-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+    margin: 0 0 12px;
+  }
+  .mobile-detail-tabs button {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    padding: 8px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .mobile-detail-tabs button.active {
+    background: var(--accent);
+    color: #04202b;
+  }
+
+  .tab-quote, .tab-kline, .tab-inst, .tab-ai { display: none; }
+  .tab-quote.mobile-active, .tab-kline.mobile-active,
+  .tab-inst.mobile-active, .tab-ai.mobile-active { display: block; }
+  .info-grid.tab-quote.mobile-active { display: grid; }
+
+  /* 開盤/最高/最低/振幅/成交量簡易統計列 */
+  .mobile-stat-row {
+    display: flex;
+    justify-content: space-between;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 6px;
+    margin-bottom: 12px;
+  }
+  .mobile-stat-row > div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    flex: 1;
+  }
+  .mobile-stat-row span { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+  .mobile-stat-row b { font-size: 12px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .mobile-stat-row b.up   { color: var(--up); }
+  .mobile-stat-row b.down { color: var(--down); }
 
   /* 圖表區 */
   .chart-section { padding: 14px 12px; }
