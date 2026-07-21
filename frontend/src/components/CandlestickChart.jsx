@@ -245,6 +245,9 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
         vertLine: { color: "rgba(6,182,212,0.4)", style: 0 },
         horzLine: { color: "rgba(6,182,212,0.4)", style: 0 },
       },
+      // 手機上單指左右拖曳預設是平移時間軸（看更早的K棒），改成拖曳=移動十字準線，
+      // 手指划過K棒才會像參考的看盤App一樣，只是在看每根K棒的價格，圖表本身不會跑動。
+      handleScroll: { horzTouchDrag: false, vertTouchDrag: false },
       localization: { dateFormat: "yyyy/MM/dd" },
     });
     chartRef.current = chart;
@@ -254,6 +257,9 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       upColor:        "#dc2626", downColor:        "#16a34a",
       borderUpColor:  "#dc2626", borderDownColor:  "#16a34a",
       wickUpColor:    "#dc2626", wickDownColor:    "#16a34a",
+      // 關掉固定顯示「最後一根」的靜態價格標籤，只留十字準線跟著手指/滑鼠移動的動態標籤，
+      // 不然滑到別根K棒時，畫面上同時有一個不動的最新價標籤跟一個跟著手指動的標籤，會搞混。
+      priceLineVisible: false, lastValueVisible: false,
     });
     MA_CONFIG.forEach(({ key, color }) => {
       maSeriesRefs.current[key] = chart.addSeries(LineSeries, {
