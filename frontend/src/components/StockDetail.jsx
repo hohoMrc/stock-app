@@ -311,8 +311,8 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
                     <ReferenceLine y={intradayGates.lower} stroke="#facc15" strokeDasharray="2 3" label={{ value: `下關 ${intradayGates.lower}`, position: "insideBottomLeft", fontSize: 10, fill: "#facc15" }} />
                   </>
                 )}
-                <Line type="monotone" dataKey="average" stroke="#ccc" dot={false} strokeWidth={1} />
-                <Line type="monotone" dataKey="price" stroke="url(#intradayPriceColor)" dot={false} strokeWidth={1.5} />
+                <Line type="monotone" dataKey="average" stroke="#ccc" dot={false} strokeWidth={1} isAnimationActive={false} />
+                <Line type="monotone" dataKey="price" stroke="url(#intradayPriceColor)" dot={false} strokeWidth={1.5} isAnimationActive={false} />
                 {intradayHighPoint && (
                   <ReferenceDot x={intradayHighPoint.time} y={intradayHighPoint.price} r={0}
                     label={<PriceBadge value={intradayHighPoint.price} color="var(--up)" dy={-12} />} />

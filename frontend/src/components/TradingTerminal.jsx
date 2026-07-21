@@ -724,8 +724,8 @@ function IntradayMiniChart({ data, prevClose }) {
               <YAxis domain={yDomain} tick={{ fontSize: 9 }} width={42} tickFormatter={(v) => v.toFixed(2)} />
               <Tooltip formatter={(v, name) => [`${v} 元`, name === "average" ? "均價" : "成交價"]} />
               {prevClose != null && <ReferenceLine y={prevClose} stroke="#888" strokeDasharray="4 4" />}
-              <Line type="monotone" dataKey="average" stroke="#ccc" dot={false} strokeWidth={1} />
-              <Line type="monotone" dataKey="price" stroke="url(#terminalIntradayColor)" dot={false} strokeWidth={1.5} />
+              <Line type="monotone" dataKey="average" stroke="#ccc" dot={false} strokeWidth={1} isAnimationActive={false} />
+              <Line type="monotone" dataKey="price" stroke="url(#terminalIntradayColor)" dot={false} strokeWidth={1.5} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
           <ResponsiveContainer width="100%" height={36}>
