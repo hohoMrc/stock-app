@@ -81,8 +81,10 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   const [interval, setIntervalKey] = useState("1d");     // "1d" | "1wk" | "1mo"
   const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [chartLoading, setChartLoading] = useState(false); // 只有切換K線區間/週期時用，不擋整頁
   const [live, setLive] = useState(false);   // 是否正在即時刷新
   const pollRef = useRef(null);
+  const lastTickerRef = useRef(null);
   const [instTrades, setInstTrades] = useState([]);
   const [instLoading, setInstLoading] = useState(false);
   const [intradayData, setIntradayData] = useState([]);
@@ -97,27 +99,37 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
     const cfg = INTERVAL_CONFIG[interval];
     setPeriod(cfg.defaultPeriod);
     const intradayTimeframe = interval === "15m" ? "15" : interval === "60m" ? "60" : null;
+    // 只有真的換股票才要擋整頁顯示「載入中」；單純切K線區間/週期（ticker沒變）
+    // 不用重打 getStock（報價跟interval無關），也不用整頁重載，只換圖表資料即可直接切換。
+    const tickerChanged = lastTickerRef.current !== ticker;
+    lastTickerRef.current = ticker;
 
+    let alive = true;
     const load = async () => {
-      setLoading(true);
+      if (tickerChanged) setLoading(true); else setChartLoading(true);
       try {
-        const [infoRes, histRes] = await Promise.all([
-          getStock(ticker),
-          getHistory(ticker, cfg.fetchPeriod, interval),
-        ]);
-        setInfo(infoRes.data);
+        let currentInfo = info;
+        if (tickerChanged) {
+          const infoRes = await getStock(ticker);
+          if (!alive) return;
+          currentInfo = infoRes.data;
+          setInfo(currentInfo);
+        }
+        const histRes = await getHistory(ticker, cfg.fetchPeriod, interval);
+        if (!alive) return;
         let hist = histRes.data.data;
         if (interval === "1d") {
-          hist = mergeLiveBar(hist, infoRes.data, interval);
+          hist = mergeLiveBar(hist, currentInfo, interval);
         } else if (intradayTimeframe) {
           try {
             const candleRes = await getIntradayCandles(ticker, intradayTimeframe);
+            if (!alive) return;
             hist = mergeIntradayBars(hist, candleRes.data.candles);
           } catch (_) {}
         }
         setHistory(hist);
       } finally {
-        setLoading(false);
+        if (alive) { setLoading(false); setChartLoading(false); }
       }
     };
     load();
@@ -141,7 +153,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         }
       } catch (_) {}
     }, 10_000);
-    return () => clearInterval(pollRef.current);
+    return () => { alive = false; clearInterval(pollRef.current); };
   }, [ticker, interval]);
 
   // 三大法人買賣超（近30天，只需在切換股票時抓一次，不用跟報價一樣輪詢）
@@ -437,6 +449,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
           </div>
         </div>
 
+        <div style={{ opacity: chartLoading ? 0.5 : 1, transition: "opacity 0.15s" }}>
         {history.length > 0 ? (
           chartType === "candle" ? (
             <CandlestickChart data={history} period={period} interval={interval} height={320} defaultMA={SCAN_DEFAULT_MA[scanContext] ?? null} />
@@ -473,6 +486,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         ) : (
           <p className="no-data">無股價資料</p>
         )}
+        </div>
       </div>
 
       <div className={`info-grid tab-quote ${mobileTab === "quote" ? "mobile-active" : ""}`}>
