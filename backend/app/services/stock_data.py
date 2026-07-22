@@ -2179,12 +2179,25 @@ def _enrich_with_intraday(stocks: list) -> list:
     return merged
 
 
+def _resolve_stock_name(ticker: str, merged_names: dict) -> str:
+    """股名查詢，依序：記憶體快取 → DB stock_meta 快取 → 查不到才顯示代號本身。
+    像 alert_price_check.py 這種每2分鐘就重啟一次的短命程式，記憶體裡的 _tw_stock_names
+    每次都要重抓 TWSE/TPEx，抓不到（例如剛好被限流）就會退回代號本身，讓TG通知變成
+    「3374 3374」這種看起來像股名沒抓到的怪訊息；改成先查本地DB快取再退回代號，
+    避免同一個問題反覆發生。"""
+    name = merged_names.get(ticker)
+    if name:
+        return name
+    meta = get_stock_meta(ticker)
+    return (meta or {}).get("name") or ticker
+
+
 def get_watchlist_quotes(tickers: list[str]) -> list[dict]:
     """取得自選股清單的即時基本資料（股名、成交價、漲跌、委買委賣等），供看盤頁自選分頁使用。"""
     _load_tw_stock_names()
     merged_names: dict[str, str] = {**COMMON_STOCK_NAMES, **ETF_NAMES}
     merged_names.update(_tw_stock_names)
-    stocks = [{"ticker": t, "name": merged_names.get(t, t)} for t in tickers]
+    stocks = [{"ticker": t, "name": _resolve_stock_name(t, merged_names)} for t in tickers]
 
     client = _get_fugle()
     if not client or not stocks:
