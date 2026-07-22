@@ -500,7 +500,7 @@ def _tpex_get(url: str, **kwargs):
 
 
 def _fetch_twse_price(ticker: str, prefix: str) -> dict:
-    """用指定前綴（tse/otc）查 TWSE 即時行情，回傳 {price, volume_zhang, volume}"""
+    """用指定前綴（tse/otc）查 TWSE 即時行情，回傳 {price, volume_zhang, volume, open, high, low, change, change_pct}"""
     url = f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch={prefix}_{ticker}.tw&json=1&delay=0"
     try:
         resp = requests.get(url, timeout=10, headers=_TWSE_HEADERS)
@@ -515,10 +515,28 @@ def _fetch_twse_price(ticker: str, prefix: str) -> dict:
             price = float(pz) if pz not in ("-", "", None) else None
         raw_vol = item.get("v", "-")
         volume_zhang = int(float(raw_vol)) if raw_vol not in ("-", "", None) else None
+
+        def _num(key):
+            raw = item.get(key, "-")
+            return float(raw) if raw not in ("-", "", None) else None
+
+        open_p, high_p, low_p, prev_close = _num("o"), _num("h"), _num("l"), _num("y")
+        change = change_pct = None
+        if price is not None and prev_close:
+            change = round(price - prev_close, 2)
+            change_pct = round(change / prev_close * 100, 2)
+
         return {
             "price": price,
             "volume_zhang": volume_zhang,
             "volume": volume_zhang * 1000 if volume_zhang else None,
+            "open": open_p,
+            "high": high_p,
+            "low": low_p,
+            "change": change,
+            "change_pct": change_pct,
+            # 這個 API 只會回傳當下這一刻的即時行情，抓到價格就代表是「今天」
+            "quote_date": date.today().strftime("%Y-%m-%d") if price is not None else None,
         }
     except Exception:
         return {}
@@ -581,6 +599,7 @@ def get_stock_info(ticker: str) -> dict:
     week_52_high = None
     week_52_low  = None
     price_source = None
+    twse         = {}  # Fugle 失敗改用 TWSE 時，開高低/漲跌也從這裡補（見下方 result 組裝）
 
     if fugle_q.get("price"):
         price        = fugle_q["price"]
@@ -721,15 +740,16 @@ def get_stock_info(ticker: str) -> dict:
         "ticker":         ticker,
         "name":           display_name,
         "price":          price,
-        "change":         fugle_q.get("change"),
-        "change_pct":     fugle_q.get("change_pct"),
+        "change":         fugle_q.get("change") if fugle_q.get("change") is not None else twse.get("change"),
+        "change_pct":     fugle_q.get("change_pct") if fugle_q.get("change_pct") is not None else twse.get("change_pct"),
         # 今日開高低 + 報價所屬日期（供前端即時更新股價走勢圖今天這根 K 棒用）
-        "open":           fugle_q.get("open"),
-        "high":           fugle_q.get("high"),
-        "low":            fugle_q.get("low"),
+        # Fugle 失敗改走 TWSE 官方 API 時，開高低也要跟著換來源，不然畫面只剩成交量、其他都是「—」
+        "open":           fugle_q.get("open") if fugle_q.get("open") is not None else twse.get("open"),
+        "high":           fugle_q.get("high") if fugle_q.get("high") is not None else twse.get("high"),
+        "low":            fugle_q.get("low") if fugle_q.get("low") is not None else twse.get("low"),
         "prev_high":      prev_high,
         "prev_low":       prev_low,
-        "quote_date":     fugle_q.get("quote_date"),
+        "quote_date":     fugle_q.get("quote_date") or twse.get("quote_date"),
         "dividend_yield": dividend_yield,
         "next_ex_dividend_date": next_ex_dividend_date,
         "next_ex_dividend_cash": next_ex_dividend_cash,
