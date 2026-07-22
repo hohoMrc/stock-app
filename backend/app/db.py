@@ -99,6 +99,24 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_margin_trading_ticker
             ON margin_trading(ticker, date DESC);
 
+        CREATE TABLE IF NOT EXISTS scan_signals (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker        TEXT NOT NULL,
+            name          TEXT,
+            scan_type     TEXT NOT NULL,
+            signal_date   TEXT NOT NULL,
+            signal_price  REAL,
+            return_5d     REAL,
+            return_10d    REAL,
+            return_20d    REAL,
+            UNIQUE(ticker, scan_type, signal_date)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_scan_signals_pending
+            ON scan_signals(return_20d, signal_date);
+        CREATE INDEX IF NOT EXISTS idx_scan_signals_type
+            ON scan_signals(scan_type, signal_date);
+
         CREATE TABLE IF NOT EXISTS futures_candles (
             symbol    TEXT NOT NULL,
             timeframe TEXT NOT NULL,
@@ -467,6 +485,60 @@ def get_latest_margin_trading(ticker: str) -> dict | None:
             (ticker,)
         ).fetchone()
     return dict(row) if row else None
+
+
+# ── scan_signals（快速篩選訊號成效追蹤）───────────────────
+
+def save_scan_signals(records: list[dict]):
+    """記錄快篩命中的股票快照。INSERT OR IGNORE：同股票同篩選同天已存在就不重複寫入。"""
+    if not records:
+        return
+    with _conn() as conn:
+        conn.executemany(
+            "INSERT OR IGNORE INTO scan_signals"
+            "(ticker, name, scan_type, signal_date, signal_price) "
+            "VALUES (?, ?, ?, ?, ?)",
+            [
+                (r["ticker"], r.get("name", ""), r["scan_type"], r["signal_date"], r.get("signal_price"))
+                for r in records if r.get("ticker") and r.get("scan_type") and r.get("signal_date")
+            ]
+        )
+
+
+def get_signals_pending_evaluation(limit: int = 500) -> list[dict]:
+    """撈還沒算出 20 日報酬率的訊號（不論訊號日多久以前，實際夠不夠交易日由呼叫端用K棒數判斷）。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, ticker, scan_type, signal_date, signal_price FROM scan_signals "
+            "WHERE return_20d IS NULL ORDER BY signal_date LIMIT ?",
+            (limit,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def update_signal_returns(signal_id: int, return_5d: float | None, return_10d: float | None, return_20d: float | None):
+    """只更新算得出來的欄位（傳 None 的欄位維持原值），因為 5/10/20 日往往不是同時到達。"""
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE scan_signals SET "
+            "return_5d=COALESCE(?, return_5d), "
+            "return_10d=COALESCE(?, return_10d), "
+            "return_20d=COALESCE(?, return_20d) "
+            "WHERE id=?",
+            (return_5d, return_10d, return_20d, signal_id)
+        )
+
+
+def get_scan_signal_stats(scan_type: str, since_date: str) -> list[dict]:
+    """撈某篩選類型、20日報酬率已算出（代表可完整評估）的訊號，供統計勝率/平均報酬用。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker, name, signal_date, signal_price, return_5d, return_10d, return_20d "
+            "FROM scan_signals WHERE scan_type=? AND signal_date>=? AND return_20d IS NOT NULL "
+            "ORDER BY signal_date",
+            (scan_type, since_date)
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 # ── futures_candles ─────────────────────────────────────

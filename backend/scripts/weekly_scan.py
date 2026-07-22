@@ -55,7 +55,9 @@ if __name__ == "__main__":
     print("[週漲幅] 開始掃描...")
     try:
         from app.services.stock_data import scan_all_weekly_surge
+        from app.services.signal_tracking import record_signals
         hits = scan_all_weekly_surge(min_weekly_change=20, min_volume=1000, min_capital=2)
+        record_signals("weekly_surge", hits)
 
         if hits:
             lines = [
@@ -75,3 +77,21 @@ if __name__ == "__main__":
         err = f"[週漲幅] 掃描失敗: {e}"
         print(err)
         _tg_notify(err)
+
+    print("[篩選成效週報] 彙整近90天各快篩表現...")
+    try:
+        from app.services.signal_tracking import get_performance_summary
+        summary = get_performance_summary(90)
+        if summary:
+            lines = [
+                f'{s["label"]}：{s["count"]} 次訊號，20日勝率 {s["win_rate"]}%，'
+                f'平均報酬 5日{s["avg_return_5d"]}% / 10日{s["avg_return_10d"]}% / 20日{s["avg_return_20d"]}%'
+                for s in summary
+            ]
+            msg = "[篩選成效週報] 近90天各快篩表現（20日報酬率已可完整評估的訊號）\n" + "\n".join(lines)
+        else:
+            msg = "[篩選成效週報] 資料還不夠（訊號日需滿20個交易日才會納入統計），累積數週後再看"
+        print(msg)
+        _tg_notify(msg)
+    except Exception as e:
+        print(f"[篩選成效週報] 失敗: {e}")

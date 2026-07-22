@@ -192,8 +192,10 @@ if __name__ == "__main__":
         print("[鳥嘴與分歧] 開始掃描（日K 5MA/20MA）...")
         try:
             from app.services.stock_data import scan_ma_squeeze
+            from app.services.signal_tracking import record_signals
             hits = scan_ma_squeeze(500)
             _check_scan_alerts("bird_beak", hits)
+            record_signals("bird_beak", hits)
             lines = [
                 _stock_link(s["ticker"], s.get("name", ""), scan="bird_beak")
                 for s in hits
@@ -209,8 +211,10 @@ if __name__ == "__main__":
         print("[EMA60近線] 開始掃描...")
         try:
             from app.services.stock_data import scan_near_ema60
+            from app.services.signal_tracking import record_signals
             ema_hits = scan_near_ema60(500)
             _check_scan_alerts("near_ema60", ema_hits)
+            record_signals("near_ema60", ema_hits)
             lines = [
                 _stock_link(s["ticker"], s.get("name", ""), scan="near_ema60")
                 for s in ema_hits
@@ -226,8 +230,10 @@ if __name__ == "__main__":
         print("[量價突破] 開始掃描...")
         try:
             from app.services.stock_data import scan_volume_breakout
+            from app.services.signal_tracking import record_signals
             vb_hits = scan_volume_breakout(200)
             _check_scan_alerts("volume_breakout", vb_hits)
+            record_signals("volume_breakout", vb_hits)
             lines = [
                 _stock_link(s["ticker"], s.get("name", ""))
                 for s in vb_hits
@@ -251,6 +257,8 @@ if __name__ == "__main__":
             print("[法人連買] 開始掃描...")
             buy_hits = scan_institutional_buying(min_days=3, limit=200, min_total_net_zhang=5000)
             _check_scan_alerts("institutional_buying", buy_hits)
+            from app.services.signal_tracking import record_signals
+            record_signals("institutional_buying", buy_hits)
             lines = [
                 f'{i}. ' + _stock_link(s["ticker"], s.get("name", "")) +
                 f'　連{s["streak_days"]}天・合計 {s["total_net_zhang"]:,}張'
@@ -263,6 +271,13 @@ if __name__ == "__main__":
             )
         except Exception as e:
             print(f"[三大法人/法人連買] 失敗: {e}")
+
+        print("[篩選成效] 回頭計算已滿5/10/20交易日的訊號報酬率...")
+        try:
+            from app.services.signal_tracking import evaluate_pending_signals
+            evaluate_pending_signals()
+        except Exception as e:
+            print(f"[篩選成效] 失敗: {e}")
 
         print("[基本面] 抓取本益比/殖利率/淨值比...")
         try:
