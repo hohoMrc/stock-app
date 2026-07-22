@@ -238,7 +238,13 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
     const chart = createChart(containerRef.current, {
       width:  containerRef.current.clientWidth,
       height: totalHeight,
-      layout: { background: { color: "#111827" }, textColor: "#7a94b0" },
+      // panes.enableResize: false — 各子圖高度已用 setStretchFactor 固定好，
+      // 不需要讓使用者手動拖曳分隔線調整（手機上容易誤觸），分隔線顏色也融入背景避免擋到文字。
+      layout: {
+        background: { color: "#111827" },
+        textColor: "#7a94b0",
+        panes: { enableResize: false, separatorColor: "#111827" },
+      },
       grid:   { vertLines: { color: "#1a2235" }, horzLines: { color: "#1a2235" } },
       rightPriceScale: { borderColor: "#1e3a5f", autoScale: true },
       // fixRightEdge：最新一根K棒已經在最右邊時，不能再往右滑出空白區域，滑到底就是底。
