@@ -169,6 +169,7 @@ function MobileRankList({ stocks, onSelect }) {
   return (
     <div className="mobile-rank-list">
       <div className="mobile-rank-header">
+        <span className="mobile-rank-header-spacer"></span>
         <span>成交</span><span>漲跌</span><span>漲跌幅</span>
       </div>
       {stocks.map((s) => {

@@ -2080,25 +2080,27 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 
   .mobile-rank-header {
     display: flex;
-    justify-content: flex-end;
-    gap: 18px;
+    justify-content: flex-start;
+    gap: 14px;
     padding: 4px 4px 8px;
     font-size: 11px;
     color: var(--text-muted);
   }
-  .mobile-rank-header span { width: 64px; text-align: right; }
+  .mobile-rank-header-spacer { flex: 0 0 92px; }
+  .mobile-rank-header span:not(.mobile-rank-header-spacer) { width: 58px; text-align: right; }
 
   .mobile-rank-card {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
+    gap: 14px;
     padding: 12px 4px;
     border-bottom: 1px solid var(--border);
     cursor: pointer;
   }
   .mobile-rank-card:last-child { border-bottom: none; }
 
-  .mrc-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .mrc-left { display: flex; flex-direction: column; gap: 4px; flex: 0 0 92px; min-width: 0; }
   .mrc-name { font-size: 16px; font-weight: 700; color: var(--text-primary); }
   .mrc-sub { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
   .mrc-exchange-tag {
@@ -2108,9 +2110,9 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
     line-height: 1.4;
   }
 
-  .mrc-right { display: flex; gap: 18px; flex-shrink: 0; }
+  .mrc-right { display: flex; gap: 14px; flex-shrink: 0; }
   .mrc-close, .mrc-num {
-    width: 64px;
+    width: 58px;
     text-align: right;
     font-size: 15px;
     font-weight: 700;
