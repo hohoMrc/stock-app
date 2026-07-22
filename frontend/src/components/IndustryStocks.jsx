@@ -104,7 +104,6 @@ export default function IndustryStocks({ industry, excludeTicker, useParent = fa
                   {label}{sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
                 </th>
               ))}
-              <th>操作</th>
             </tr>
           </thead>
           <tbody>
@@ -114,17 +113,16 @@ export default function IndustryStocks({ industry, excludeTicker, useParent = fa
               const sign = up ? "+" : "";
               const dir  = up ? "up" : down ? "down" : "";
               return (
-                <tr key={s.ticker} className={up ? "row-up" : down ? "row-down" : ""}>
+                <tr
+                  key={s.ticker}
+                  className={`industry-row-clickable ${up ? "row-up" : down ? "row-down" : ""}`}
+                  onClick={() => onSelect(s.ticker)}
+                >
                   <td>{s.ticker}</td>
                   <td>{s.name}</td>
                   <td>{s.price ?? "—"}</td>
                   <td className={dir}>{s.change_pct != null ? `${sign}${s.change_pct}%` : "—"}</td>
                   <td className={dir}>{s.change != null ? `${sign}${s.change}` : "—"}</td>
-                  <td>
-                    <button className="view-btn" onClick={() => onSelect(s.ticker)}>
-                      查看
-                    </button>
-                  </td>
                 </tr>
               );
             })}
