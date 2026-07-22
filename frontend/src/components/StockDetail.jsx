@@ -322,7 +322,8 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         ) : intradayData.length > 0 ? (
           <>
             <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={intradayDisplayData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              {/* top/bottom margin 留多一點，不然當天最高/最低點的浮動價格牌太靠近上下緣時會被裁掉 */}
+              <LineChart data={intradayDisplayData} margin={{ top: 24, right: 4, left: 0, bottom: 20 }}>
                 <defs>
                   <linearGradient id="intradayPriceColor" x1="0" y1="0" x2="0" y2="1">
                     <stop offset={intradayGradientOffset} stopColor="var(--up)" />
