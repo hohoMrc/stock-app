@@ -502,6 +502,12 @@
 
 .ma-toggle-btn.active .ma-dot { background: var(--ma-color); }
 
+/* K線週期「更多」收合按鈕：只在手機版顯示，桌面版全部選項一直都在，不用收合 */
+.chart-more-toggle { display: none; }
+/* 桌面版用 display:contents 讓裡面的按鈕群直接變成 .chart-header 的 flex 子項，
+   跟原本沒有這層包裝時排版一樣，手機版才需要真的把它當一個可收合的區塊 */
+.chart-more-section { display: contents; }
+
 /* Period 按鈕 */
 .period-btns { display: flex; gap: 4px; }
 
@@ -2018,16 +2024,44 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   /* 圖表區 */
   .chart-section { padding: 14px 12px; }
   .chart-header { flex-direction: column; align-items: flex-start; gap: 10px; }
-  .chart-header-left { flex-wrap: wrap; gap: 8px; }
+  .chart-header-left { flex-wrap: nowrap; gap: 8px; width: 100%; }
   .period-btns button { padding: 5px 10px; font-size: 11px; }
   .ma-toggle-btn { padding: 3px 8px; font-size: 11px; }
   .ohlc-bar { font-size: 11px; gap: 8px; flex-wrap: wrap; }
 
-  /* K線圖上方的OHLC/移動平均線/BOLL資訊列：手機版超出寬度就左右滑動看，不要換行擠成一團 */
+  /* K線週期收攏：手機版只留日K/週K/月K+更多，其餘（15分K/60分K/折線、區間按鈕）收進更多裡 */
+  .chart-more-toggle {
+    display: inline-flex;
+    align-items: center;
+    background: transparent;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .chart-more-toggle.active { color: var(--accent); }
+
+  .chart-more-section {
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+  .chart-more-section.expanded { display: flex; }
+  .chart-more-section .chart-type-btns,
+  .chart-more-section .period-btns { flex-wrap: wrap; }
+
+  /* K線圖上方的OHLC/移動平均線/BOLL資訊列：手機版超出寬度就左右滑動看，不要換行擠成一團。
+     右邊緣加一點淡出效果，提示還有資料被藏在後面、可以滑過去看。 */
   .chart-info-line {
     flex-wrap: nowrap;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    mask-image: linear-gradient(to right, black calc(100% - 24px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent 100%);
   }
   .chart-info-line > * { flex-shrink: 0; }
 

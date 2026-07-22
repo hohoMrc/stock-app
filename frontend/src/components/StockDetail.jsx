@@ -73,6 +73,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   const [info, setInfo] = useState(null);
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [mobileTab, setMobileTab] = useState("quote"); // 手機版分頁："quote"|"kline"|"inst"|"ai"，桌面版不生效
+  const [chartOptionsExpanded, setChartOptionsExpanded] = useState(false); // 手機版K線週期「更多」收合，桌面版不生效
   const [history, setHistory] = useState([]);
   const [analysis, setAnalysis] = useState("");
   const [period, setPeriod] = useState("3mo");
@@ -385,11 +386,31 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
             <h3>股價走勢</h3>
             <div className="chart-type-btns">
               {[
-                { label: "15分K", type: "candle", iv: "15m" },
-                { label: "60分K", type: "candle", iv: "60m" },
                 { label: "日K",   type: "candle", iv: "1d" },
                 { label: "週K",   type: "candle", iv: "1wk" },
                 { label: "月K",   type: "candle", iv: "1mo" },
+              ].map(({ label, type, iv }) => (
+                <button
+                  key={label}
+                  className={(chartType === type && (type === "line" || interval === iv)) ? "active" : ""}
+                  onClick={() => { setChartType(type); if (type === "candle") setIntervalKey(iv); }}
+                >
+                  {label}
+                </button>
+              ))}
+              <button
+                className={`chart-more-toggle ${chartOptionsExpanded ? "active" : ""}`}
+                onClick={() => setChartOptionsExpanded((v) => !v)}
+              >
+                更多 {chartOptionsExpanded ? "▴" : "▾"}
+              </button>
+            </div>
+          </div>
+          <div className={`chart-more-section ${chartOptionsExpanded ? "expanded" : ""}`}>
+            <div className="chart-type-btns">
+              {[
+                { label: "15分K", type: "candle", iv: "15m" },
+                { label: "60分K", type: "candle", iv: "60m" },
                 { label: "折線",  type: "line",   iv: "1d" },
               ].map(({ label, type, iv }) => (
                 <button
@@ -401,17 +422,17 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
                 </button>
               ))}
             </div>
-          </div>
-          <div className="period-btns">
-            {INTERVAL_CONFIG[interval].periods.map((p) => (
-              <button
-                key={p}
-                className={period === p ? "active" : ""}
-                onClick={() => setPeriod(p)}
-              >
-                {{ "5d":"5天","1mo":"1個月","3mo":"3個月","6mo":"6個月","1y":"1年","2y":"2年","5y":"5年" }[p]}
-              </button>
-            ))}
+            <div className="period-btns">
+              {INTERVAL_CONFIG[interval].periods.map((p) => (
+                <button
+                  key={p}
+                  className={period === p ? "active" : ""}
+                  onClick={() => setPeriod(p)}
+                >
+                  {{ "5d":"5天","1mo":"1個月","3mo":"3個月","6mo":"6個月","1y":"1年","2y":"2年","5y":"5年" }[p]}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
