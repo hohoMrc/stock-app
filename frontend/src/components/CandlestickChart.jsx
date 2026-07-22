@@ -249,7 +249,9 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       },
       // 價格軸（右側刻度）不給手動拖曳縮放，固定自動依可視範圍內的K棒縮放，
       // 不然手指划到價格軸容易不小心拖動、要再手動拉回正確比例才看得到完整K棒。
-      handleScale: { axisPressedMouseMove: { time: true, price: false } },
+      // 整張圖固定一次顯示約50根K棒（見 applyVisibleRange），所以也關掉滾輪/雙指縮放，
+      // 不讓使用者手動放大縮小改變顯示根數，只保留左右拖曳平移看更早/更新的K棒。
+      handleScale: { axisPressedMouseMove: { time: true, price: false }, mouseWheel: false, pinch: false },
       localization: { dateFormat: "yyyy/MM/dd" },
     });
     chartRef.current = chart;
