@@ -2023,6 +2023,14 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   .ma-toggle-btn { padding: 3px 8px; font-size: 11px; }
   .ohlc-bar { font-size: 11px; gap: 8px; flex-wrap: wrap; }
 
+  /* K線圖上方的OHLC/移動平均線/BOLL資訊列：手機版超出寬度就左右滑動看，不要換行擠成一團 */
+  .chart-info-line {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .chart-info-line > * { flex-shrink: 0; }
+
   /* 表格：水平捲動 */
   .result-table { font-size: 12px; display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .result-table th, .result-table td { padding: 9px 10px; white-space: nowrap; }

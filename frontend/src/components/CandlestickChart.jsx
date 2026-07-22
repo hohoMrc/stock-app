@@ -186,6 +186,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const dSeriesRef      = useRef(null);
   const dataRef         = useRef([]);
   const dataIndexRef    = useRef(new Map());
+  const lastWidthRef    = useRef(0);
   const maMapRef        = useRef(new Map());
   const bollMapRef      = useRef(new Map());
   const volMapRef       = useRef(new Map());
@@ -245,9 +246,6 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
         vertLine: { color: "rgba(6,182,212,0.4)", style: 0 },
         horzLine: { color: "rgba(6,182,212,0.4)", style: 0 },
       },
-      // 手機上單指左右拖曳預設是平移時間軸（看更早的K棒），改成拖曳=移動十字準線，
-      // 手指划過K棒才會像參考的看盤App一樣，只是在看每根K棒的價格，圖表本身不會跑動。
-      handleScroll: { horzTouchDrag: false, vertTouchDrag: false },
       localization: { dateFormat: "yyyy/MM/dd" },
     });
     chartRef.current = chart;
@@ -257,9 +255,6 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       upColor:        "#dc2626", downColor:        "#16a34a",
       borderUpColor:  "#dc2626", borderDownColor:  "#16a34a",
       wickUpColor:    "#dc2626", wickDownColor:    "#16a34a",
-      // 關掉固定顯示「最後一根」的靜態價格標籤，只留十字準線跟著手指/滑鼠移動的動態標籤，
-      // 不然滑到別根K棒時，畫面上同時有一個不動的最新價標籤跟一個跟著手指動的標籤，會搞混。
-      priceLineVisible: false, lastValueVisible: false,
     });
     MA_CONFIG.forEach(({ key, color }) => {
       maSeriesRefs.current[key] = chart.addSeries(LineSeries, {
@@ -367,10 +362,15 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       if (!chartRef.current) return;
       const newW = entry.contentRect.width;
       const newH = entry.contentRect.height || totalHeight;
+      const hadNoWidth = lastWidthRef.current === 0;
       chartRef.current.applyOptions({ width: newW, height: newH });
       const newKH = Math.max(120, newH - subPaneHeight);
       chartRef.current.panes()[0]?.setStretchFactor(newKH);
       syncLabelOffsets();
+      // 手機版分頁隱藏中的圖表容器寬度是 0，這時候套用的可視範圍不會正確依寬度縮放K棒間距；
+      // 等分頁被切到看得見、寬度變成非 0 的那一刻，要重新套用一次才會正確撐開填滿寬度。
+      if (hadNoWidth && newW > 0) applyVisibleRange(period);
+      lastWidthRef.current = newW;
     });
     ro.observe(containerRef.current);
 
@@ -403,12 +403,21 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   }, [showMACD]);
 
   // ── 載入資料 ──────────────────────────────────────────────────
+  // 固定顯示一定數量的K棒（參考看盤App的體驗：框框大小不變，靠左右滑動看更早/更新的K棒，
+  // 不要把整個選取區間的K棒全部硬塞進同一個寬度，不然區間一長K棒就會被壓得很細）。
+  // 週期按鈕仍然決定「預設從哪裡開始看」，只是超過上限的部分改用滑動去看，不會被壓縮。
+  const MAX_VISIBLE_BARS = 50;
+
   function applyVisibleRange(p) {
     if (!chartRef.current || !data?.length) return;
-    const isUnix = typeof data[0]?.date === "number";
-    const from   = getFromDate(p, isUnix);
-    const to     = data[data.length - 1]?.date;
-    if (from && to) chartRef.current.timeScale().setVisibleRange({ from, to });
+    const isUnix   = typeof data[0]?.date === "number";
+    const fromDate = getFromDate(p, isUnix);
+    let count = 0;
+    for (let i = data.length - 1; i >= 0 && data[i].date >= fromDate; i--) count++;
+    const barsToShow = Math.min(Math.max(count, 5), MAX_VISIBLE_BARS, data.length);
+    const to   = data.length - 1;
+    const from = Math.max(0, to - barsToShow + 1);
+    chartRef.current.timeScale().setVisibleLogicalRange({ from: from - 0.5, to: to + 0.5 });
   }
 
   useEffect(() => {
