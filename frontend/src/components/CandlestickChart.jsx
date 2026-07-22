@@ -240,12 +240,15 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       height: totalHeight,
       layout: { background: { color: "#111827" }, textColor: "#7a94b0" },
       grid:   { vertLines: { color: "#1a2235" }, horzLines: { color: "#1a2235" } },
-      rightPriceScale: { borderColor: "#1e3a5f" },
+      rightPriceScale: { borderColor: "#1e3a5f", autoScale: true },
       timeScale:       { borderColor: "#1e3a5f", timeVisible: false },
       crosshair: {
         vertLine: { color: "rgba(6,182,212,0.4)", style: 0 },
         horzLine: { color: "rgba(6,182,212,0.4)", style: 0 },
       },
+      // 價格軸（右側刻度）不給手動拖曳縮放，固定自動依可視範圍內的K棒縮放，
+      // 不然手指划到價格軸容易不小心拖動、要再手動拉回正確比例才看得到完整K棒。
+      handleScale: { axisPressedMouseMove: { time: true, price: false } },
       localization: { dateFormat: "yyyy/MM/dd" },
     });
     chartRef.current = chart;
