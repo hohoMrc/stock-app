@@ -241,7 +241,8 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       layout: { background: { color: "#111827" }, textColor: "#7a94b0" },
       grid:   { vertLines: { color: "#1a2235" }, horzLines: { color: "#1a2235" } },
       rightPriceScale: { borderColor: "#1e3a5f", autoScale: true },
-      timeScale:       { borderColor: "#1e3a5f", timeVisible: false },
+      // fixRightEdge：最新一根K棒已經在最右邊時，不能再往右滑出空白區域，滑到底就是底。
+      timeScale:       { borderColor: "#1e3a5f", timeVisible: false, fixRightEdge: true, rightOffset: 0 },
       crosshair: {
         vertLine: { color: "rgba(6,182,212,0.4)", style: 0 },
         horzLine: { color: "rgba(6,182,212,0.4)", style: 0 },
