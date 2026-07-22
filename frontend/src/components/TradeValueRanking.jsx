@@ -165,7 +165,8 @@ function ExchangeBadge({ exchange }) {
 }
 
 // 手機版排行榜卡片列表，取代原本很擠的橫向表格（桌面版仍用 <table>，這個只在手機寬度顯示）
-function MobileRankList({ stocks, onSelect }) {
+// 匯出給 IndustryStocks.jsx 共用，維持排版一致。
+export function MobileRankList({ stocks, onSelect }) {
   return (
     <div className="mobile-rank-list">
       <div className="mobile-rank-header">

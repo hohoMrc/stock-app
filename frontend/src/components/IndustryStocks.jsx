@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { getIndustryStocks } from "../api";
+import { MobileRankList } from "./TradeValueRanking";
 
 const SORT_COLUMNS = [
   { key: "ticker",     label: "代號" },
@@ -96,38 +97,51 @@ export default function IndustryStocks({ industry, excludeTicker, useParent = fa
       )}
 
       {!loading && stocks.length > 0 && (
-        <table className="result-table">
-          <thead>
-            <tr>
-              {SORT_COLUMNS.map(({ key, label }) => (
-                <th key={key} className="sortable" onClick={() => handleSort(key)}>
-                  {label}{sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sortedStocks.map((s) => {
-              const up   = s.change > 0;
-              const down = s.change < 0;
-              const sign = up ? "+" : "";
-              const dir  = up ? "up" : down ? "down" : "";
-              return (
-                <tr
-                  key={s.ticker}
-                  className={`industry-row-clickable ${up ? "row-up" : down ? "row-down" : ""}`}
-                  onClick={() => onSelect(s.ticker)}
-                >
-                  <td>{s.ticker}</td>
-                  <td>{s.name}</td>
-                  <td>{s.price ?? "—"}</td>
-                  <td className={dir}>{s.change_pct != null ? `${sign}${s.change_pct}%` : "—"}</td>
-                  <td className={dir}>{s.change != null ? `${sign}${s.change}` : "—"}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="ranking-table-wrap">
+          <table className="result-table">
+            <thead>
+              <tr>
+                {SORT_COLUMNS.map(({ key, label }) => (
+                  <th key={key} className="sortable" onClick={() => handleSort(key)}>
+                    {label}{sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sortedStocks.map((s) => {
+                const up   = s.change > 0;
+                const down = s.change < 0;
+                const sign = up ? "+" : "";
+                const dir  = up ? "up" : down ? "down" : "";
+                return (
+                  <tr
+                    key={s.ticker}
+                    className={`industry-row-clickable ${up ? "row-up" : down ? "row-down" : ""}`}
+                    onClick={() => onSelect(s.ticker)}
+                  >
+                    <td>{s.ticker}</td>
+                    <td>{s.name}</td>
+                    <td>{s.price ?? "—"}</td>
+                    <td className={dir}>{s.change_pct != null ? `${sign}${s.change_pct}%` : "—"}</td>
+                    <td className={dir}>{s.change != null ? `${sign}${s.change}` : "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <MobileRankList
+            stocks={sortedStocks.map((s) => ({
+              ticker: s.ticker,
+              name: s.name,
+              close: s.price,
+              change: s.change,
+              change_pct: s.change_pct,
+              exchange: s.exchange === "TW" ? "上市" : s.exchange === "TWO" ? "上櫃" : s.exchange,
+            }))}
+            onSelect={onSelect}
+          />
+        </div>
       )}
     </div>
   );
