@@ -191,6 +191,17 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
     }
   };
 
+  // 切分頁籤時把上一個分頁篩出來的結果清掉，不然切到「條件篩選」下面還會看到
+  // 剛剛「快速篩選」跑出來的結果，容易誤會是條件篩選跑出來的。
+  const switchTab = (tab) => {
+    if (tab === screenerTab) return;
+    setScreenerTab(tab);
+    setResults([]);
+    setSearched(false);
+    setError(null);
+    setResultMode("");
+  };
+
   const hasMA = !!filters.near_ma;
   const hasPattern = !!filters.pattern;
   const isEma60Mode = resultMode === "near_ema60";
@@ -205,13 +216,13 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
       <div className="ranking-tabs">
         <button
           className={`ranking-tab ${screenerTab === "quick" ? "active" : ""}`}
-          onClick={() => setScreenerTab("quick")}
+          onClick={() => switchTab("quick")}
         >
           快速篩選
         </button>
         <button
           className={`ranking-tab ${screenerTab === "condition" ? "active" : ""}`}
-          onClick={() => setScreenerTab("condition")}
+          onClick={() => switchTab("condition")}
         >
           條件篩選
         </button>
