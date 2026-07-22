@@ -164,31 +164,67 @@ function ExchangeBadge({ exchange }) {
   );
 }
 
+// 手機版排行榜卡片列表，取代原本很擠的橫向表格（桌面版仍用 <table>，這個只在手機寬度顯示）
+function MobileRankList({ stocks, onSelect }) {
+  return (
+    <div className="mobile-rank-list">
+      <div className="mobile-rank-header">
+        <span>成交</span><span>漲跌</span><span>漲跌幅</span>
+      </div>
+      {stocks.map((s) => {
+        const dir  = s.change > 0 ? "up" : s.change < 0 ? "down" : "";
+        const sign = s.change > 0 ? "+" : "";
+        const up   = isLimitUp(s);
+        const down = isLimitDown(s);
+        return (
+          <div key={s.ticker} className="mobile-rank-card" onClick={() => onSelect(s.ticker)}>
+            <div className="mrc-left">
+              <div className="mrc-name">{s.name}</div>
+              <div className="mrc-sub">
+                <span className="mrc-exchange-tag">{s.exchange === "上市" ? "市" : "櫃"}</span>
+                <span className="mrc-ticker">{s.ticker}</span>
+              </div>
+            </div>
+            <div className="mrc-right">
+              <span className={`mrc-close ${up ? "limit-up" : down ? "limit-down" : ""}`}>{s.close ?? "—"}</span>
+              <span className={`mrc-num ${dir}`}>{s.change != null ? `${sign}${s.change}` : "—"}</span>
+              <span className={`mrc-num ${dir}`}>{s.change_pct != null ? `${sign}${s.change_pct}%` : "—"}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ValueTable({ stocks, onSelect }) {
   return (
-    <table className="result-table">
-      <thead>
-        <tr>
-          <th>#</th><th>代號</th><th>名稱</th>
-          <th>收盤</th><th>漲跌</th><th>漲跌幅</th>
-          <th>成交值(億)</th><th>市場</th><th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        {stocks.map((s, i) => (
-          <RowWrapper key={s.ticker} s={s}>
-            <td className="rank-num">{i + 1}</td>
-            <td className="col-ticker">{s.ticker}</td>
-            <td className="col-name">{s.name}</td>
-            <CloseCell s={s} />
-            <ChangeCells s={s} />
-            <td className="trade-value-cell">{s.trade_value_yi ?? "—"}</td>
-            <ExchangeBadge exchange={s.exchange} />
-            <td><button className="view-btn" onClick={() => onSelect(s.ticker)}>查看</button></td>
-          </RowWrapper>
-        ))}
-      </tbody>
-    </table>
+    <>
+      <table className="result-table">
+        <thead>
+          <tr>
+            <th>#</th><th>代號</th><th>名稱</th>
+            <th>收盤</th><th>漲跌</th><th>漲跌幅</th>
+            <th>成交值(億)</th><th>市場</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {stocks.map((s, i) => (
+            <RowWrapper key={s.ticker} s={s}>
+              <td className="rank-num">{i + 1}</td>
+              <td className="col-ticker">{s.ticker}</td>
+              <td className="col-name">{s.name}</td>
+              <CloseCell s={s} />
+              <ChangeCells s={s} />
+              <td className="trade-value-cell">{s.trade_value_yi ?? "—"}</td>
+              <ExchangeBadge exchange={s.exchange} />
+              <td><button className="view-btn" onClick={() => onSelect(s.ticker)}>查看</button></td>
+            </RowWrapper>
+          ))}
+        </tbody>
+      </table>
+      <MobileRankList stocks={stocks} onSelect={onSelect} />
+    </>
   );
 }
 
@@ -223,29 +259,32 @@ function IndustryTable({ industries, onSelect }) {
 
 function TurnoverTable({ stocks, onSelect }) {
   return (
-    <table className="result-table">
-      <thead>
-        <tr>
-          <th>#</th><th>代號</th><th>名稱</th>
-          <th>收盤</th><th>漲跌</th><th>漲跌幅</th>
-          <th>週轉率</th><th>成交量(張)</th><th>市場</th><th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        {stocks.map((s, i) => (
-          <RowWrapper key={s.ticker} s={s}>
-            <td className="rank-num">{i + 1}</td>
-            <td className="col-ticker">{s.ticker}</td>
-            <td className="col-name">{s.name}</td>
-            <CloseCell s={s} />
-            <ChangeCells s={s} />
-            <td className="trade-value-cell">{s.turnover_pct != null ? `${s.turnover_pct}%` : "—"}</td>
-            <td>{s.trade_volume_zhang != null ? s.trade_volume_zhang.toLocaleString() : "—"}</td>
-            <ExchangeBadge exchange={s.exchange} />
-            <td><button className="view-btn" onClick={() => onSelect(s.ticker)}>查看</button></td>
-          </RowWrapper>
-        ))}
-      </tbody>
-    </table>
+    <>
+      <table className="result-table">
+        <thead>
+          <tr>
+            <th>#</th><th>代號</th><th>名稱</th>
+            <th>收盤</th><th>漲跌</th><th>漲跌幅</th>
+            <th>週轉率</th><th>成交量(張)</th><th>市場</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {stocks.map((s, i) => (
+            <RowWrapper key={s.ticker} s={s}>
+              <td className="rank-num">{i + 1}</td>
+              <td className="col-ticker">{s.ticker}</td>
+              <td className="col-name">{s.name}</td>
+              <CloseCell s={s} />
+              <ChangeCells s={s} />
+              <td className="trade-value-cell">{s.turnover_pct != null ? `${s.turnover_pct}%` : "—"}</td>
+              <td>{s.trade_volume_zhang != null ? s.trade_volume_zhang.toLocaleString() : "—"}</td>
+              <ExchangeBadge exchange={s.exchange} />
+              <td><button className="view-btn" onClick={() => onSelect(s.ticker)}>查看</button></td>
+            </RowWrapper>
+          ))}
+        </tbody>
+      </table>
+      <MobileRankList stocks={stocks} onSelect={onSelect} />
+    </>
   );
 }

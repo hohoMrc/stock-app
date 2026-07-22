@@ -1043,6 +1043,9 @@
 
 .ranking-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
+/* 手機版排行榜卡片列表，桌面版預設不顯示（桌面版照舊用 <table>） */
+.mobile-rank-list { display: none; }
+
 .rank-num { color: var(--text-muted); font-size: 13px; }
 
 .trade-value-cell { font-weight: 700; color: var(--accent); }
@@ -2068,6 +2071,56 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   /* 表格：水平捲動 */
   .result-table { font-size: 12px; display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .result-table th, .result-table td { padding: 9px 10px; white-space: nowrap; }
+
+  /* 排行榜手機版：改用卡片列表，不用寬表格橫向捲動 */
+  .ranking-table-wrap { overflow-x: visible; }
+  /* :has() 排除產業分頁（IndustryTable 沒有卡片版可以替換，維持原本橫向捲動表格） */
+  .ranking-table-wrap:has(.mobile-rank-list) > .result-table { display: none; }
+  .mobile-rank-list { display: block; }
+
+  .mobile-rank-header {
+    display: flex;
+    justify-content: flex-end;
+    gap: 18px;
+    padding: 4px 4px 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .mobile-rank-header span { width: 64px; text-align: right; }
+
+  .mobile-rank-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 4px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .mobile-rank-card:last-child { border-bottom: none; }
+
+  .mrc-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .mrc-name { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+  .mrc-sub { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); }
+  .mrc-exchange-tag {
+    border: 1px solid var(--border-light);
+    border-radius: 3px;
+    padding: 0 3px;
+    line-height: 1.4;
+  }
+
+  .mrc-right { display: flex; gap: 18px; flex-shrink: 0; }
+  .mrc-close, .mrc-num {
+    width: 64px;
+    text-align: right;
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+  }
+  .mrc-close.limit-up   { background: rgba(239,68,68,0.30); border-radius: 4px; }
+  .mrc-close.limit-down { background: rgba(34,197,94,0.25); border-radius: 4px; }
+  .mrc-num.up   { color: var(--up); }
+  .mrc-num.down { color: var(--down); }
 
   /* 篩選表單 */
   .filter-row { flex-direction: column; align-items: flex-start; gap: 6px; }
