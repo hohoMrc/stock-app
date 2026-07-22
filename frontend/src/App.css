@@ -2082,6 +2082,10 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   .search-bar { gap: 8px; }
   .search-bar input { font-size: 16px; } /* 防 iOS 自動縮放 */
 
+  /* 排行榜分頁：字不要換行擠成兩行，擠不下就整排橫向捲動 */
+  .ranking-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .ranking-tab { padding: 8px 12px; font-size: 13px; white-space: nowrap; flex-shrink: 0; }
+
   /* 分析區 */
   .analysis-section { padding: 14px; }
   .page h2 { font-size: 17px; margin-bottom: 16px; }
