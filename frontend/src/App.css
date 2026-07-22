@@ -930,6 +930,8 @@
   transition: background 0.15s;
 }
 .result-table tbody tr:hover { background: var(--bg-hover); }
+.industry-row-clickable { cursor: pointer; }
+.industry-row-clickable:active { background: var(--bg-hover); }
 
 /* 排行榜 / 篩選結果：字體放大 */
 .ranking-table-wrap .result-table th,

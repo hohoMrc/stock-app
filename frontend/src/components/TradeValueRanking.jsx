@@ -234,7 +234,7 @@ function IndustryTable({ industries, onSelect }) {
     <table className="result-table">
       <thead>
         <tr>
-          <th>#</th><th>產業</th><th>平均漲跌幅</th><th>成交值(億)</th><th>檔數</th><th>操作</th>
+          <th>#</th><th>產業</th><th>平均漲跌幅</th><th>成交值(億)</th><th>檔數</th>
         </tr>
       </thead>
       <tbody>
@@ -243,13 +243,16 @@ function IndustryTable({ industries, onSelect }) {
           const down = ind.avg_change_pct < 0;
           const sign = up ? "+" : "";
           return (
-            <tr key={ind.industry} className={up ? "row-up" : down ? "row-down" : ""}>
+            <tr
+              key={ind.industry}
+              className={`industry-row-clickable ${up ? "row-up" : down ? "row-down" : ""}`}
+              onClick={() => onSelect(ind.industry)}
+            >
               <td className="rank-num">{i + 1}</td>
               <td className="col-name">{ind.industry}</td>
               <td>{sign}{ind.avg_change_pct}%</td>
               <td className="trade-value-cell">{ind.trade_value_yi}</td>
               <td>{ind.stock_count}</td>
-              <td><button className="view-btn" onClick={() => onSelect(ind.industry)}>查看</button></td>
             </tr>
           );
         })}
