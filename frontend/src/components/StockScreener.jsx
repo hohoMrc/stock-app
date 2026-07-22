@@ -45,6 +45,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [resultMode, setResultMode] = useState(""); // "weekly_surge" | ""
+  const [screenerTab, setScreenerTab] = useState("quick"); // "quick" | "condition"
 
   // 週漲幅急漲固定條件
   const WEEKLY_SURGE_PRESET = {
@@ -201,9 +202,24 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
     <div className="page">
       <h2>選股篩選</h2>
 
+      <div className="ranking-tabs">
+        <button
+          className={`ranking-tab ${screenerTab === "quick" ? "active" : ""}`}
+          onClick={() => setScreenerTab("quick")}
+        >
+          快速篩選
+        </button>
+        <button
+          className={`ranking-tab ${screenerTab === "condition" ? "active" : ""}`}
+          onClick={() => setScreenerTab("condition")}
+        >
+          條件篩選
+        </button>
+      </div>
+
       {/* 快捷條件按鈕 */}
+      {screenerTab === "quick" && (
       <div className="preset-bar">
-        <span className="preset-label">快速篩選</span>
         <button
           className="preset-btn"
           onClick={handleWeeklySurge}
@@ -246,7 +262,9 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
           🏦 法人連買
         </button>
       </div>
+      )}
 
+      {screenerTab === "condition" && (
       <div className="filter-form">
         <div className="filter-section-title">基本面條件</div>
 
@@ -432,6 +450,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
           {loading ? "篩選中..." : "開始篩選"}
         </button>
       </div>
+      )}
 
       {loading && (
         <p className="loading-hint">正在掃描中，請稍候...</p>
