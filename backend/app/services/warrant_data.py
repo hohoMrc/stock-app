@@ -152,6 +152,82 @@ def _fugle_warrant_detail(ticker: str) -> dict | None:
         return None
 
 
+def _enrich_warrant(ticker: str, d: dict, meta: dict, underlying_price: float | None,
+                     q: float, hist_vol: float | None, today: date) -> dict | None:
+    """把單一權證的原始即時資料（`_fugle_warrant_detail` 回傳值）+ 對照表 meta，
+    算成價內外/槓桿/隱含波動率齊全的一筆結果。已到期或到期日格式異常回傳 None
+    （代表這檔不該顯示，呼叫端應該跳過)。
+    """
+    maturity_raw = d.get("maturity_date")
+    if not maturity_raw or len(str(maturity_raw)) != 8:
+        return None
+    try:
+        maturity = datetime.strptime(str(maturity_raw), "%Y%m%d").date()
+    except ValueError:
+        return None
+    days_left = (maturity - today).days
+    if days_left < 0:
+        return None  # 已到期
+
+    name = d.get("name") or meta.get("name") or ""
+    exercise_price = d.get("exercise_price")
+    exercise_ratio = d.get("exercise_ratio")
+    price = d.get("price")
+    is_put = "售" in name  # 台灣權證命名慣例：名稱一定含「購」或「售」
+
+    moneyness_pct = None
+    if underlying_price and exercise_price:
+        if is_put:
+            moneyness_pct = round((exercise_price - underlying_price) / exercise_price * 100, 2)
+        else:
+            moneyness_pct = round((underlying_price - exercise_price) / exercise_price * 100, 2)
+
+    leverage = None
+    if underlying_price and exercise_ratio and price:
+        leverage = round(underlying_price * exercise_ratio / price, 2)
+
+    iv_pct = None
+    is_cheap = None
+    if underlying_price and exercise_price and exercise_ratio and price and days_left >= _MIN_DAYS_FOR_IV:
+        theoretical_price = price / exercise_ratio
+        T = days_left / 365.0
+        iv = implied_volatility(theoretical_price, underlying_price, exercise_price, T,
+                                 _RISK_FREE_RATE, q, is_put)
+        if iv is not None:
+            iv_pct = round(iv * 100, 1)
+            if hist_vol is not None:
+                is_cheap = iv < hist_vol
+
+    return {
+        "ticker": ticker,
+        "name": name,
+        "issuer_name": meta.get("issuer_name"),
+        "price": price,
+        "change": d.get("change"),
+        "change_pct": d.get("change_pct"),
+        "volume_zhang": d.get("volume_zhang"),
+        "outstanding_volume": d.get("outstanding_volume"),
+        "exercise_price": exercise_price,
+        "maturity_date": maturity.strftime("%Y-%m-%d"),
+        "days_left": days_left,
+        "is_put": is_put,
+        "moneyness_pct": moneyness_pct,
+        "leverage": leverage,
+        "iv_pct": iv_pct,
+        "is_cheap": is_cheap,
+    }
+
+
+def _underlying_context(underlying_ticker: str) -> tuple[float | None, float, float | None]:
+    """取標的現價、股利率（換算成 q 小數）、近20日年化歷史波動率，供算價內外/槓桿/IV共用。"""
+    underlying_info = get_stock_info(underlying_ticker) or {}
+    underlying_price = underlying_info.get("price")
+    dividend_yield = underlying_info.get("dividend_yield")
+    q = (dividend_yield / 100) if dividend_yield else 0.0
+    hist_vol = historical_volatility(underlying_ticker)
+    return underlying_price, q, hist_vol
+
+
 def get_stock_warrants(underlying_ticker: str, limit: int = 40) -> dict:
     """某標的股目前可交易的權證清單，附價內外程度/簡單槓桿倍數/隱含波動率，依剩餘天數排序。
     回傳 {"warrants": [...], "hist_vol_pct": 標的近20日年化歷史波動率(%)}。
@@ -172,76 +248,41 @@ def get_stock_warrants(underlying_ticker: str, limit: int = 40) -> dict:
             if d:
                 details[t] = d
 
-    underlying_info = get_stock_info(underlying_ticker) or {}
-    underlying_price = underlying_info.get("price")
-    dividend_yield = underlying_info.get("dividend_yield")
-    q = (dividend_yield / 100) if dividend_yield else 0.0
-
-    hist_vol = historical_volatility(underlying_ticker)
+    underlying_price, q, hist_vol = _underlying_context(underlying_ticker)
     hist_vol_pct = round(hist_vol * 100, 1) if hist_vol is not None else None
 
     today = date.today()
     results = []
     for ticker, d in details.items():
-        maturity_raw = d.get("maturity_date")
-        if not maturity_raw or len(str(maturity_raw)) != 8:
-            continue
-        try:
-            maturity = datetime.strptime(str(maturity_raw), "%Y%m%d").date()
-        except ValueError:
-            continue
-        days_left = (maturity - today).days
-        if days_left < 0:
-            continue  # 已到期
-
-        meta = meta_by_ticker.get(ticker, {})
-        name = d.get("name") or meta.get("name") or ""
-        exercise_price = d.get("exercise_price")
-        exercise_ratio = d.get("exercise_ratio")
-        price = d.get("price")
-        is_put = "售" in name  # 台灣權證命名慣例：名稱一定含「購」或「售」
-
-        moneyness_pct = None
-        if underlying_price and exercise_price:
-            if is_put:
-                moneyness_pct = round((exercise_price - underlying_price) / exercise_price * 100, 2)
-            else:
-                moneyness_pct = round((underlying_price - exercise_price) / exercise_price * 100, 2)
-
-        leverage = None
-        if underlying_price and exercise_ratio and price:
-            leverage = round(underlying_price * exercise_ratio / price, 2)
-
-        iv_pct = None
-        is_cheap = None
-        if underlying_price and exercise_price and exercise_ratio and price and days_left >= _MIN_DAYS_FOR_IV:
-            theoretical_price = price / exercise_ratio
-            T = days_left / 365.0
-            iv = implied_volatility(theoretical_price, underlying_price, exercise_price, T,
-                                     _RISK_FREE_RATE, q, is_put)
-            if iv is not None:
-                iv_pct = round(iv * 100, 1)
-                if hist_vol is not None:
-                    is_cheap = iv < hist_vol
-
-        results.append({
-            "ticker": ticker,
-            "name": name,
-            "issuer_name": meta.get("issuer_name"),
-            "price": price,
-            "change": d.get("change"),
-            "change_pct": d.get("change_pct"),
-            "volume_zhang": d.get("volume_zhang"),
-            "outstanding_volume": d.get("outstanding_volume"),
-            "exercise_price": exercise_price,
-            "maturity_date": maturity.strftime("%Y-%m-%d"),
-            "days_left": days_left,
-            "is_put": is_put,
-            "moneyness_pct": moneyness_pct,
-            "leverage": leverage,
-            "iv_pct": iv_pct,
-            "is_cheap": is_cheap,
-        })
+        enriched = _enrich_warrant(ticker, d, meta_by_ticker.get(ticker, {}), underlying_price, q, hist_vol, today)
+        if enriched:
+            results.append(enriched)
 
     results.sort(key=lambda r: r["days_left"])
     return {"warrants": results[:limit], "hist_vol_pct": hist_vol_pct}
+
+
+def get_warrant_detail(ticker: str) -> dict | None:
+    """直接用權證代號查單一檔權證的完整詳細資料（不是它所屬標的的全部清單）。
+    查不到（不是已知權證代號，或已到期/查無即時資料）回傳 None。
+    """
+    from app.db import get_warrant_by_ticker
+
+    meta = get_warrant_by_ticker(ticker)
+    if not meta:
+        return None
+
+    d = _fugle_warrant_detail(ticker)
+    if not d:
+        return None
+
+    underlying_ticker = meta["underlying_ticker"]
+    underlying_price, q, hist_vol = _underlying_context(underlying_ticker)
+
+    enriched = _enrich_warrant(ticker, d, meta, underlying_price, q, hist_vol, date.today())
+    if not enriched:
+        return None
+
+    enriched["underlying_ticker"] = underlying_ticker
+    enriched["underlying_name"] = meta.get("underlying_name")
+    return enriched

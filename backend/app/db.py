@@ -585,6 +585,17 @@ def get_warrants_by_underlying(ticker: str, limit: int = 80) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def get_warrant_by_ticker(ticker: str) -> dict | None:
+    """用權證代號本身反查對照表，供「權證查詢」頁判斷輸入的是不是一個已知權證代號。"""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT ticker, name, underlying_ticker, underlying_name, issuer_name FROM warrants "
+            "WHERE ticker=?",
+            (ticker,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
 # ── futures_candles ─────────────────────────────────────
 
 def save_futures_candles(symbol: str, timeframe: str, candles: list[dict]):

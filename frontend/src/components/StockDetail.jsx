@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, ReferenceDot } from "recharts";
 import CandlestickChart from "./CandlestickChart";
 import AlertModal from "./AlertModal";
+import WarrantTable from "./WarrantTable";
 import { getStock, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart, getIntradayCandles, getStockWarrants } from "../api";
 import { isTradingHours } from "../marketHours";
 
@@ -90,11 +91,6 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   const [warrants, setWarrants] = useState([]);
   const [warrantsLoading, setWarrantsLoading] = useState(false);
   const [histVolPct, setHistVolPct] = useState(null);
-  const [warrantNearMoney, setWarrantNearMoney] = useState(false);
-  const [warrantHighLeverage, setWarrantHighLeverage] = useState(false);
-  const [warrantCheap, setWarrantCheap] = useState(false);
-  const [warrantSortKey, setWarrantSortKey] = useState(null);
-  const [warrantSortDir, setWarrantSortDir] = useState("desc");
   const [intradayData, setIntradayData] = useState([]);
   const [intradayLoading, setIntradayLoading] = useState(false);
   const intradayPollRef = useRef(null);
@@ -179,10 +175,6 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   useEffect(() => {
     let alive = true;
     setWarrantsLoading(true);
-    setWarrantNearMoney(false);
-    setWarrantHighLeverage(false);
-    setWarrantCheap(false);
-    setWarrantSortKey(null);
     getStockWarrants(ticker)
       .then((res) => {
         if (!alive) return;
@@ -208,15 +200,6 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
     intradayPollRef.current = setInterval(() => { if (isTradingHours()) load(); }, 15_000);
     return () => { alive = false; clearInterval(intradayPollRef.current); };
   }, [ticker]);
-
-  const handleWarrantSort = (key) => {
-    if (warrantSortKey === key) {
-      setWarrantSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setWarrantSortKey(key);
-      setWarrantSortDir("desc");
-    }
-  };
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
@@ -607,102 +590,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
 
       <div className={`warrant-section tab-warrant ${mobileTab === "warrant" ? "mobile-active" : ""}`}>
         <h3>相關權證</h3>
-        {warrantsLoading && <p className="loading-hint">查詢中...</p>}
-        {!warrantsLoading && warrants.length === 0 && (
-          <p className="no-data">目前無相關權證</p>
-        )}
-        {!warrantsLoading && warrants.length > 0 && (
-          <>
-            {histVolPct != null && (
-              <p className="warrant-hist-vol-hint">標的近20日歷史波動率：{histVolPct}%（供對照隱含波動率是否偏貴/偏便宜）</p>
-            )}
-            <div className="warrant-filters">
-              <label className="check-label">
-                <input type="checkbox" checked={warrantNearMoney} onChange={(e) => setWarrantNearMoney(e.target.checked)} />
-                近價（價內外 ±10% 內）
-              </label>
-              <label className="check-label">
-                <input type="checkbox" checked={warrantHighLeverage} onChange={(e) => setWarrantHighLeverage(e.target.checked)} />
-                高槓桿（≥5倍）
-              </label>
-              <label className="check-label">
-                <input type="checkbox" checked={warrantCheap} onChange={(e) => setWarrantCheap(e.target.checked)} />
-                相對便宜（IV低於歷史波動率）
-              </label>
-            </div>
-            {(() => {
-              const filtered = warrants.filter((w) =>
-                (!warrantNearMoney || (w.moneyness_pct != null && Math.abs(w.moneyness_pct) <= 10)) &&
-                (!warrantHighLeverage || (w.leverage != null && w.leverage >= 5)) &&
-                (!warrantCheap || w.is_cheap === true)
-              );
-              if (filtered.length === 0) {
-                return <p className="no-data">沒有符合篩選條件的權證</p>;
-              }
-              const sorted = warrantSortKey
-                ? [...filtered].sort((a, b) => {
-                    const av = a[warrantSortKey], bv = b[warrantSortKey];
-                    if (av == null && bv == null) return 0;
-                    if (av == null) return 1;
-                    if (bv == null) return -1;
-                    if (typeof av === "string") {
-                      return warrantSortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
-                    }
-                    return warrantSortDir === "asc" ? av - bv : bv - av;
-                  })
-                : filtered;
-              const columns = [
-                { key: "ticker", label: "代號" },
-                { key: "name", label: "名稱" },
-                { key: "price", label: "現價" },
-                { key: "change_pct", label: "漲跌幅" },
-                { key: "volume_zhang", label: "成交量(張)" },
-                { key: "outstanding_volume", label: "在外流通(張)" },
-                { key: "exercise_price", label: "履約價" },
-                { key: "days_left", label: "剩餘天數" },
-                { key: "moneyness_pct", label: "價內外" },
-                { key: "leverage", label: "槓桿" },
-                { key: "iv_pct", label: "隱含波動率" },
-              ];
-              return (
-                <table className="result-table warrant-table">
-                  <thead>
-                    <tr>
-                      {columns.map(({ key, label }) => (
-                        <th key={key} className="sortable" onClick={() => handleWarrantSort(key)}>
-                          {label}{warrantSortKey === key ? (warrantSortDir === "asc" ? " ▲" : " ▼") : ""}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sorted.map((w) => (
-                      <tr key={w.ticker} className={w.change_pct > 0 ? "row-up" : w.change_pct < 0 ? "row-down" : ""}>
-                        <td className="col-ticker">{w.ticker}</td>
-                        <td className="col-name">{w.name}</td>
-                        <td>{w.price ?? "—"}</td>
-                        <td className={w.change_pct > 0 ? "deviation-up" : w.change_pct < 0 ? "deviation-down" : ""}>
-                          {w.change_pct != null ? `${w.change_pct > 0 ? "+" : ""}${w.change_pct}%` : "—"}
-                        </td>
-                        <td>{w.volume_zhang != null ? w.volume_zhang.toLocaleString() : "—"}</td>
-                        <td>{w.outstanding_volume != null ? w.outstanding_volume.toLocaleString() : "—"}</td>
-                        <td>{w.exercise_price ?? "—"}</td>
-                        <td>{w.days_left}</td>
-                        <td className={w.moneyness_pct > 0 ? "deviation-up" : w.moneyness_pct < 0 ? "deviation-down" : ""}>
-                          {w.moneyness_pct != null ? `${w.moneyness_pct > 0 ? "+" : ""}${w.moneyness_pct}%` : "—"}
-                        </td>
-                        <td>{w.leverage != null ? `${w.leverage}x` : "—"}</td>
-                        <td className={w.is_cheap ? "deviation-up" : ""}>
-                          {w.iv_pct != null ? `${w.iv_pct}%` : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              );
-            })()}
-          </>
-        )}
+        <WarrantTable key={ticker} warrants={warrants} histVolPct={histVolPct} loading={warrantsLoading} />
       </div>
 
       <div className={`analysis-section tab-ai ${mobileTab === "ai" ? "mobile-active" : ""}`}>
@@ -735,7 +623,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   );
 }
 
-function InfoItem({ label, value }) {
+export function InfoItem({ label, value }) {
   return (
     <div className="info-item">
       <span className="info-label">{label}</span>
