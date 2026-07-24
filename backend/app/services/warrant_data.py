@@ -17,6 +17,7 @@ _TWSE_WARRANT_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap36_L"
 _TPEX_WARRANT_URL = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap36_O"
 
 _RISK_FREE_RATE = 0.015  # 台灣短期利率概略值，僅供參考用途，不即時抓取
+_MIN_DAYS_FOR_IV = 10    # 剩餘天數低於這個門檻，IV 反解本身就不穩定（BS模型在接近到期時的已知邊界情況），不顯示
 
 
 def historical_volatility(ticker: str, window: int = 20) -> float | None:
@@ -211,7 +212,7 @@ def get_stock_warrants(underlying_ticker: str, limit: int = 40) -> dict:
 
         iv_pct = None
         is_cheap = None
-        if underlying_price and exercise_price and exercise_ratio and price and days_left > 0:
+        if underlying_price and exercise_price and exercise_ratio and price and days_left >= _MIN_DAYS_FOR_IV:
             theoretical_price = price / exercise_ratio
             T = days_left / 365.0
             iv = implied_volatility(theoretical_price, underlying_price, exercise_price, T,
