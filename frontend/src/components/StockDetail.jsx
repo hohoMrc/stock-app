@@ -93,6 +93,8 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   const [warrantNearMoney, setWarrantNearMoney] = useState(false);
   const [warrantHighLeverage, setWarrantHighLeverage] = useState(false);
   const [warrantCheap, setWarrantCheap] = useState(false);
+  const [warrantSortKey, setWarrantSortKey] = useState(null);
+  const [warrantSortDir, setWarrantSortDir] = useState("desc");
   const [intradayData, setIntradayData] = useState([]);
   const [intradayLoading, setIntradayLoading] = useState(false);
   const intradayPollRef = useRef(null);
@@ -180,6 +182,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
     setWarrantNearMoney(false);
     setWarrantHighLeverage(false);
     setWarrantCheap(false);
+    setWarrantSortKey(null);
     getStockWarrants(ticker)
       .then((res) => {
         if (!alive) return;
@@ -205,6 +208,15 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
     intradayPollRef.current = setInterval(() => { if (isTradingHours()) load(); }, 15_000);
     return () => { alive = false; clearInterval(intradayPollRef.current); };
   }, [ticker]);
+
+  const handleWarrantSort = (key) => {
+    if (warrantSortKey === key) {
+      setWarrantSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setWarrantSortKey(key);
+      setWarrantSortDir("desc");
+    }
+  };
 
   const handleAnalyze = async () => {
     setAnalyzing(true);
@@ -627,16 +639,44 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
               if (filtered.length === 0) {
                 return <p className="no-data">沒有符合篩選條件的權證</p>;
               }
+              const sorted = warrantSortKey
+                ? [...filtered].sort((a, b) => {
+                    const av = a[warrantSortKey], bv = b[warrantSortKey];
+                    if (av == null && bv == null) return 0;
+                    if (av == null) return 1;
+                    if (bv == null) return -1;
+                    if (typeof av === "string") {
+                      return warrantSortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+                    }
+                    return warrantSortDir === "asc" ? av - bv : bv - av;
+                  })
+                : filtered;
+              const columns = [
+                { key: "ticker", label: "代號" },
+                { key: "name", label: "名稱" },
+                { key: "price", label: "現價" },
+                { key: "change_pct", label: "漲跌幅" },
+                { key: "volume_zhang", label: "成交量(張)" },
+                { key: "outstanding_volume", label: "在外流通(張)" },
+                { key: "exercise_price", label: "履約價" },
+                { key: "days_left", label: "剩餘天數" },
+                { key: "moneyness_pct", label: "價內外" },
+                { key: "leverage", label: "槓桿" },
+                { key: "iv_pct", label: "隱含波動率" },
+              ];
               return (
                 <table className="result-table warrant-table">
                   <thead>
                     <tr>
-                      <th>代號</th><th>名稱</th><th>現價</th><th>漲跌幅</th><th>成交量(張)</th><th>在外流通(張)</th>
-                      <th>履約價</th><th>剩餘天數</th><th>價內外</th><th>槓桿</th><th>隱含波動率</th>
+                      {columns.map(({ key, label }) => (
+                        <th key={key} className="sortable" onClick={() => handleWarrantSort(key)}>
+                          {label}{warrantSortKey === key ? (warrantSortDir === "asc" ? " ▲" : " ▼") : ""}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((w) => (
+                    {sorted.map((w) => (
                       <tr key={w.ticker} className={w.change_pct > 0 ? "row-up" : w.change_pct < 0 ? "row-down" : ""}>
                         <td className="col-ticker">{w.ticker}</td>
                         <td className="col-name">{w.name}</td>
