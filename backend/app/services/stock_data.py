@@ -1434,10 +1434,13 @@ def scan_near_ema60(limit: int = 500) -> list:
         dev = (close - ema) / ema
         if not (0 <= dev <= 0.03):
             continue
-        # 近 20 個交易日（約一個月）的收盤都必須在當日 EMA60 上方
+        # 近 20 個交易日（約一個月）大致都要站上 EMA60，但不要求 100% 嚴格：
+        # 1% 容忍帶（收盤 ≥ EMA60×99% 都算過）+ 最多容許 2 天真的跌破，
+        # 避免單一天些微跌破（例如只差0.2%）就把明明持續走穩的股票整組刷掉。
         recent_closes = closes[-20:]
         recent_emas   = ema_series[-20:]
-        if any(c < e for c, e in zip(recent_closes, recent_emas)):
+        violations = sum(1 for c, e in zip(recent_closes, recent_emas) if c < e * 0.99)
+        if violations > 2:
             continue
         prev = records[-2] if len(records) >= 2 else last
         prev_close = prev.get("close")
