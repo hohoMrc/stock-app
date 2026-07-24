@@ -89,8 +89,10 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   const [instLoading, setInstLoading] = useState(false);
   const [warrants, setWarrants] = useState([]);
   const [warrantsLoading, setWarrantsLoading] = useState(false);
+  const [histVolPct, setHistVolPct] = useState(null);
   const [warrantNearMoney, setWarrantNearMoney] = useState(false);
   const [warrantHighLeverage, setWarrantHighLeverage] = useState(false);
+  const [warrantCheap, setWarrantCheap] = useState(false);
   const [intradayData, setIntradayData] = useState([]);
   const [intradayLoading, setIntradayLoading] = useState(false);
   const intradayPollRef = useRef(null);
@@ -177,9 +179,14 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
     setWarrantsLoading(true);
     setWarrantNearMoney(false);
     setWarrantHighLeverage(false);
+    setWarrantCheap(false);
     getStockWarrants(ticker)
-      .then((res) => { if (alive) setWarrants(res.data.warrants); })
-      .catch(() => { if (alive) setWarrants([]); })
+      .then((res) => {
+        if (!alive) return;
+        setWarrants(res.data.warrants);
+        setHistVolPct(res.data.hist_vol_pct);
+      })
+      .catch(() => { if (alive) { setWarrants([]); setHistVolPct(null); } })
       .finally(() => { if (alive) setWarrantsLoading(false); });
     return () => { alive = false; };
   }, [ticker]);
@@ -594,6 +601,9 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         )}
         {!warrantsLoading && warrants.length > 0 && (
           <>
+            {histVolPct != null && (
+              <p className="warrant-hist-vol-hint">標的近20日歷史波動率：{histVolPct}%（供對照隱含波動率是否偏貴/偏便宜）</p>
+            )}
             <div className="warrant-filters">
               <label className="check-label">
                 <input type="checkbox" checked={warrantNearMoney} onChange={(e) => setWarrantNearMoney(e.target.checked)} />
@@ -603,11 +613,16 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
                 <input type="checkbox" checked={warrantHighLeverage} onChange={(e) => setWarrantHighLeverage(e.target.checked)} />
                 高槓桿（≥5倍）
               </label>
+              <label className="check-label">
+                <input type="checkbox" checked={warrantCheap} onChange={(e) => setWarrantCheap(e.target.checked)} />
+                相對便宜（IV低於歷史波動率）
+              </label>
             </div>
             {(() => {
               const filtered = warrants.filter((w) =>
                 (!warrantNearMoney || (w.moneyness_pct != null && Math.abs(w.moneyness_pct) <= 10)) &&
-                (!warrantHighLeverage || (w.leverage != null && w.leverage >= 5))
+                (!warrantHighLeverage || (w.leverage != null && w.leverage >= 5)) &&
+                (!warrantCheap || w.is_cheap === true)
               );
               if (filtered.length === 0) {
                 return <p className="no-data">沒有符合篩選條件的權證</p>;
@@ -617,7 +632,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
                   <thead>
                     <tr>
                       <th>代號</th><th>名稱</th><th>發行券商</th><th>現價</th><th>漲跌幅</th>
-                      <th>履約價</th><th>剩餘天數</th><th>價內外</th><th>槓桿</th>
+                      <th>履約價</th><th>剩餘天數</th><th>價內外</th><th>槓桿</th><th>隱含波動率</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -636,6 +651,9 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
                           {w.moneyness_pct != null ? `${w.moneyness_pct > 0 ? "+" : ""}${w.moneyness_pct}%` : "—"}
                         </td>
                         <td>{w.leverage != null ? `${w.leverage}x` : "—"}</td>
+                        <td className={w.is_cheap ? "deviation-up" : ""}>
+                          {w.iv_pct != null ? `${w.iv_pct}%` : "—"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

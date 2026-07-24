@@ -202,8 +202,13 @@ async def get_institutional_trades(ticker: str, days: int = Query(default=30, le
 async def get_stock_warrants_endpoint(ticker: str):
     try:
         from app.services.warrant_data import get_stock_warrants
-        warrants = await run_in_threadpool(get_stock_warrants, ticker)
-        return {"ticker": ticker, "count": len(warrants), "warrants": warrants}
+        result = await run_in_threadpool(get_stock_warrants, ticker)
+        return {
+            "ticker": ticker,
+            "count": len(result["warrants"]),
+            "hist_vol_pct": result["hist_vol_pct"],
+            "warrants": result["warrants"],
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
