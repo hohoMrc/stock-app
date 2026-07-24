@@ -631,7 +631,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
                 <table className="result-table warrant-table">
                   <thead>
                     <tr>
-                      <th>代號</th><th>名稱</th><th>發行券商</th><th>現價</th><th>漲跌幅</th>
+                      <th>代號</th><th>名稱</th><th>發行券商</th><th>現價</th><th>漲跌幅</th><th>成交量(張)</th>
                       <th>履約價</th><th>剩餘天數</th><th>價內外</th><th>槓桿</th><th>隱含波動率</th>
                     </tr>
                   </thead>
@@ -645,6 +645,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
                         <td className={w.change_pct > 0 ? "deviation-up" : w.change_pct < 0 ? "deviation-down" : ""}>
                           {w.change_pct != null ? `${w.change_pct > 0 ? "+" : ""}${w.change_pct}%` : "—"}
                         </td>
+                        <td>{w.volume_zhang != null ? w.volume_zhang.toLocaleString() : "—"}</td>
                         <td>{w.exercise_price ?? "—"}</td>
                         <td>{w.days_left}</td>
                         <td className={w.moneyness_pct > 0 ? "deviation-up" : w.moneyness_pct < 0 ? "deviation-down" : ""}>
