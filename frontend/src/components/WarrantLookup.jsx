@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { getWarrantLookup } from "../api";
 import WarrantTable from "./WarrantTable";
 import { InfoItem } from "./StockDetail";
@@ -8,19 +8,23 @@ export default function WarrantLookup({ onSelect }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
+  // 連續快速搜尋時，較慢的舊查詢可能比較新的查詢晚回來，用序號只採用最新一次的結果，
+  // 避免畫面被過期的回應蓋掉。
+  const searchSeqRef = useRef(0);
 
   const runSearch = async (q) => {
     if (!q) return;
+    const seq = ++searchSeqRef.current;
     setLoading(true);
     setError("");
     setResult(null);
     try {
       const res = await getWarrantLookup(q);
-      setResult(res.data);
+      if (seq === searchSeqRef.current) setResult(res.data);
     } catch (e) {
-      setError(e?.response?.data?.detail || e.message || "查詢失敗");
+      if (seq === searchSeqRef.current) setError(e?.response?.data?.detail || e.message || "查詢失敗");
     } finally {
-      setLoading(false);
+      if (seq === searchSeqRef.current) setLoading(false);
     }
   };
 
