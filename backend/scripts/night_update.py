@@ -16,7 +16,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "../.env"))
 import datetime as _dt
 
 from app.db import init_db, save_futures_candles
-from app.services.futures_data import _current_symbol, _get_client, TZ_TAIPEI
+from app.services.futures_data import _current_symbol, _get_client, shutdown_sdk, TZ_TAIPEI
 
 init_db()
 
@@ -45,3 +45,10 @@ for product in ["TXF", "TMF"]:
                 print(f"[夜盤K線] {product} {tf}min: 無資料（可能無夜盤，如週末）")
         except Exception as e:
             print(f"[夜盤K線] {product} {tf}min 失敗: {e}")
+
+# SDK 的 init_realtime() 會啟動背景連線元件，短命腳本結束前要主動收尾，
+# 不然直譯器關閉時背景執行緒還活著會噴 Fatal Python error（gilstate_tss_set）。
+try:
+    shutdown_sdk()
+except Exception as e:
+    print(f"[futures] shutdown_sdk 失敗: {e}")

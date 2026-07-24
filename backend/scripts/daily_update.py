@@ -330,3 +330,11 @@ if __name__ == "__main__":
                     print(f"[期貨K線] {product} {tf}min 失敗: {e}")
     except Exception as e:
         print(f"[期貨K線] 整體失敗: {e}")
+
+    # SDK 的 init_realtime() 會啟動背景連線元件，短命腳本結束前要主動收尾，
+    # 不然直譯器關閉時背景執行緒還活著會噴 Fatal Python error（gilstate_tss_set）。
+    try:
+        from app.services.futures_data import shutdown_sdk
+        shutdown_sdk()
+    except Exception as e:
+        print(f"[futures] shutdown_sdk 失敗: {e}")

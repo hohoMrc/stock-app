@@ -114,6 +114,23 @@ def _get_client():
     return _rest_client
 
 
+def shutdown_sdk():
+    """短命 cron 腳本（daily_update.py 等）用完 SDK 後要主動收尾，不然 init_realtime()
+    啟動的背景連線元件在直譯器關閉時還活著，會噴 Fatal Python error（gilstate_tss_set）。
+    常駐的 FastAPI 服務不會走到「自然結束」這一步，不需要呼叫這個函式。
+    """
+    global _sdk, _rest_client
+    if _sdk is None:
+        return
+    try:
+        _sdk.logout()
+    except Exception as e:
+        print(f"[futures] SDK logout 失敗（不影響已完成的工作）: {e}")
+    finally:
+        _sdk = None
+        _rest_client = None
+
+
 def get_futures_quote(symbol: str | None = None) -> dict:
     """即時報價：日夜盤不分開顯示，自動依現在時間查目前實際在交易的那一段。"""
     symbol = symbol or _current_symbol()
