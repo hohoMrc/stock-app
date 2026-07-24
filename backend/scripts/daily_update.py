@@ -299,6 +299,16 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[融資融券] 失敗: {e}")
 
+        print("[權證] 更新權證發行清單...")
+        try:
+            from app.services.warrant_data import fetch_warrants_today
+            from app.db import save_warrants
+            warrant_records = fetch_warrants_today()
+            save_warrants(warrant_records)
+            print(f"[權證] 存入 {len(warrant_records)} 筆")
+        except Exception as e:
+            print(f"[權證] 失敗: {e}")
+
     # 儲存台指期/微型台指當日各 timeframe 日盤 K 棒到 DB（夜盤由另一支排程 night_update.py 在隔天 05:30 存）
     print("[期貨K線] 儲存當日各 timeframe K 棒...")
     try:

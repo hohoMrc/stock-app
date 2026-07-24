@@ -631,6 +631,28 @@
 .inst-table td.up   { color: var(--up); }
 .inst-table td.down { color: var(--down); }
 
+/* ── Warrants ── */
+.warrant-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+  margin-top: 20px;
+}
+.warrant-section h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+.warrant-filters {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 14px;
+}
+.warrant-table th, .warrant-table td { font-size: 13px; }
+
 /* ── Analysis ── */
 .analysis-section {
   background: var(--bg-card);
@@ -1991,9 +2013,9 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
     color: #04202b;
   }
 
-  .tab-quote, .tab-kline, .tab-inst, .tab-ai { display: none; }
-  .tab-quote.mobile-active, .tab-kline.mobile-active,
-  .tab-inst.mobile-active, .tab-ai.mobile-active { display: block; }
+  .tab-quote, .tab-kline, .tab-inst, .tab-warrant, .tab-ai { display: none; }
+  .tab-quote.mobile-active, .tab-kline.mobile-active, .tab-inst.mobile-active,
+  .tab-warrant.mobile-active, .tab-ai.mobile-active { display: block; }
   .info-grid.tab-quote.mobile-active { display: grid; }
 
   /* 開盤/最高/最低/振幅/成交量簡易統計列 */

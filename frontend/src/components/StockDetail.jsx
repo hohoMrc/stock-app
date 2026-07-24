@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, ReferenceDot } from "recharts";
 import CandlestickChart from "./CandlestickChart";
 import AlertModal from "./AlertModal";
-import { getStock, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart, getIntradayCandles } from "../api";
+import { getStock, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart, getIntradayCandles, getStockWarrants } from "../api";
 import { isTradingHours } from "../marketHours";
 
 const INTERVAL_CONFIG = {
@@ -72,7 +72,7 @@ function mergeIntradayBars(historyArr, todayCandles) {
 export default function StockDetail({ ticker, scanContext = null, onBack, onIndustry, watchlist = [], onToggleWatch, onPaperTrade, username, onRequireLogin }) {
   const [info, setInfo] = useState(null);
   const [showAlertModal, setShowAlertModal] = useState(false);
-  const [mobileTab, setMobileTab] = useState("quote"); // 手機版分頁："quote"|"kline"|"inst"|"ai"，桌面版不生效
+  const [mobileTab, setMobileTab] = useState("quote"); // 手機版分頁："quote"|"kline"|"inst"|"warrant"|"ai"，桌面版不生效
   const [chartOptionsExpanded, setChartOptionsExpanded] = useState(false); // 手機版K線週期「更多」收合，桌面版不生效
   const [history, setHistory] = useState([]);
   const [analysis, setAnalysis] = useState("");
@@ -87,6 +87,10 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   const lastTickerRef = useRef(null);
   const [instTrades, setInstTrades] = useState([]);
   const [instLoading, setInstLoading] = useState(false);
+  const [warrants, setWarrants] = useState([]);
+  const [warrantsLoading, setWarrantsLoading] = useState(false);
+  const [warrantNearMoney, setWarrantNearMoney] = useState(false);
+  const [warrantHighLeverage, setWarrantHighLeverage] = useState(false);
   const [intradayData, setIntradayData] = useState([]);
   const [intradayLoading, setIntradayLoading] = useState(false);
   const intradayPollRef = useRef(null);
@@ -164,6 +168,19 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
       .then((res) => { if (alive) setInstTrades(res.data.records); })
       .catch(() => { if (alive) setInstTrades([]); })
       .finally(() => { if (alive) setInstLoading(false); });
+    return () => { alive = false; };
+  }, [ticker]);
+
+  // 相關權證，只需在切換股票時抓一次（後端即時查 Fugle，不用跟報價一樣輪詢）
+  useEffect(() => {
+    let alive = true;
+    setWarrantsLoading(true);
+    setWarrantNearMoney(false);
+    setWarrantHighLeverage(false);
+    getStockWarrants(ticker)
+      .then((res) => { if (alive) setWarrants(res.data.warrants); })
+      .catch(() => { if (alive) setWarrants([]); })
+      .finally(() => { if (alive) setWarrantsLoading(false); });
     return () => { alive = false; };
   }, [ticker]);
 
@@ -302,10 +319,11 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
 
       <div className="mobile-detail-tabs">
         {[
-          { key: "quote", label: "行情" },
-          { key: "kline", label: "K線" },
-          { key: "inst",  label: "法人" },
-          { key: "ai",    label: "AI分析" },
+          { key: "quote",   label: "行情" },
+          { key: "kline",   label: "K線" },
+          { key: "inst",    label: "法人" },
+          { key: "warrant", label: "權證" },
+          { key: "ai",      label: "AI分析" },
         ].map(({ key, label }) => (
           <button key={key} className={mobileTab === key ? "active" : ""} onClick={() => setMobileTab(key)}>
             {label}
@@ -567,6 +585,66 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
           </table>
         </div>
       )}
+
+      <div className={`warrant-section tab-warrant ${mobileTab === "warrant" ? "mobile-active" : ""}`}>
+        <h3>相關權證</h3>
+        {warrantsLoading && <p className="loading-hint">查詢中...</p>}
+        {!warrantsLoading && warrants.length === 0 && (
+          <p className="no-data">目前無相關權證</p>
+        )}
+        {!warrantsLoading && warrants.length > 0 && (
+          <>
+            <div className="warrant-filters">
+              <label className="check-label">
+                <input type="checkbox" checked={warrantNearMoney} onChange={(e) => setWarrantNearMoney(e.target.checked)} />
+                近價（價內外 ±10% 內）
+              </label>
+              <label className="check-label">
+                <input type="checkbox" checked={warrantHighLeverage} onChange={(e) => setWarrantHighLeverage(e.target.checked)} />
+                高槓桿（≥5倍）
+              </label>
+            </div>
+            {(() => {
+              const filtered = warrants.filter((w) =>
+                (!warrantNearMoney || (w.moneyness_pct != null && Math.abs(w.moneyness_pct) <= 10)) &&
+                (!warrantHighLeverage || (w.leverage != null && w.leverage >= 5))
+              );
+              if (filtered.length === 0) {
+                return <p className="no-data">沒有符合篩選條件的權證</p>;
+              }
+              return (
+                <table className="result-table warrant-table">
+                  <thead>
+                    <tr>
+                      <th>代號</th><th>名稱</th><th>發行券商</th><th>現價</th><th>漲跌幅</th>
+                      <th>履約價</th><th>剩餘天數</th><th>價內外</th><th>槓桿</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((w) => (
+                      <tr key={w.ticker} className={w.change_pct > 0 ? "row-up" : w.change_pct < 0 ? "row-down" : ""}>
+                        <td className="col-ticker">{w.ticker}</td>
+                        <td className="col-name">{w.name}</td>
+                        <td>{w.issuer_name}</td>
+                        <td>{w.price ?? "—"}</td>
+                        <td className={w.change_pct > 0 ? "deviation-up" : w.change_pct < 0 ? "deviation-down" : ""}>
+                          {w.change_pct != null ? `${w.change_pct > 0 ? "+" : ""}${w.change_pct}%` : "—"}
+                        </td>
+                        <td>{w.exercise_price ?? "—"}</td>
+                        <td>{w.days_left}</td>
+                        <td className={w.moneyness_pct > 0 ? "deviation-up" : w.moneyness_pct < 0 ? "deviation-down" : ""}>
+                          {w.moneyness_pct != null ? `${w.moneyness_pct > 0 ? "+" : ""}${w.moneyness_pct}%` : "—"}
+                        </td>
+                        <td>{w.leverage != null ? `${w.leverage}x` : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              );
+            })()}
+          </>
+        )}
+      </div>
 
       <div className={`analysis-section tab-ai ${mobileTab === "ai" ? "mobile-active" : ""}`}>
         <div className="analysis-header">

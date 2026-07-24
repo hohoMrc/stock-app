@@ -117,6 +117,19 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_scan_signals_type
             ON scan_signals(scan_type, signal_date);
 
+        CREATE TABLE IF NOT EXISTS warrants (
+            ticker            TEXT PRIMARY KEY,
+            name              TEXT,
+            underlying_ticker TEXT,
+            underlying_name   TEXT,
+            issuer_name       TEXT,
+            issue_date        TEXT,
+            updated_at        REAL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_warrants_underlying
+            ON warrants(underlying_ticker, issue_date DESC);
+
         CREATE TABLE IF NOT EXISTS futures_candles (
             symbol    TEXT NOT NULL,
             timeframe TEXT NOT NULL,
@@ -537,6 +550,37 @@ def get_scan_signal_stats(scan_type: str, since_date: str) -> list[dict]:
             "FROM scan_signals WHERE scan_type=? AND signal_date>=? AND return_20d IS NOT NULL "
             "ORDER BY signal_date",
             (scan_type, since_date)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── warrants（權證→標的股對照表，每日排程批次更新）──────────
+
+def save_warrants(records: list[dict]):
+    """INSERT OR REPLACE：只存最新已知的對照關係，不用像 institutional_trades 存歷史。"""
+    if not records:
+        return
+    with _conn() as conn:
+        conn.executemany(
+            "INSERT OR REPLACE INTO warrants"
+            "(ticker, name, underlying_ticker, underlying_name, issuer_name, issue_date, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [
+                (r["ticker"], r.get("name", ""), r.get("underlying_ticker", ""),
+                 r.get("underlying_name", ""), r.get("issuer_name", ""), r.get("issue_date", ""),
+                 time.time())
+                for r in records if r.get("ticker") and r.get("underlying_ticker")
+            ]
+        )
+
+
+def get_warrants_by_underlying(ticker: str, limit: int = 80) -> list[dict]:
+    """撈某標的股的權證候選（依發行日期新到舊），供個股頁「權證」分頁即時查詢即時資料用。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker, name, issuer_name, issue_date FROM warrants "
+            "WHERE underlying_ticker=? ORDER BY issue_date DESC LIMIT ?",
+            (ticker, limit)
         ).fetchall()
     return [dict(r) for r in rows]
 

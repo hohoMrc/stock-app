@@ -198,6 +198,16 @@ async def get_institutional_trades(ticker: str, days: int = Query(default=30, le
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/{ticker}/warrants")
+async def get_stock_warrants_endpoint(ticker: str):
+    try:
+        from app.services.warrant_data import get_stock_warrants
+        warrants = await run_in_threadpool(get_stock_warrants, ticker)
+        return {"ticker": ticker, "count": len(warrants), "warrants": warrants}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{ticker}/trades")
 async def get_trades(ticker: str, limit: int = Query(default=30, le=100)):
     try:
