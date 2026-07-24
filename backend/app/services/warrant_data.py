@@ -146,7 +146,9 @@ def _fugle_warrant_detail(ticker: str) -> dict | None:
             "exercise_price": data.get("exercisePrice"),
             "exercise_ratio": data.get("exerciseRatio"),
             "maturity_date": data.get("maturityDate"),  # 格式 YYYYMMDD
-            "outstanding_volume": data.get("remainingVolume"),  # 在外流通餘額（張）
+            # 「發行量-已履約-已註銷」＝合約仍有效、尚未到期作廢的總量，不是散戶目前實際
+            # 持有的張數（那個要發行商自己的即時庫存資料才算得出來，沒有公開資料源）。
+            "valid_volume": data.get("remainingVolume"),
         }
     except Exception:
         return None
@@ -206,7 +208,7 @@ def _enrich_warrant(ticker: str, d: dict, meta: dict, underlying_price: float | 
         "change": d.get("change"),
         "change_pct": d.get("change_pct"),
         "volume_zhang": d.get("volume_zhang"),
-        "outstanding_volume": d.get("outstanding_volume"),
+        "valid_volume": d.get("valid_volume"),
         "exercise_price": exercise_price,
         "maturity_date": maturity.strftime("%Y-%m-%d"),
         "days_left": days_left,

@@ -47,7 +47,7 @@ export default function WarrantTable({ warrants, histVolPct, loading }) {
     { key: "price", label: "現價" },
     { key: "change_pct", label: "漲跌幅" },
     { key: "volume_zhang", label: "成交量(張)" },
-    { key: "outstanding_volume", label: "在外流通(張)" },
+    { key: "valid_volume", label: "有效發行量(張)" },
     { key: "exercise_price", label: "履約價" },
     { key: "days_left", label: "剩餘天數" },
     { key: "moneyness_pct", label: "價內外" },
@@ -97,7 +97,7 @@ export default function WarrantTable({ warrants, histVolPct, loading }) {
                   {w.change_pct != null ? `${w.change_pct > 0 ? "+" : ""}${w.change_pct}%` : "—"}
                 </td>
                 <td>{w.volume_zhang != null ? w.volume_zhang.toLocaleString() : "—"}</td>
-                <td>{w.outstanding_volume != null ? w.outstanding_volume.toLocaleString() : "—"}</td>
+                <td>{w.valid_volume != null ? w.valid_volume.toLocaleString() : "—"}</td>
                 <td>{w.exercise_price ?? "—"}</td>
                 <td>{w.days_left}</td>
                 <td className={w.moneyness_pct > 0 ? "deviation-up" : w.moneyness_pct < 0 ? "deviation-down" : ""}>

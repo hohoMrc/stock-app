@@ -94,7 +94,7 @@ function WarrantDetailCard({ warrant: w, onSelectStock, onViewUnderlyingWarrants
           value={w.change_pct != null ? `${w.change_pct > 0 ? "+" : ""}${w.change_pct}%` : "—"}
         />
         <InfoItem label="成交量(張)" value={w.volume_zhang != null ? w.volume_zhang.toLocaleString() : "—"} />
-        <InfoItem label="在外流通(張)" value={w.outstanding_volume != null ? w.outstanding_volume.toLocaleString() : "—"} />
+        <InfoItem label="有效發行量(張)" value={w.valid_volume != null ? w.valid_volume.toLocaleString() : "—"} />
         <InfoItem label="履約價" value={w.exercise_price ?? "—"} />
         <InfoItem label="到期日" value={`${w.maturity_date}（剩${w.days_left}天）`} />
         <InfoItem
