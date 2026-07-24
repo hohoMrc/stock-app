@@ -385,7 +385,7 @@ export default function App() {
           />
         )}
         {activePage === "terminal" && (
-          <TradingTerminal watchlist={watchlist} onToggleWatch={toggleWatch} username={username} />
+          <TradingTerminal watchlist={watchlist} onToggleWatch={toggleWatch} username={username} onSelect={(t) => handleSelectStock(t)} />
         )}
         {activePage === "futures" && <FuturesPage />}
         {activePage === "news" && <NewsPage />}

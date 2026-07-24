@@ -1548,6 +1548,9 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .tl-star:hover { color: #fbbf24; }
 .tl-star--on   { color: #fbbf24; }
 
+.tl-ticker-link { cursor: pointer; }
+.tl-ticker-link:hover { text-decoration: underline; color: var(--accent); }
+
 .tl-col-name {
   text-align: left !important;
   font-weight: 700;

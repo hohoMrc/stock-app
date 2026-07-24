@@ -53,7 +53,7 @@ const INTERVAL_LABELS = {
   "60m": "60分", "1d": "日K", "1wk": "週K", "1mo": "月K",
 };
 
-export default function TradingTerminal({ watchlist = [], onToggleWatch, username }) {
+export default function TradingTerminal({ watchlist = [], onToggleWatch, username, onSelect }) {
   const [activeTab, setActiveTab]       = useState("value");
   const [listData, setListData]         = useState({ value: [], turnover: [] });
   const [listLoading, setListLoading]   = useState({ value: false, turnover: false });
@@ -474,9 +474,21 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
                       >
                         {watchlist.includes(s.ticker) ? "★" : "☆"}
                       </span>
-                      {s.ticker}
+                      <span
+                        className="tl-ticker-link"
+                        onClick={(e) => { e.stopPropagation(); onSelect?.(s.ticker); }}
+                        title="查看個股頁"
+                      >
+                        {s.ticker}
+                      </span>
                     </td>
-                    <td className="tl-col-name">{s.name || s.ticker}</td>
+                    <td
+                      className="tl-col-name tl-ticker-link"
+                      onClick={(e) => { e.stopPropagation(); onSelect?.(s.ticker); }}
+                      title="查看個股頁"
+                    >
+                      {s.name || s.ticker}
+                    </td>
                     <td className="tl-col-price">
                       <span className={`tl-price ${limitUp ? "limit-up" : limitDown ? "limit-down" : dir}`}>
                         {s.close ?? "—"}
