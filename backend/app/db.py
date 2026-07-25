@@ -180,6 +180,42 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_paper_orders_user
             ON paper_orders(user_id, created_at DESC);
 
+        CREATE TABLE IF NOT EXISTS paper_futures_accounts (
+            user_id    INTEGER PRIMARY KEY,
+            cash       REAL NOT NULL,
+            created_at REAL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS paper_futures_positions (
+            user_id   INTEGER NOT NULL,
+            product   TEXT NOT NULL,
+            side      TEXT NOT NULL,
+            qty       INTEGER NOT NULL,
+            avg_price REAL NOT NULL,
+            PRIMARY KEY (user_id, product),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS paper_futures_orders (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            product     TEXT NOT NULL,
+            side        TEXT NOT NULL,
+            action      TEXT NOT NULL,
+            qty         INTEGER NOT NULL,
+            price       REAL NOT NULL,
+            fee         REAL NOT NULL,
+            tax         REAL NOT NULL,
+            net_amount  REAL NOT NULL,
+            realized_pl REAL,
+            created_at  REAL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_paper_futures_orders_user
+            ON paper_futures_orders(user_id, created_at DESC);
+
         CREATE TABLE IF NOT EXISTS price_alerts (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id      INTEGER NOT NULL,
@@ -818,6 +854,99 @@ def get_paper_bought_qty_since(user_id: int, ticker: str, since_ts: float) -> in
             (user_id, ticker, since_ts)
         ).fetchone()
     return row["total"]
+
+
+# ── paper futures trading（期貨模擬下單，跟股票模擬下單分開一個本金）───
+
+PAPER_FUTURES_INITIAL_CASH = 500_000
+
+
+def get_or_create_paper_futures_account(user_id: int) -> dict:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT user_id, cash FROM paper_futures_accounts WHERE user_id=?", (user_id,)
+        ).fetchone()
+        if row:
+            return dict(row)
+        conn.execute(
+            "INSERT INTO paper_futures_accounts(user_id, cash, created_at) VALUES (?, ?, ?)",
+            (user_id, PAPER_FUTURES_INITIAL_CASH, time.time())
+        )
+        return {"user_id": user_id, "cash": PAPER_FUTURES_INITIAL_CASH}
+
+
+def update_paper_futures_cash(user_id: int, cash: float):
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE paper_futures_accounts SET cash=? WHERE user_id=?", (cash, user_id)
+        )
+
+
+def get_paper_futures_position(user_id: int, product: str) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT product, side, qty, avg_price FROM paper_futures_positions WHERE user_id=? AND product=?",
+            (user_id, product)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def upsert_paper_futures_position(user_id: int, product: str, side: str, qty: int, avg_price: float):
+    with _conn() as conn:
+        if qty <= 0:
+            conn.execute(
+                "DELETE FROM paper_futures_positions WHERE user_id=? AND product=?", (user_id, product)
+            )
+        else:
+            conn.execute(
+                "INSERT INTO paper_futures_positions(user_id, product, side, qty, avg_price) "
+                "VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(user_id, product) DO UPDATE SET "
+                "side=excluded.side, qty=excluded.qty, avg_price=excluded.avg_price",
+                (user_id, product, side, qty, avg_price)
+            )
+
+
+def get_paper_futures_positions(user_id: int) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT product, side, qty, avg_price FROM paper_futures_positions WHERE user_id=? ORDER BY product",
+            (user_id,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def insert_paper_futures_order(user_id: int, product: str, side: str, action: str, qty: int,
+                                price: float, fee: float, tax: float, net_amount: float,
+                                realized_pl: float | None):
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO paper_futures_orders"
+            "(user_id, product, side, action, qty, price, fee, tax, net_amount, realized_pl, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (user_id, product, side, action, qty, price, fee, tax, net_amount, realized_pl, time.time())
+        )
+
+
+def get_paper_futures_orders(user_id: int, limit: int = 50) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT product, side, action, qty, price, fee, tax, net_amount, realized_pl, created_at "
+            "FROM paper_futures_orders WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
+            (user_id, limit)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_paper_futures_closed_trades(user_id: int) -> list[dict]:
+    """取全部已平倉交易（action='close' 且有 realized_pl 的紀錄），依時間由舊到新，供績效分析用。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT product, side, qty, price, realized_pl, created_at FROM paper_futures_orders "
+            "WHERE user_id=? AND action='close' AND realized_pl IS NOT NULL ORDER BY created_at ASC",
+            (user_id,)
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 # ── price_alerts（個人化提醒：到價 / 掃描訊號）────────────

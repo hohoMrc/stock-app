@@ -11,6 +11,7 @@ from app.routers.futures import router as futures_router
 from app.routers.futures_ws import router as futures_ws_router
 from app.routers.stock_ws import router as stock_ws_router
 from app.routers.paper_trading import router as paper_trading_router
+from app.routers.paper_futures import router as paper_futures_router
 from app.routers.news import router as news_router
 from app.routers.alerts import router as alerts_router
 from app.routers.warrants import router as warrants_router
@@ -53,6 +54,7 @@ app.include_router(futures_router)
 app.include_router(futures_ws_router)
 app.include_router(stock_ws_router)
 app.include_router(paper_trading_router)
+app.include_router(paper_futures_router)
 app.include_router(news_router)
 app.include_router(alerts_router)
 app.include_router(warrants_router)

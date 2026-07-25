@@ -63,6 +63,14 @@ export const placePaperOrder   = (ticker, side, lots, price)  => api.post("/api/
 export const depositPaperCash  = ()                          => api.post("/api/paper/deposit");
 export const getPaperPerformance = ()                        => api.get("/api/paper/performance");
 
+export const getFuturesPaperAccount   = ()                    => api.get("/api/paper-futures/account");
+export const getFuturesPaperPositions = ()                    => api.get("/api/paper-futures/positions");
+export const getFuturesPaperOrders    = (limit = 50)          => api.get("/api/paper-futures/orders", { params: { limit } });
+export const placeFuturesOrder = (product, side, action, qty, price) =>
+  api.post("/api/paper-futures/order", { product, side, action, qty, ...(price != null ? { price } : {}) });
+export const depositFuturesCash       = ()                    => api.post("/api/paper-futures/deposit");
+export const getFuturesPaperPerformance = ()                  => api.get("/api/paper-futures/performance");
+
 // 新聞
 export const getHotNews = (limit = 30) => api.get("/api/news/hot", { params: { limit } });
 export const getNewsSummary = () => api.get("/api/news/summary");

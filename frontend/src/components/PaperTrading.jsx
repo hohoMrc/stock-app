@@ -3,8 +3,10 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { searchStocks, getStock, getPaperAccount, getPaperPositions, getPaperOrders, placePaperOrder, depositPaperCash, getPaperPerformance } from "../api";
 import { calcFee, calcTax } from "../feeCalc";
 import PaperOrderModal from "./PaperOrderModal";
+import FuturesPaperTrading from "./FuturesPaperTrading";
 
 export default function PaperTrading({ username, onRequireLogin, prefillTicker = null, onSelectStock }) {
+  const [assetTab, setAssetTab]   = useState("stock"); // "stock" | "futures"
   const [account, setAccount]     = useState(null);
   const [positions, setPositions] = useState([]);
   const [orders, setOrders]       = useState([]);
@@ -149,14 +151,30 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
     <div className="page paper-page">
       <div className="paper-page-header">
         <h2>模擬下單</h2>
-        <div className="paper-page-actions">
-          <button className="refresh-btn" onClick={() => loadAll()} disabled={loading}>
-            {loading ? "更新中..." : "↻ 重新整理"}
-          </button>
-          <button className="deposit-btn" onClick={handleDeposit} disabled={depositing}>
-            {depositing ? "入金中..." : "入金 10 萬"}
-          </button>
-        </div>
+      </div>
+
+      <div className="ranking-tabs">
+        <button className={`ranking-tab ${assetTab === "stock" ? "active" : ""}`} onClick={() => setAssetTab("stock")}>
+          股票
+        </button>
+        <button className={`ranking-tab ${assetTab === "futures" ? "active" : ""}`} onClick={() => setAssetTab("futures")}>
+          期貨
+        </button>
+      </div>
+
+      {assetTab === "futures" && (
+        <FuturesPaperTrading username={username} onRequireLogin={onRequireLogin} />
+      )}
+
+      {assetTab === "stock" && (
+      <>
+      <div className="paper-page-actions">
+        <button className="refresh-btn" onClick={() => loadAll()} disabled={loading}>
+          {loading ? "更新中..." : "↻ 重新整理"}
+        </button>
+        <button className="deposit-btn" onClick={handleDeposit} disabled={depositing}>
+          {depositing ? "入金中..." : "入金 10 萬"}
+        </button>
       </div>
 
       {account && (
@@ -403,6 +421,8 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
             loadAll();
           }}
         />
+      )}
+      </>
       )}
     </div>
   );
