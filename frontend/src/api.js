@@ -70,6 +70,10 @@ export const placeFuturesOrder = (product, side, action, qty, price) =>
   api.post("/api/paper-futures/order", { product, side, action, qty, ...(price != null ? { price } : {}) });
 export const depositFuturesCash       = ()                    => api.post("/api/paper-futures/deposit");
 export const getFuturesPaperPerformance = ()                  => api.get("/api/paper-futures/performance");
+export const createSmartOrder = (product, side, action, qty, triggerPrice) =>
+  api.post("/api/paper-futures/smart-order", { product, side, action, qty, trigger_price: triggerPrice });
+export const getSmartOrders  = ()          => api.get("/api/paper-futures/smart-orders");
+export const cancelSmartOrder = (orderId)  => api.delete(`/api/paper-futures/smart-orders/${orderId}`);
 
 // 新聞
 export const getHotNews = (limit = 30) => api.get("/api/news/hot", { params: { limit } });

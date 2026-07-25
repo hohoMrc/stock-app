@@ -3,9 +3,13 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import {
   getFuturesQuote, getFuturesPaperAccount, getFuturesPaperPositions, getFuturesPaperOrders,
   placeFuturesOrder, depositFuturesCash, getFuturesPaperPerformance,
+  createSmartOrder, getSmartOrders, cancelSmartOrder,
 } from "../api";
 
 const PRODUCT_LABEL = { TXF: "大台指", TMF: "微台指" };
+const ACTION_LABEL = { open: "建倉", close: "平倉" };
+const SIDE_LABEL = { long: "多", short: "空" };
+const SMART_STATUS_LABEL = { pending: "待觸發", triggered: "已成交", failed: "失敗", cancelled: "已取消" };
 
 export default function FuturesPaperTrading({ username, onRequireLogin }) {
   const [account, setAccount]     = useState(null);
@@ -25,16 +29,29 @@ export default function FuturesPaperTrading({ username, onRequireLogin }) {
   const [formMsg, setFormMsg]     = useState("");
   const [depositing, setDepositing] = useState(false);
 
+  // 智慧單表單
+  const [smartOrders, setSmartOrders]     = useState([]);
+  const [smartProduct, setSmartProduct]   = useState("TXF");
+  const [smartSide, setSmartSide]         = useState("long");
+  const [smartAction, setSmartAction]     = useState("open");
+  const [smartQty, setSmartQty]           = useState(1);
+  const [smartTrigger, setSmartTrigger]   = useState("");
+  const [smartSubmitting, setSmartSubmitting] = useState(false);
+  const [smartError, setSmartError]       = useState("");
+  const [smartMsg, setSmartMsg]           = useState("");
+
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [accRes, posRes, ordRes, perfRes] = await Promise.all([
+      const [accRes, posRes, ordRes, perfRes, smartRes] = await Promise.all([
         getFuturesPaperAccount(), getFuturesPaperPositions(), getFuturesPaperOrders(50), getFuturesPaperPerformance(),
+        getSmartOrders(),
       ]);
       setAccount(accRes.data);
       setPositions(posRes.data.positions);
       setOrders(ordRes.data.orders);
       setPerformance(perfRes.data);
+      setSmartOrders(smartRes.data.orders);
     } catch {
       // 未登入或載入失敗時保持空白，不額外報錯打擾使用者
     } finally {
@@ -90,6 +107,34 @@ export default function FuturesPaperTrading({ username, onRequireLogin }) {
       setFormError(e.response?.data?.detail || "入金失敗");
     } finally {
       setDepositing(false);
+    }
+  };
+
+  const handleSmartSubmit = async () => {
+    if (!smartQty || smartQty <= 0) { setSmartError("口數需大於 0"); return; }
+    if (!smartTrigger || smartTrigger <= 0) { setSmartError("觸發指數需大於 0"); return; }
+    setSmartSubmitting(true);
+    setSmartError("");
+    setSmartMsg("");
+    try {
+      const res = await createSmartOrder(smartProduct, smartSide, smartAction, Number(smartQty), Number(smartTrigger));
+      const d = res.data;
+      setSmartMsg(`已設定：指數${d.direction === "above" ? "漲到" : "跌到"} ${d.trigger_price} 時自動${ACTION_LABEL[d.action]}${SIDE_LABEL[d.side]}`);
+      setSmartTrigger("");
+      loadAll();
+    } catch (e) {
+      setSmartError(e.response?.data?.detail || "設定失敗");
+    } finally {
+      setSmartSubmitting(false);
+    }
+  };
+
+  const handleSmartCancel = async (orderId) => {
+    try {
+      await cancelSmartOrder(orderId);
+      loadAll();
+    } catch (e) {
+      setSmartError(e.response?.data?.detail || "取消失敗");
     }
   };
 
@@ -190,6 +235,72 @@ export default function FuturesPaperTrading({ username, onRequireLogin }) {
         {formError && <p className="error">{formError}</p>}
         {formMsg && <p className="paper-form-msg">{formMsg}</p>}
       </div>
+
+      <h3 className="paper-section-title">智慧單（到價自動下單）</h3>
+      <p className="ranking-hint">
+        設定指數到多少自動成交，不用一直盯盤。系統每 2 分鐘檢查一次，觸價後用當下市價成交
+        （不保證剛好成交在設定的價位，跟真實停損/停利單一樣）。
+      </p>
+      <div className="paper-order-panel">
+        <div className="paper-side-tabs">
+          <button className={smartProduct === "TXF" ? "active" : ""} onClick={() => setSmartProduct("TXF")}>大台指</button>
+          <button className={smartProduct === "TMF" ? "active" : ""} onClick={() => setSmartProduct("TMF")}>微台指</button>
+        </div>
+        <div className="paper-side-tabs">
+          <button className={smartSide === "long" ? "active" : ""} onClick={() => setSmartSide("long")}>做多</button>
+          <button className={smartSide === "short" ? "active" : ""} onClick={() => setSmartSide("short")}>做空</button>
+        </div>
+        <div className="paper-side-tabs">
+          <button className={smartAction === "open" ? "active" : ""} onClick={() => setSmartAction("open")}>建倉</button>
+          <button className={smartAction === "close" ? "active" : ""} onClick={() => setSmartAction("close")}>平倉</button>
+        </div>
+        <label className="paper-lots-label">
+          口數
+          <input type="number" min="1" step="1" value={smartQty} onChange={(e) => setSmartQty(e.target.value)} />
+        </label>
+        <label className="paper-lots-label">
+          觸發指數
+          <input type="number" step="1" value={smartTrigger} onChange={(e) => setSmartTrigger(e.target.value)} />
+        </label>
+        <button className="detail-btn" onClick={handleSmartSubmit} disabled={smartSubmitting}>
+          {smartSubmitting ? "送出中..." : "設定智慧單"}
+        </button>
+        {smartError && <p className="error">{smartError}</p>}
+        {smartMsg && <p className="paper-form-msg">{smartMsg}</p>}
+      </div>
+
+      {smartOrders.length === 0 ? (
+        <p className="no-data">{loading ? "載入中..." : "尚無智慧單"}</p>
+      ) : (
+        <div className="ranking-table-wrap">
+          <table className="result-table">
+            <thead>
+              <tr>
+                <th>商品</th><th>方向</th><th>動作</th><th>口數</th><th>觸發指數</th>
+                <th>狀態</th><th>備註</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {smartOrders.map((o) => (
+                <tr key={o.id}>
+                  <td className="col-ticker">{PRODUCT_LABEL[o.product]}</td>
+                  <td>{SIDE_LABEL[o.side]}</td>
+                  <td>{ACTION_LABEL[o.action]}</td>
+                  <td>{o.qty}</td>
+                  <td>{o.trigger_price}（{o.direction === "above" ? "漲到" : "跌到"}）</td>
+                  <td>{SMART_STATUS_LABEL[o.status]}</td>
+                  <td>{o.status === "failed" ? o.fail_reason : "—"}</td>
+                  <td>
+                    {o.status === "pending" && (
+                      <button className="view-btn" onClick={() => handleSmartCancel(o.id)}>取消</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <h3 className="paper-section-title">持倉</h3>
       {positions.length === 0 ? (

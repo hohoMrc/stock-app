@@ -4,6 +4,8 @@ from app.db import (
     get_or_create_paper_futures_account, update_paper_futures_cash,
     get_paper_futures_position, upsert_paper_futures_position, get_paper_futures_positions,
     insert_paper_futures_order, get_paper_futures_orders, get_paper_futures_closed_trades,
+    create_conditional_order, get_conditional_orders, get_pending_conditional_orders,
+    mark_conditional_order_triggered, mark_conditional_order_failed, cancel_conditional_order,
 )
 from app.services.futures_data import _current_symbol, get_futures_quote
 
@@ -196,3 +198,78 @@ def deposit_futures_cash(user_id: int) -> dict:
     update_paper_futures_cash(user_id, account["cash"] + DEPOSIT_AMOUNT)
     insert_paper_futures_order(user_id, "CASH", "long", "deposit", 0, 0, 0, 0, DEPOSIT_AMOUNT, None)
     return get_futures_account_summary(user_id)
+
+
+# ── 智慧單（到價自動下單）─────────────────────────────────
+
+def create_smart_order(user_id: int, product: str, side: str, action: str, qty: int,
+                        trigger_price: float) -> dict:
+    """設定「指數到多少自動下單」。direction 不用使用者選，用目前市價跟 trigger_price
+    的相對關係自動判斷：trigger_price >= 目前市價 → 等漲到這個價位（above），
+    否則等跌到這個價位（below）——跟真實下單軟體設定停利/停損價的直覺一致。
+    """
+    if product not in FUTURES_MULTIPLIER:
+        raise PaperFuturesError("product 需為 TXF 或 TMF")
+    if side not in ("long", "short"):
+        raise PaperFuturesError("side 需為 long 或 short")
+    if action not in ("open", "close"):
+        raise PaperFuturesError("action 需為 open 或 close")
+    if qty <= 0:
+        raise PaperFuturesError("口數需大於 0")
+    if trigger_price <= 0:
+        raise PaperFuturesError("觸發價格需大於 0")
+
+    current = _current_price(product)
+    if not current:
+        raise PaperFuturesError("目前無法取得期貨報價，請稍後再試")
+
+    direction = "above" if trigger_price >= current else "below"
+    order_id = create_conditional_order(user_id, product, side, action, qty, trigger_price, direction)
+    return {
+        "id": order_id, "product": product, "side": side, "action": action, "qty": qty,
+        "trigger_price": trigger_price, "direction": direction, "status": "pending",
+    }
+
+
+def get_smart_orders(user_id: int) -> list[dict]:
+    return get_conditional_orders(user_id)
+
+
+def cancel_smart_order(user_id: int, order_id: int) -> bool:
+    return cancel_conditional_order(user_id, order_id)
+
+
+def check_and_execute_conditional_orders() -> list[dict]:
+    """輪詢進入點，供 futures_conditional_check.py 排程呼叫。對每筆待觸發智慧單比對目前市價，
+    觸發就用當下市價（不是 trigger_price 本身，跟真實停損/停利單一樣「觸價後市價成交」）
+    呼叫 place_futures_order() 真的幫使用者下單。回傳這一輪有處理到的結果，供排程腳本發 TG 通知。
+    """
+    pending = get_pending_conditional_orders()
+    if not pending:
+        return []
+
+    price_cache: dict[str, float | None] = {}
+    results = []
+    for o in pending:
+        product = o["product"]
+        if product not in price_cache:
+            price_cache[product] = _current_price(product)
+        price = price_cache[product]
+        if price is None:
+            continue
+
+        hit = (o["direction"] == "above" and price >= o["trigger_price"]) or \
+              (o["direction"] == "below" and price <= o["trigger_price"])
+        if not hit:
+            continue
+
+        try:
+            order = place_futures_order(o["user_id"], product, o["side"], o["action"], o["qty"])
+            mark_conditional_order_triggered(o["id"])
+            results.append({**o, "result": "triggered", "fill_price": order["price"],
+                             "realized_pl": order.get("realized_pl")})
+        except PaperFuturesError as e:
+            mark_conditional_order_failed(o["id"], str(e))
+            results.append({**o, "result": "failed", "fail_reason": str(e)})
+
+    return results
