@@ -247,6 +247,49 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
         </div>
       )}
 
+      <h3 className="paper-section-title">持股</h3>
+      {positions.length === 0 ? (
+        <p className="no-data">{loading ? "載入中..." : "目前無持股"}</p>
+      ) : (
+        <div className="ranking-table-wrap">
+          <table className="result-table">
+            <thead>
+              <tr>
+                <th>代號</th><th>名稱</th><th>張數</th><th>均價</th><th>現價</th>
+                <th>市值</th><th>未實現損益</th><th>報酬率</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {positions.map((p) => (
+                <tr
+                  key={p.ticker}
+                  className={`paper-position-row ${p.unrealized_pl > 0 ? "row-up" : p.unrealized_pl < 0 ? "row-down" : ""}`}
+                  onClick={() => onSelectStock && onSelectStock(p.ticker)}
+                  title="查看股價走勢"
+                >
+                  <td className="col-ticker">{p.ticker}</td>
+                  <td className="col-name">{p.name ?? "—"}</td>
+                  <td>{p.lots}</td>
+                  <td>{p.avg_cost}</td>
+                  <td>{p.price ?? "—"}</td>
+                  <td>{p.market_value?.toLocaleString() ?? "—"}</td>
+                  <td>{p.unrealized_pl?.toLocaleString() ?? "—"}</td>
+                  <td>{p.return_pct != null ? `${p.return_pct}%` : "—"}</td>
+                  <td>
+                    <button
+                      className="view-btn"
+                      onClick={(e) => { e.stopPropagation(); setOrderModal({ ticker: p.ticker, name: p.name }); }}
+                    >
+                      交易
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <div className="paper-order-panel">
         <div className="search-bar" ref={wrapperRef} style={{ position: "relative" }}>
           <input
@@ -366,49 +409,6 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
                     {o.status === "pending" && (
                       <button className="view-btn" onClick={() => handleSmartCancel(o.id)}>取消</button>
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <h3 className="paper-section-title">持股</h3>
-      {positions.length === 0 ? (
-        <p className="no-data">{loading ? "載入中..." : "目前無持股"}</p>
-      ) : (
-        <div className="ranking-table-wrap">
-          <table className="result-table">
-            <thead>
-              <tr>
-                <th>代號</th><th>名稱</th><th>張數</th><th>均價</th><th>現價</th>
-                <th>市值</th><th>未實現損益</th><th>報酬率</th><th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {positions.map((p) => (
-                <tr
-                  key={p.ticker}
-                  className={`paper-position-row ${p.unrealized_pl > 0 ? "row-up" : p.unrealized_pl < 0 ? "row-down" : ""}`}
-                  onClick={() => onSelectStock && onSelectStock(p.ticker)}
-                  title="查看股價走勢"
-                >
-                  <td className="col-ticker">{p.ticker}</td>
-                  <td className="col-name">{p.name ?? "—"}</td>
-                  <td>{p.lots}</td>
-                  <td>{p.avg_cost}</td>
-                  <td>{p.price ?? "—"}</td>
-                  <td>{p.market_value?.toLocaleString() ?? "—"}</td>
-                  <td>{p.unrealized_pl?.toLocaleString() ?? "—"}</td>
-                  <td>{p.return_pct != null ? `${p.return_pct}%` : "—"}</td>
-                  <td>
-                    <button
-                      className="view-btn"
-                      onClick={(e) => { e.stopPropagation(); setOrderModal({ ticker: p.ticker, name: p.name }); }}
-                    >
-                      交易
-                    </button>
                   </td>
                 </tr>
               ))}

@@ -193,6 +193,35 @@ export default function FuturesPaperTrading({ username, onRequireLogin }) {
         </div>
       )}
 
+      <h3 className="paper-section-title">持倉</h3>
+      {positions.length === 0 ? (
+        <p className="no-data">{loading ? "載入中..." : "目前無持倉"}</p>
+      ) : (
+        <div className="ranking-table-wrap">
+          <table className="result-table">
+            <thead>
+              <tr>
+                <th>商品</th><th>方向</th><th>口數</th><th>均價</th><th>現價</th>
+                <th>保證金</th><th>未實現損益</th>
+              </tr>
+            </thead>
+            <tbody>
+              {positions.map((p) => (
+                <tr key={p.product} className={p.unrealized_pl > 0 ? "row-up" : p.unrealized_pl < 0 ? "row-down" : ""}>
+                  <td className="col-ticker">{PRODUCT_LABEL[p.product]}</td>
+                  <td>{p.side === "long" ? "多" : "空"}</td>
+                  <td>{p.qty}</td>
+                  <td>{p.avg_price}</td>
+                  <td>{p.price ?? "—"}</td>
+                  <td>{p.margin.toLocaleString()}</td>
+                  <td>{p.unrealized_pl?.toLocaleString() ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <div className="paper-order-panel">
         <div className="paper-side-tabs">
           <button className={product === "TXF" ? "active" : ""} onClick={() => setProduct("TXF")}>大台指</button>
@@ -295,35 +324,6 @@ export default function FuturesPaperTrading({ username, onRequireLogin }) {
                       <button className="view-btn" onClick={() => handleSmartCancel(o.id)}>取消</button>
                     )}
                   </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <h3 className="paper-section-title">持倉</h3>
-      {positions.length === 0 ? (
-        <p className="no-data">{loading ? "載入中..." : "目前無持倉"}</p>
-      ) : (
-        <div className="ranking-table-wrap">
-          <table className="result-table">
-            <thead>
-              <tr>
-                <th>商品</th><th>方向</th><th>口數</th><th>均價</th><th>現價</th>
-                <th>保證金</th><th>未實現損益</th>
-              </tr>
-            </thead>
-            <tbody>
-              {positions.map((p) => (
-                <tr key={p.product} className={p.unrealized_pl > 0 ? "row-up" : p.unrealized_pl < 0 ? "row-down" : ""}>
-                  <td className="col-ticker">{PRODUCT_LABEL[p.product]}</td>
-                  <td>{p.side === "long" ? "多" : "空"}</td>
-                  <td>{p.qty}</td>
-                  <td>{p.avg_price}</td>
-                  <td>{p.price ?? "—"}</td>
-                  <td>{p.margin.toLocaleString()}</td>
-                  <td>{p.unrealized_pl?.toLocaleString() ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
