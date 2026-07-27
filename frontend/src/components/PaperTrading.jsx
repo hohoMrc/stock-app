@@ -7,6 +7,8 @@ import FuturesPaperTrading from "./FuturesPaperTrading";
 
 export default function PaperTrading({ username, onRequireLogin, prefillTicker = null, onSelectStock }) {
   const [assetTab, setAssetTab]   = useState("stock"); // "stock" | "futures"
+  const futuresRef = useRef(null);
+  const [futuresStatus, setFuturesStatus] = useState({ loading: false, depositing: false });
   const [account, setAccount]     = useState(null);
   const [positions, setPositions] = useState([]);
   const [orders, setOrders]       = useState([]);
@@ -202,6 +204,16 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
             </button>
           </div>
         )}
+        {assetTab === "futures" && (
+          <div className="paper-page-actions">
+            <button className="refresh-btn" onClick={() => futuresRef.current?.refresh()} disabled={futuresStatus.loading}>
+              {futuresStatus.loading ? "更新中..." : "↻ 重新整理"}
+            </button>
+            <button className="deposit-btn" onClick={() => futuresRef.current?.deposit()} disabled={futuresStatus.depositing}>
+              {futuresStatus.depositing ? "入金中..." : "入金 50 萬"}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="ranking-tabs">
@@ -214,7 +226,12 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
       </div>
 
       {assetTab === "futures" && (
-        <FuturesPaperTrading username={username} onRequireLogin={onRequireLogin} />
+        <FuturesPaperTrading
+          ref={futuresRef}
+          username={username}
+          onRequireLogin={onRequireLogin}
+          onStatusChange={setFuturesStatus}
+        />
       )}
 
       {assetTab === "stock" && (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import {
   getFuturesQuote, getFuturesPaperAccount, getFuturesPaperPositions, getFuturesPaperOrders,
@@ -11,7 +11,10 @@ const ACTION_LABEL = { open: "建倉", close: "平倉" };
 const SIDE_LABEL = { long: "多", short: "空" };
 const SMART_STATUS_LABEL = { pending: "待觸發", triggered: "已成交", failed: "失敗", cancelled: "已取消" };
 
-export default function FuturesPaperTrading({ username, onRequireLogin }) {
+// 重新整理/入金按鈕跟「模擬下單」標題放同一列（在 PaperTrading.jsx 的頁首），
+// 用 ref 把這裡的動作往上暴露、用 onStatusChange 把 loading/depositing 狀態往上回報，
+// 這樣頁首的按鈕文字/disabled 狀態才能跟這個分頁實際的載入狀態同步。
+const FuturesPaperTrading = forwardRef(function FuturesPaperTrading({ username, onRequireLogin, onStatusChange }, ref) {
   const [account, setAccount]     = useState(null);
   const [positions, setPositions] = useState([]);
   const [orders, setOrders]       = useState([]);
@@ -110,6 +113,12 @@ export default function FuturesPaperTrading({ username, onRequireLogin }) {
     }
   };
 
+  useImperativeHandle(ref, () => ({ refresh: loadAll, deposit: handleDeposit }));
+
+  useEffect(() => {
+    onStatusChange?.({ loading, depositing });
+  }, [loading, depositing, onStatusChange]);
+
   const handleSmartSubmit = async () => {
     if (!smartQty || smartQty <= 0) { setSmartError("口數需大於 0"); return; }
     if (!smartTrigger || smartTrigger <= 0) { setSmartError("觸發指數需大於 0"); return; }
@@ -149,17 +158,6 @@ export default function FuturesPaperTrading({ username, onRequireLogin }) {
 
   return (
     <div>
-      <div className="paper-page-header">
-        <div />
-        <div className="paper-page-actions">
-          <button className="refresh-btn" onClick={() => loadAll()} disabled={loading}>
-            {loading ? "更新中..." : "↻ 重新整理"}
-          </button>
-          <button className="deposit-btn" onClick={handleDeposit} disabled={depositing}>
-            {depositing ? "入金中..." : "入金 50 萬"}
-          </button>
-        </div>
-      </div>
 
       <p className="ranking-hint">
         期貨保證金帳戶跟股票模擬下單分開計算。原始保證金/手續費用約略值僅供模擬參考，
@@ -429,4 +427,6 @@ export default function FuturesPaperTrading({ username, onRequireLogin }) {
       )}
     </div>
   );
-}
+});
+
+export default FuturesPaperTrading;
