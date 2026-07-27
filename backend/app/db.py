@@ -895,7 +895,7 @@ def get_paper_bought_qty_since(user_id: int, ticker: str, since_ts: float) -> in
 
 # ── paper futures trading（期貨模擬下單，跟股票模擬下單分開一個本金）───
 
-PAPER_FUTURES_INITIAL_CASH = 500_000
+PAPER_FUTURES_INITIAL_CASH = 1_500_000  # 大台原始保證金636,000，起始本金要夠開至少1口還有餘裕
 
 
 def get_or_create_paper_futures_account(user_id: int) -> dict:

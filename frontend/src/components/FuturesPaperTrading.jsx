@@ -103,7 +103,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading({ username, 
     setDepositing(true);
     try {
       await depositFuturesCash();
-      setFormMsg("已入金 500,000 元");
+      setFormMsg("已入金 1,000,000 元");
       setFormError("");
       loadAll();
     } catch (e) {

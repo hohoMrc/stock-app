@@ -12,12 +12,13 @@ from app.services.futures_data import _current_symbol, get_futures_quote
 # 每點台幣（TXF：大台指=台股期貨 NT$200/點；TMF：微台指=微型臺指期貨 NT$10/點，
 # 不是小型臺指期貨 NT$50/點——app 內部代號 TMF 只是自己取的，非期交所官方 MTX 代碼）
 FUTURES_MULTIPLIER = {"TXF": 200, "TMF": 10}
-# 原始保證金約略值（僅供模擬參考，實際保證金依期交所公告會隨波動度調整，不是即時抓的）
-FUTURES_MARGIN = {"TXF": 184_000, "TMF": 9_200}
+# 原始保證金（依期交所保證金一覽表核對過的數字：臺股期貨636,000／微型臺指期貨31,800，
+# 僅供模擬參考——這是某個時間點的公告值，實際保證金會隨波動度不定期調整，不是即時抓的）
+FUTURES_MARGIN = {"TXF": 636_000, "TMF": 31_800}
 
 FEE_PER_LOT = 50        # 每口每邊手續費約略值
 TAX_RATE = 0.00002      # 期交稅
-DEPOSIT_AMOUNT = 500_000
+DEPOSIT_AMOUNT = 1_000_000  # 大台原始保證金636,000，入金額度跟著調高才夠實際用
 
 
 class PaperFuturesError(Exception):

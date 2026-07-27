@@ -210,7 +210,7 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
               {futuresStatus.loading ? "更新中..." : "↻ 重新整理"}
             </button>
             <button className="deposit-btn" onClick={() => futuresRef.current?.deposit()} disabled={futuresStatus.depositing}>
-              {futuresStatus.depositing ? "入金中..." : "入金 50 萬"}
+              {futuresStatus.depositing ? "入金中..." : "入金 100 萬"}
             </button>
           </div>
         )}
