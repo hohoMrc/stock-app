@@ -1,6 +1,7 @@
 .DS_Store
 .claude/
 .vercel
+.vite/
 *.p12
 *.pfx
 backend/log/
