@@ -62,6 +62,10 @@ export const getPaperOrders    = (limit = 50)                => api.get("/api/pa
 export const placePaperOrder   = (ticker, side, lots, price)  => api.post("/api/paper/order", { ticker, side, lots, ...(price != null ? { price } : {}) });
 export const depositPaperCash  = ()                          => api.post("/api/paper/deposit");
 export const getPaperPerformance = ()                        => api.get("/api/paper/performance");
+export const createStockSmartOrder = (ticker, side, lots, triggerPrice) =>
+  api.post("/api/paper/smart-order", { ticker, side, lots, trigger_price: triggerPrice });
+export const getStockSmartOrders  = ()          => api.get("/api/paper/smart-orders");
+export const cancelStockSmartOrder = (orderId)  => api.delete(`/api/paper/smart-orders/${orderId}`);
 
 export const getFuturesPaperAccount   = ()                    => api.get("/api/paper-futures/account");
 export const getFuturesPaperPositions = ()                    => api.get("/api/paper-futures/positions");

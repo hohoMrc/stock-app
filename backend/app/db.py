@@ -253,6 +253,24 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_pfco_pending
             ON paper_futures_conditional_orders(status, product);
 
+        CREATE TABLE IF NOT EXISTS paper_conditional_orders (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id       INTEGER NOT NULL,
+            ticker        TEXT NOT NULL,
+            side          TEXT NOT NULL,
+            lots          INTEGER NOT NULL,
+            trigger_price REAL NOT NULL,
+            direction     TEXT NOT NULL,
+            status        TEXT NOT NULL DEFAULT 'pending',
+            fail_reason   TEXT,
+            created_at    REAL,
+            triggered_at  REAL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_pco_pending
+            ON paper_conditional_orders(status);
+
         CREATE TABLE IF NOT EXISTS news_summaries (
             date       TEXT PRIMARY KEY,
             summary    TEXT NOT NULL,
@@ -1102,6 +1120,68 @@ def cancel_conditional_order(user_id: int, order_id: int) -> bool:
     with _conn() as conn:
         cur = conn.execute(
             "UPDATE paper_futures_conditional_orders SET status='cancelled' "
+            "WHERE id=? AND user_id=? AND status='pending'",
+            (order_id, user_id)
+        )
+        return cur.rowcount > 0
+
+
+# ── paper_conditional_orders（股票模擬下單智慧單：到價自動買賣）───
+
+def create_stock_conditional_order(user_id: int, ticker: str, side: str, lots: int,
+                                    trigger_price: float, direction: str) -> int:
+    with _conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO paper_conditional_orders"
+            "(user_id, ticker, side, lots, trigger_price, direction, status, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)",
+            (user_id, ticker, side, lots, trigger_price, direction, time.time())
+        )
+        return cur.lastrowid
+
+
+def get_stock_conditional_orders(user_id: int) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, ticker, side, lots, trigger_price, direction, status, "
+            "fail_reason, created_at, triggered_at FROM paper_conditional_orders "
+            "WHERE user_id=? ORDER BY created_at DESC",
+            (user_id,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_pending_stock_conditional_orders() -> list[dict]:
+    """供 stock_conditional_check.py 用：全部待觸發的股票智慧單（跨使用者）。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT id, user_id, ticker, side, lots, trigger_price, direction "
+            "FROM paper_conditional_orders WHERE status='pending'"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def mark_stock_conditional_order_triggered(order_id: int):
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE paper_conditional_orders SET status='triggered', triggered_at=? WHERE id=?",
+            (time.time(), order_id)
+        )
+
+
+def mark_stock_conditional_order_failed(order_id: int, reason: str):
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE paper_conditional_orders SET status='failed', fail_reason=?, triggered_at=? WHERE id=?",
+            (reason, time.time(), order_id)
+        )
+
+
+def cancel_stock_conditional_order(user_id: int, order_id: int) -> bool:
+    """取消智慧單，需驗證擁有者、且必須還是 pending 狀態。回傳是否有取消成功。"""
+    with _conn() as conn:
+        cur = conn.execute(
+            "UPDATE paper_conditional_orders SET status='cancelled' "
             "WHERE id=? AND user_id=? AND status='pending'",
             (order_id, user_id)
         )

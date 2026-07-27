@@ -5,6 +5,8 @@ from app.db import (
     get_paper_position, upsert_paper_position, get_paper_positions,
     insert_paper_order, get_paper_orders, get_paper_realized_pl_total,
     get_paper_bought_qty_since, get_paper_closed_trades,
+    create_stock_conditional_order, get_stock_conditional_orders, get_pending_stock_conditional_orders,
+    mark_stock_conditional_order_triggered, mark_stock_conditional_order_failed, cancel_stock_conditional_order,
 )
 from app.services.stock_data import get_stock_info, _enrich_with_intraday
 
@@ -184,3 +186,75 @@ def deposit_cash(user_id: int) -> dict:
     update_paper_cash(user_id, account["cash"] + DEPOSIT_AMOUNT)
     insert_paper_order(user_id, "CASH", "入金", "deposit", 0, 0, 0, 0, DEPOSIT_AMOUNT, None)
     return get_account_summary(user_id)
+
+
+# ── 智慧單（到價自動買賣）─────────────────────────────────
+
+def create_smart_order(user_id: int, ticker: str, side: str, lots: int, trigger_price: float) -> dict:
+    """設定「股價到多少自動下單」。direction 不用使用者選，用目前市價跟 trigger_price
+    的相對關係自動判斷：trigger_price >= 目前市價 → 等漲到這個價位（above），
+    否則等跌到這個價位（below）。
+    """
+    if side not in ("buy", "sell"):
+        raise PaperTradingError("side 需為 buy 或 sell")
+    if lots <= 0:
+        raise PaperTradingError("張數需大於 0")
+    if trigger_price <= 0:
+        raise PaperTradingError("觸發價格需大於 0")
+
+    current = get_stock_info(ticker).get("price")
+    if not current:
+        raise PaperTradingError("目前無法取得該股票報價，請稍後再試")
+
+    direction = "above" if trigger_price >= current else "below"
+    order_id = create_stock_conditional_order(user_id, ticker, side, lots, trigger_price, direction)
+    return {
+        "id": order_id, "ticker": ticker, "side": side, "lots": lots,
+        "trigger_price": trigger_price, "direction": direction, "status": "pending",
+    }
+
+
+def get_smart_orders(user_id: int) -> list[dict]:
+    return get_stock_conditional_orders(user_id)
+
+
+def cancel_smart_order(user_id: int, order_id: int) -> bool:
+    return cancel_stock_conditional_order(user_id, order_id)
+
+
+def check_and_execute_conditional_orders() -> list[dict]:
+    """輪詢進入點，供 stock_conditional_check.py 排程呼叫。對每筆待觸發智慧單比對目前股價，
+    觸發就用當下市價（不是 trigger_price 本身）呼叫 place_market_order() 真的幫使用者下單。
+    現金不足/持股不足/現股不可當沖等既有限制在觸發當下才驗證，失敗會標記原因（尤其是當沖
+    限制：智慧單常見情境是「買進後同一天股價漲到X就賣出」，剛好會踩到這個限制）。
+    回傳這一輪有處理到的結果，供排程腳本發 TG 通知。
+    """
+    pending = get_pending_stock_conditional_orders()
+    if not pending:
+        return []
+
+    price_cache: dict[str, float | None] = {}
+    results = []
+    for o in pending:
+        ticker = o["ticker"]
+        if ticker not in price_cache:
+            price_cache[ticker] = _info_for(ticker).get("price")
+        price = price_cache[ticker]
+        if price is None:
+            continue
+
+        hit = (o["direction"] == "above" and price >= o["trigger_price"]) or \
+              (o["direction"] == "below" and price <= o["trigger_price"])
+        if not hit:
+            continue
+
+        try:
+            order = place_market_order(o["user_id"], ticker, o["side"], o["lots"])
+            mark_stock_conditional_order_triggered(o["id"])
+            results.append({**o, "result": "triggered", "fill_price": order["price"],
+                             "realized_pl": order.get("realized_pl")})
+        except PaperTradingError as e:
+            mark_stock_conditional_order_failed(o["id"], str(e))
+            results.append({**o, "result": "failed", "fail_reason": str(e)})
+
+    return results
