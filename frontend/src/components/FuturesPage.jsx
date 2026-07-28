@@ -46,6 +46,16 @@ const WS_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000")
 const TW_OFFSET = 8 * 3600;
 const shiftTime = (t) => (typeof t === "number" ? t + TW_OFFSET : t);
 
+// 圖表上餵進去的時間已經是 +8h 過的「偽 UTC」，所以這裡要用 UTC 存取子讀回正確的台北時間，
+// 不能用 local getHours() 之類的（瀏覽器時區不是 UTC+8 時會算錯）。
+function fmtFuturesTime(shiftedSec, intraday) {
+  if (shiftedSec == null) return "—";
+  const d   = new Date(shiftedSec * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  const dateStr = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  return intraday ? `${dateStr} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}` : dateStr;
+}
+
 const TIMEFRAMES = [
   { key: "D",  label: "日K" },
   { key: "60", label: "60分" },
@@ -105,6 +115,11 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
   const maSeriesMap     = useRef({});   // key → LineSeries
   const closesRef       = useRef([]);   // 最近 closes（滑動窗口，最大長度 max period）
   const emaStateRef     = useRef({});   // key → 上一根已確認的 EMA 值
+  const dataMapRef      = useRef(new Map()); // shifted time key → OHLC/漲跌/量
+  const maValueMapRef   = useRef(new Map()); // shifted time key → { maKey: value }
+
+  const [hoveredBar, setHoveredBar] = useState(null);
+  const [lastBar,    setLastBar]    = useState(null);
 
   const MAX_PERIOD = Math.max(...MA_LINES.map(l => l.period));
 
@@ -242,6 +257,19 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
     lastBarRef.current       = candleData[candleData.length - 1] ?? null;
     lastBarVolumeRef.current = shifted.length ? (shifted[shifted.length - 1].volume ?? 0) : 0;
 
+    // 每根K棒的 OHLC/漲跌/量，供滑鼠移到K棒上顯示資訊用
+    const dataMap = new Map();
+    shifted.forEach((c, i) => {
+      const prev   = i > 0 ? shifted[i - 1] : null;
+      const change = prev ? +(c.close - prev.close).toFixed(1) : 0;
+      const chgPct = prev && prev.close ? +((change / prev.close) * 100).toFixed(2) : 0;
+      dataMap.set(String(c.time), {
+        time: c.time, open: c.open, high: c.high, low: c.low, close: c.close,
+        volume: c.volume, change, chgPct,
+      });
+    });
+    dataMapRef.current = dataMap;
+
     // 初始化 closes 滑動窗口與 EMA 狀態
     const allCloses = shifted.map(c => c.close);
     closesRef.current = allCloses.slice(-(MAX_PERIOD + 2));
@@ -260,7 +288,8 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
       emaStateRef.current[key] = ema;
     });
 
-    // MA / EMA 線（用 shifted 讓時間也對齊）
+    // MA / EMA 線（用 shifted 讓時間也對齊）+ maValueMap（供 hover 資訊列查值用）
+    const maValueMap = new Map();
     MA_LINES.forEach(({ key, period, color, ema }) => {
       if (!activeMA[key]) return;
       const lineData = ema ? calcEMA(shifted, period) : calcMA(shifted, period);
@@ -271,6 +300,26 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
       });
       s.setData(lineData);
       maSeriesMap.current[key] = s;
+      lineData.forEach((item) => {
+        const k = String(item.time);
+        if (!maValueMap.has(k)) maValueMap.set(k, {});
+        maValueMap.get(k)[key] = item.value;
+      });
+    });
+    maValueMapRef.current = maValueMap;
+
+    // 無 hover 時預設顯示最後一根K棒的資訊
+    const lastKey = candleData.length ? String(candleData[candleData.length - 1].time) : null;
+    setLastBar(lastKey ? (dataMap.get(lastKey) ?? null) : null);
+    setHoveredBar(null);
+
+    chart.subscribeCrosshairMove((param) => {
+      if (!param.time || param.point === undefined || param.point.x < 0 || param.point.y < 0) {
+        setHoveredBar(null);
+        return;
+      }
+      const key = String(param.time);
+      setHoveredBar(dataMap.get(key) ?? null);
     });
 
     chart.timeScale().fitContent();
@@ -284,7 +333,43 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
     return () => { ro.disconnect(); chart.remove(); chartRef.current = null; };
   }, [candles, timeframe, activeMA]);
 
-  return <div ref={containerRef} className="futures-chart" />;
+  const bar  = hoveredBar ?? lastBar;
+  const clrC = bar?.change > 0 ? "#ef4444" : bar?.change < 0 ? "#22c55e" : "#94a3b8";
+  const sign = (v) => v > 0 ? "+" : "";
+  const activeMaEntries = MA_LINES.filter(({ key }) => activeMA[key]);
+  const barMA = bar ? maValueMapRef.current.get(String(bar.time)) : null;
+
+  return (
+    <div>
+      <div className="chart-info-bars">
+        <div className="chart-info-line">
+          {bar ? (
+            <>
+              <span className="ci-label">時間:</span>
+              <span>{fmtFuturesTime(bar.time, timeframe !== "D")}</span>
+              <span className="ci-label">開:</span><span>{bar.open}</span>
+              <span className="ci-label">高:</span><span>{bar.high}</span>
+              <span className="ci-label">低:</span><span>{bar.low}</span>
+              <span className="ci-label">收:</span>
+              <span style={{ color: clrC }}>{bar.close}</span>
+              <span style={{ color: clrC }}>{sign(bar.change)}{bar.change} ({sign(bar.chgPct)}{bar.chgPct}%)</span>
+              <span className="ci-label">成交量:</span><span>{bar.volume?.toLocaleString() ?? "—"}</span>
+            </>
+          ) : <span className="ci-label">—</span>}
+        </div>
+        {activeMaEntries.length > 0 && (
+          <div className="chart-info-line">
+            {activeMaEntries.map(({ key, label, color }) =>
+              barMA?.[key] != null ? (
+                <span key={key} style={{ color }}>{label}: {barMA[key]}</span>
+              ) : null
+            )}
+          </div>
+        )}
+      </div>
+      <div ref={containerRef} className="futures-chart" />
+    </div>
+  );
 });
 
 function InstitutionalChart({ data }) {
