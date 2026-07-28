@@ -54,3 +54,13 @@ ssh -i ~/.ssh/stock-key ubuntu@13.231.218.149 "cd /home/ubuntu/stock-app && git 
 | `intraday/quote` | 即時報價、五檔（欄位名 `bids`/`asks`，注意非 `bestBids`） |
 | `historical/candles` | 歷史日 K 線（`timeframe=D`） |
 | `snapshot/actives` | 成交值排行（type 參數用 `ALLBUT0999`，4個9） |
+
+## Agent skills
+
+### Issue tracker
+
+Issues 存在 GitHub（hohoMrc/stock-app），用 `gh` CLI 操作。詳見 `docs/agents/issue-tracker.md`。
+
+### Domain docs
+
+Single-context：`CONTEXT.md` + `docs/adr/` 放在 repo 根目錄。詳見 `docs/agents/domain.md`。
