@@ -12,14 +12,16 @@ const SIDE_LABEL = { long: "多", short: "空" };
 const SMART_STATUS_LABEL = { pending: "待觸發", triggered: "已成交", failed: "失敗", cancelled: "已取消" };
 
 // 重新整理/入金按鈕跟「模擬下單」標題放同一列（在 PaperTrading.jsx 的頁首），
-// 用 ref 把這裡的動作往上暴露、用 onStatusChange 把 loading/depositing 狀態往上回報，
-// 這樣頁首的按鈕文字/disabled 狀態才能跟這個分頁實際的載入狀態同步。
-const FuturesPaperTrading = forwardRef(function FuturesPaperTrading({ username, onRequireLogin, onStatusChange }, ref) {
+// 用 ref 把 refresh/deposit 動作往上暴露；loading/depositing 狀態則直接由父層擁有並傳入，
+// 這樣按鈕文字/disabled 狀態才能跟這個分頁實際的載入狀態同步。
+const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
+  { username, onRequireLogin, setLoading, setDepositing },
+  ref
+) {
   const [account, setAccount]     = useState(null);
   const [positions, setPositions] = useState([]);
   const [orders, setOrders]       = useState([]);
   const [performance, setPerformance] = useState(null);
-  const [loading, setLoading]     = useState(false);
 
   // 下單表單
   const [product, setProduct]     = useState("TXF");
@@ -30,7 +32,6 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading({ username, 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [formMsg, setFormMsg]     = useState("");
-  const [depositing, setDepositing] = useState(false);
 
   // 智慧單表單
   const [smartOrders, setSmartOrders]     = useState([]);
@@ -102,8 +103,8 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading({ username, 
   const handleDeposit = async () => {
     setDepositing(true);
     try {
-      await depositFuturesCash();
-      setFormMsg("已入金 1,000,000 元");
+      const res = await depositFuturesCash();
+      setFormMsg(`已入金 ${res.data.deposit_amount.toLocaleString()} 元`);
       setFormError("");
       loadAll();
     } catch (e) {
@@ -114,10 +115,6 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading({ username, 
   };
 
   useImperativeHandle(ref, () => ({ refresh: loadAll, deposit: handleDeposit }));
-
-  useEffect(() => {
-    onStatusChange?.({ loading, depositing });
-  }, [loading, depositing, onStatusChange]);
 
   const handleSmartSubmit = async () => {
     if (!smartQty || smartQty <= 0) { setSmartError("口數需大於 0"); return; }

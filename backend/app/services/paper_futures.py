@@ -199,7 +199,7 @@ def deposit_futures_cash(user_id: int) -> dict:
     account = get_or_create_paper_futures_account(user_id)
     update_paper_futures_cash(user_id, account["cash"] + DEPOSIT_AMOUNT)
     insert_paper_futures_order(user_id, "CASH", "long", "deposit", 0, 0, 0, 0, DEPOSIT_AMOUNT, None)
-    return get_futures_account_summary(user_id)
+    return {**get_futures_account_summary(user_id), "deposit_amount": DEPOSIT_AMOUNT}
 
 
 # ── 智慧單（到價自動下單）─────────────────────────────────

@@ -185,7 +185,7 @@ def deposit_cash(user_id: int) -> dict:
     account = get_or_create_paper_account(user_id)
     update_paper_cash(user_id, account["cash"] + DEPOSIT_AMOUNT)
     insert_paper_order(user_id, "CASH", "入金", "deposit", 0, 0, 0, 0, DEPOSIT_AMOUNT, None)
-    return get_account_summary(user_id)
+    return {**get_account_summary(user_id), "deposit_amount": DEPOSIT_AMOUNT}
 
 
 # ── 智慧單（到價自動買賣）─────────────────────────────────

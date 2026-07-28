@@ -3,12 +3,14 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { searchStocks, getStock, getPaperAccount, getPaperPositions, getPaperOrders, placePaperOrder, depositPaperCash, getPaperPerformance, createStockSmartOrder, getStockSmartOrders, cancelStockSmartOrder } from "../api";
 import { calcFee, calcTax } from "../feeCalc";
 import PaperOrderModal from "./PaperOrderModal";
+import PaperPageActions from "./PaperPageActions";
 import FuturesPaperTrading from "./FuturesPaperTrading";
 
 export default function PaperTrading({ username, onRequireLogin, prefillTicker = null, onSelectStock }) {
   const [assetTab, setAssetTab]   = useState("stock"); // "stock" | "futures"
   const futuresRef = useRef(null);
-  const [futuresStatus, setFuturesStatus] = useState({ loading: false, depositing: false });
+  const [futuresLoading, setFuturesLoading]     = useState(false);
+  const [futuresDepositing, setFuturesDepositing] = useState(false);
   const [account, setAccount]     = useState(null);
   const [positions, setPositions] = useState([]);
   const [orders, setOrders]       = useState([]);
@@ -134,8 +136,8 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
   const handleDeposit = async () => {
     setDepositing(true);
     try {
-      await depositPaperCash();
-      setFormMsg("已入金 100,000 元");
+      const res = await depositPaperCash();
+      setFormMsg(`已入金 ${res.data.deposit_amount.toLocaleString()} 元`);
       setFormError("");
       loadAll();
     } catch (e) {
@@ -195,24 +197,22 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
       <div className="paper-page-header">
         <h2>模擬下單</h2>
         {assetTab === "stock" && (
-          <div className="paper-page-actions">
-            <button className="refresh-btn" onClick={() => loadAll()} disabled={loading}>
-              {loading ? "更新中..." : "↻ 重新整理"}
-            </button>
-            <button className="deposit-btn" onClick={handleDeposit} disabled={depositing}>
-              {depositing ? "入金中..." : "入金 10 萬"}
-            </button>
-          </div>
+          <PaperPageActions
+            onRefresh={() => loadAll()}
+            onDeposit={handleDeposit}
+            loading={loading}
+            depositing={depositing}
+            depositLabel="入金 10 萬"
+          />
         )}
         {assetTab === "futures" && (
-          <div className="paper-page-actions">
-            <button className="refresh-btn" onClick={() => futuresRef.current?.refresh()} disabled={futuresStatus.loading}>
-              {futuresStatus.loading ? "更新中..." : "↻ 重新整理"}
-            </button>
-            <button className="deposit-btn" onClick={() => futuresRef.current?.deposit()} disabled={futuresStatus.depositing}>
-              {futuresStatus.depositing ? "入金中..." : "入金 100 萬"}
-            </button>
-          </div>
+          <PaperPageActions
+            onRefresh={() => futuresRef.current?.refresh()}
+            onDeposit={() => futuresRef.current?.deposit()}
+            loading={futuresLoading}
+            depositing={futuresDepositing}
+            depositLabel="入金 100 萬"
+          />
         )}
       </div>
 
@@ -230,7 +230,8 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
           ref={futuresRef}
           username={username}
           onRequireLogin={onRequireLogin}
-          onStatusChange={setFuturesStatus}
+          setLoading={setFuturesLoading}
+          setDepositing={setFuturesDepositing}
         />
       )}
 
