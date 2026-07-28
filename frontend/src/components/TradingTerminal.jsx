@@ -674,13 +674,13 @@ function OrderBook({ data, loading }) {
           ))}
         </div>
 
-        {/* 委賣（紅）：由高到低排列 */}
+        {/* 委賣（紅）：由低到高排列，跟委買一樣把最接近市價的掛單放最上面 */}
         <div className="ob-col ob-ask-col">
           <div className="ob-col-header">
             <span>委賣價</span>
             <span>張數</span>
           </div>
-          {[...asks].reverse().map((a, i) => (
+          {asks.map((a, i) => (
             <div key={i} className="ob-row">
               <span className="ob-price down">{displayPrice(a.price)}</span>
               <span className="ob-qty">{a.size}</span>
