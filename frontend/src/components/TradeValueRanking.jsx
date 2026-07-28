@@ -109,7 +109,7 @@ export default function TradeValueRanking({ onSelect, onSelectIndustry }) {
           ) : activeTab === "turnover" ? (
             <TurnoverTable stocks={stocks} onSelect={onSelect} />
           ) : (
-            <ValueTable stocks={stocks} onSelect={onSelect} />
+            <ValueTable stocks={stocks} onSelect={onSelect} showVolume={activeTab !== "value"} />
           )}
         </div>
       )}
@@ -166,12 +166,13 @@ function ExchangeBadge({ exchange }) {
 
 // 手機版排行榜卡片列表，取代原本很擠的橫向表格（桌面版仍用 <table>，這個只在手機寬度顯示）
 // 匯出給 IndustryStocks.jsx 共用，維持排版一致。
-export function MobileRankList({ stocks, onSelect }) {
+export function MobileRankList({ stocks, onSelect, showVolume = false }) {
   return (
     <div className="mobile-rank-list">
-      <div className="mobile-rank-header">
+      <div className={`mobile-rank-header ${showVolume ? "mobile-rank-header-4col" : ""}`}>
         <span className="mobile-rank-header-spacer"></span>
         <span>成交</span><span>漲跌</span><span>漲跌幅</span>
+        {showVolume && <span className="mrc-vol-label">量(張)</span>}
       </div>
       {stocks.map((s) => {
         const dir  = s.change > 0 ? "up" : s.change < 0 ? "down" : "";
@@ -187,10 +188,13 @@ export function MobileRankList({ stocks, onSelect }) {
                 <span className="mrc-ticker">{s.ticker}</span>
               </div>
             </div>
-            <div className="mrc-right">
+            <div className={`mrc-right ${showVolume ? "mrc-right-4col" : ""}`}>
               <span className={`mrc-close ${up ? "limit-up" : down ? "limit-down" : ""}`}>{s.close ?? "—"}</span>
               <span className={`mrc-num ${dir}`}>{s.change != null ? `${sign}${s.change}` : "—"}</span>
               <span className={`mrc-num ${dir}`}>{s.change_pct != null ? `${sign}${s.change_pct}%` : "—"}</span>
+              {showVolume && (
+                <span className="mrc-num mrc-vol">{s.trade_volume_zhang != null ? s.trade_volume_zhang.toLocaleString() : "—"}</span>
+              )}
             </div>
           </div>
         );
@@ -199,7 +203,7 @@ export function MobileRankList({ stocks, onSelect }) {
   );
 }
 
-function ValueTable({ stocks, onSelect }) {
+function ValueTable({ stocks, onSelect, showVolume = false }) {
   return (
     <>
       <table className="result-table">
@@ -207,7 +211,7 @@ function ValueTable({ stocks, onSelect }) {
           <tr>
             <th>#</th><th>代號</th><th>名稱</th>
             <th>收盤</th><th>漲跌</th><th>漲跌幅</th>
-            <th>成交值(億)</th><th>市場</th><th>操作</th>
+            <th>成交值(億)</th>{showVolume && <th>成交量(張)</th>}<th>市場</th><th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -219,13 +223,16 @@ function ValueTable({ stocks, onSelect }) {
               <CloseCell s={s} />
               <ChangeCells s={s} />
               <td className="trade-value-cell">{s.trade_value_yi ?? "—"}</td>
+              {showVolume && (
+                <td>{s.trade_volume_zhang != null ? s.trade_volume_zhang.toLocaleString() : "—"}</td>
+              )}
               <ExchangeBadge exchange={s.exchange} />
               <td><button className="view-btn" onClick={() => onSelect(s.ticker)}>查看</button></td>
             </RowWrapper>
           ))}
         </tbody>
       </table>
-      <MobileRankList stocks={stocks} onSelect={onSelect} />
+      <MobileRankList stocks={stocks} onSelect={onSelect} showVolume={showVolume} />
     </>
   );
 }

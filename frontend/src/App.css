@@ -2117,6 +2117,9 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   }
   .mobile-rank-header-spacer { flex: 0 0 100px; }
   .mobile-rank-header span:not(.mobile-rank-header-spacer) { width: 66px; text-align: right; }
+  .mobile-rank-header-4col { gap: 6px; }
+  .mobile-rank-header-4col span:not(.mobile-rank-header-spacer) { width: 46px; font-size: 11px; }
+  .mobile-rank-header-4col .mrc-vol-label { width: 64px; }
 
   .mobile-rank-card {
     display: flex;
@@ -2152,6 +2155,10 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   .mrc-close.limit-down { background: rgba(34,197,94,0.25); border-radius: 4px; }
   .mrc-num.up   { color: var(--up); }
   .mrc-num.down { color: var(--down); }
+
+  .mrc-right-4col { gap: 6px; }
+  .mrc-right-4col .mrc-close, .mrc-right-4col .mrc-num { width: 46px; font-size: 14px; }
+  .mrc-right-4col .mrc-vol { width: 64px; font-size: 13px; }
 
   /* 篩選表單 */
   .filter-row { flex-direction: column; align-items: flex-start; gap: 6px; }
