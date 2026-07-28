@@ -3,11 +3,12 @@ import { getIndustryStocks } from "../api";
 import { MobileRankList } from "./TradeValueRanking";
 
 const SORT_COLUMNS = [
-  { key: "ticker",     label: "代號" },
-  { key: "name",       label: "名稱" },
-  { key: "price",      label: "成交價" },
-  { key: "change_pct", label: "漲跌幅" },
-  { key: "change",     label: "漲跌" },
+  { key: "ticker",       label: "代號" },
+  { key: "name",         label: "名稱" },
+  { key: "price",        label: "成交價" },
+  { key: "change_pct",   label: "漲跌幅" },
+  { key: "change",       label: "漲跌" },
+  { key: "volume_zhang", label: "成交量" },
 ];
 
 export default function IndustryStocks({ industry, excludeTicker, useParent = false, onSelect, onBack }) {
@@ -125,6 +126,7 @@ export default function IndustryStocks({ industry, excludeTicker, useParent = fa
                     <td>{s.price ?? "—"}</td>
                     <td className={dir}>{s.change_pct != null ? `${sign}${s.change_pct}%` : "—"}</td>
                     <td className={dir}>{s.change != null ? `${sign}${s.change}` : "—"}</td>
+                    <td>{s.volume_zhang != null ? s.volume_zhang.toLocaleString() : "—"}</td>
                   </tr>
                 );
               })}
@@ -137,9 +139,11 @@ export default function IndustryStocks({ industry, excludeTicker, useParent = fa
               close: s.price,
               change: s.change,
               change_pct: s.change_pct,
+              trade_volume_zhang: s.volume_zhang,
               exchange: s.exchange === "TW" ? "上市" : s.exchange === "TWO" ? "上櫃" : s.exchange,
             }))}
             onSelect={onSelect}
+            showVolume
           />
         </div>
       )}

@@ -782,7 +782,7 @@ def get_stock_info(ticker: str) -> dict:
 
 
 def _enrich_with_live_quotes(rows: list) -> list:
-    """把 DB 查出來的股票清單（只有昨收價）補上即時成交價、漲跌、漲跌幅，供產業個股清單顯示用。"""
+    """把 DB 查出來的股票清單（只有昨收價）補上即時成交價、漲跌、漲跌幅、成交量，供產業個股清單顯示用。"""
     if not rows:
         return rows
     quote_map = {q["ticker"]: q for q in get_watchlist_quotes([r["ticker"] for r in rows])}
@@ -792,6 +792,7 @@ def _enrich_with_live_quotes(rows: list) -> list:
             r["price"] = q["close"]
         r["change"] = q.get("change")
         r["change_pct"] = q.get("change_pct")
+        r["volume_zhang"] = q.get("trade_volume_zhang")
     return rows
 
 
