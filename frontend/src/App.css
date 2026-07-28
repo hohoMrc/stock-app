@@ -1030,6 +1030,9 @@
 .refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
 .refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.pagination { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 10px 0; }
+.pagination-info { font-size: 13px; color: var(--text-secondary); }
+
 /* 排行 Tab */
 .ranking-tabs {
   display: flex;

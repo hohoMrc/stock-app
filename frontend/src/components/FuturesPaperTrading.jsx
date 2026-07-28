@@ -5,6 +5,7 @@ import {
   placeFuturesOrder, depositFuturesCash, getFuturesPaperPerformance,
   createSmartOrder, getSmartOrders, cancelSmartOrder,
 } from "../api";
+import Pagination, { PAGE_SIZE } from "./Pagination";
 
 const PRODUCT_LABEL = { TXF: "大台指", TMF: "微台指" };
 const ACTION_LABEL = { open: "建倉", close: "平倉" };
@@ -43,6 +44,8 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
   const [smartSubmitting, setSmartSubmitting] = useState(false);
   const [smartError, setSmartError]       = useState("");
   const [smartMsg, setSmartMsg]           = useState("");
+  const [smartOrdersPage, setSmartOrdersPage] = useState(1);
+  const [ordersPage, setOrdersPage]       = useState(1);
 
   const loadAll = async () => {
     setLoading(true);
@@ -152,6 +155,14 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
       </div>
     );
   }
+
+  const smartOrdersTotalPages = Math.max(1, Math.ceil(smartOrders.length / PAGE_SIZE));
+  const smartOrdersCurPage    = Math.min(smartOrdersPage, smartOrdersTotalPages);
+  const pagedSmartOrders      = smartOrders.slice((smartOrdersCurPage - 1) * PAGE_SIZE, smartOrdersCurPage * PAGE_SIZE);
+
+  const ordersTotalPages = Math.max(1, Math.ceil(orders.length / PAGE_SIZE));
+  const ordersCurPage    = Math.min(ordersPage, ordersTotalPages);
+  const pagedOrders      = orders.slice((ordersCurPage - 1) * PAGE_SIZE, ordersCurPage * PAGE_SIZE);
 
   return (
     <div>
@@ -305,7 +316,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
               </tr>
             </thead>
             <tbody>
-              {smartOrders.map((o) => (
+              {pagedSmartOrders.map((o) => (
                 <tr key={o.id}>
                   <td className="col-ticker">{PRODUCT_LABEL[o.product]}</td>
                   <td>{SIDE_LABEL[o.side]}</td>
@@ -323,6 +334,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
               ))}
             </tbody>
           </table>
+          <Pagination page={smartOrdersCurPage} totalPages={smartOrdersTotalPages} onChange={setSmartOrdersPage} />
         </div>
       )}
 
@@ -401,7 +413,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
               </tr>
             </thead>
             <tbody>
-              {orders.map((o, i) => {
+              {pagedOrders.map((o, i) => {
                 const isDeposit = o.action === "deposit";
                 return (
                   <tr key={i}>
@@ -420,6 +432,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
               })}
             </tbody>
           </table>
+          <Pagination page={ordersCurPage} totalPages={ordersTotalPages} onChange={setOrdersPage} />
         </div>
       )}
     </div>

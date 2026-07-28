@@ -4,6 +4,7 @@ import { searchStocks, getStock, getPaperAccount, getPaperPositions, getPaperOrd
 import { calcFee, calcTax } from "../feeCalc";
 import PaperOrderModal from "./PaperOrderModal";
 import PaperPageActions from "./PaperPageActions";
+import Pagination, { PAGE_SIZE } from "./Pagination";
 import FuturesPaperTrading from "./FuturesPaperTrading";
 
 export default function PaperTrading({ username, onRequireLogin, prefillTicker = null, onSelectStock }) {
@@ -39,6 +40,8 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
   const [smartSubmitting, setSmartSubmitting] = useState(false);
   const [smartError, setSmartError]     = useState("");
   const [smartMsg, setSmartMsg]         = useState("");
+  const [smartOrdersPage, setSmartOrdersPage] = useState(1);
+  const [ordersPage, setOrdersPage]     = useState(1);
 
   const debounceRef = useRef(null);
   const wrapperRef  = useRef(null);
@@ -186,6 +189,14 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
       </div>
     );
   }
+
+  const smartOrdersTotalPages = Math.max(1, Math.ceil(smartOrders.length / PAGE_SIZE));
+  const smartOrdersCurPage    = Math.min(smartOrdersPage, smartOrdersTotalPages);
+  const pagedSmartOrders      = smartOrders.slice((smartOrdersCurPage - 1) * PAGE_SIZE, smartOrdersCurPage * PAGE_SIZE);
+
+  const ordersTotalPages = Math.max(1, Math.ceil(orders.length / PAGE_SIZE));
+  const ordersCurPage    = Math.min(ordersPage, ordersTotalPages);
+  const pagedOrders      = orders.slice((ordersCurPage - 1) * PAGE_SIZE, ordersCurPage * PAGE_SIZE);
 
   const gross = selected ? selected.price * lots * 1000 : 0;
   const fee   = gross ? calcFee(gross) : 0;
@@ -418,7 +429,7 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
               </tr>
             </thead>
             <tbody>
-              {smartOrders.map((o) => (
+              {pagedSmartOrders.map((o) => (
                 <tr key={o.id}>
                   <td className="col-ticker">{o.ticker}</td>
                   <td>{o.side === "buy" ? "買進" : "賣出"}</td>
@@ -435,6 +446,7 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
               ))}
             </tbody>
           </table>
+          <Pagination page={smartOrdersCurPage} totalPages={smartOrdersTotalPages} onChange={setSmartOrdersPage} />
         </div>
       )}
 
@@ -513,7 +525,7 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
               </tr>
             </thead>
             <tbody>
-              {orders.map((o, i) => {
+              {pagedOrders.map((o, i) => {
                 const isDeposit = o.side === "deposit";
                 return (
                   <tr key={i}>
@@ -532,6 +544,7 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
               })}
             </tbody>
           </table>
+          <Pagination page={ordersCurPage} totalPages={ordersTotalPages} onChange={setOrdersPage} />
         </div>
       )}
 
