@@ -15,7 +15,7 @@ const SMART_STATUS_LABEL = { pending: "待觸發", triggered: "已成交", faile
 // 用 ref 把 refresh/deposit 動作往上暴露；loading/depositing 狀態則直接由父層擁有並傳入，
 // 這樣按鈕文字/disabled 狀態才能跟這個分頁實際的載入狀態同步。
 const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
-  { username, onRequireLogin, setLoading, setDepositing },
+  { username, onRequireLogin, loading, setLoading, setDepositing },
   ref
 ) {
   const [account, setAccount]     = useState(null);

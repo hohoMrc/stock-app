@@ -230,6 +230,7 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
           ref={futuresRef}
           username={username}
           onRequireLogin={onRequireLogin}
+          loading={futuresLoading}
           setLoading={setFuturesLoading}
           setDepositing={setFuturesDepositing}
         />
