@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { screenStocks, scanWeeklySurge, scanMaSqueeze, scanNearEma60, scanVolumeBreakout, scanInstitutionalBuying } from "../api";
+import { screenStocks, scanWeeklySurge, scanMaSqueeze, scanNearEma60, scanVolumeBreakout, scanInstitutionalBuying, getEma60Watchlist } from "../api";
 
 const DEFAULT_TICKERS = [
   // 半導體
@@ -84,6 +84,24 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
       setSearched(true);
     } catch (e) {
       setError(e?.response?.data?.detail || e.message || "掃描失敗");
+      setSearched(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEma60Watchlist = async () => {
+    setResultMode("ema60_watchlist");
+    setLoading(true);
+    setError(null);
+    setResults([]);
+    setFilters({ ...EMPTY_FILTERS });
+    try {
+      const res = await getEma60Watchlist();
+      setResults(res.data.stocks);
+      setSearched(true);
+    } catch (e) {
+      setError(e?.response?.data?.detail || e.message || "查詢失敗");
       setSearched(true);
     } finally {
       setLoading(false);
@@ -205,6 +223,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
   const hasMA = !!filters.near_ma;
   const hasPattern = !!filters.pattern;
   const isEma60Mode = resultMode === "near_ema60";
+  const isEma60WatchlistMode = resultMode === "ema60_watchlist";
   const isVolumeBreakoutMode = resultMode === "volume_breakout";
   const isInstitutionalBuyingMode = resultMode === "institutional_buying";
   const PATTERN_LABEL = { bird_beak: "⚡ 鳥嘴與分歧", divergence: "⚡ 鳥嘴與分歧" };
@@ -255,6 +274,14 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
           title="收盤在 EMA60 上方 0~3%，近一個月持續站上 EMA60，日量 ≥ 2000 張"
         >
           📈 EMA60近線
+        </button>
+        <button
+          className="preset-btn preset-btn--pattern"
+          onClick={handleEma60Watchlist}
+          disabled={loading}
+          title="每天被 EMA60近線 掃到的股票會自動加進這份觀察名單，噴出（爆量或站回EMA10）就會發通知並移除；太久沒動靜也會自動清掉"
+        >
+          📋 貼線觀察名單
         </button>
         <button
           className="preset-btn preset-btn--pattern"
@@ -485,9 +512,12 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                   <th>股價</th>
                   <th>漲跌幅</th>
                   {resultMode === "weekly_surge" && <th>週漲幅</th>}
-                  <th>成交量(張)</th>
+                  {!isEma60WatchlistMode && <th>成交量(張)</th>}
                   {isEma60Mode && <th>EMA60</th>}
                   {isEma60Mode && <th>偏離</th>}
+                  {isEma60WatchlistMode && <th>貼線日期</th>}
+                  {isEma60WatchlistMode && <th>進場價</th>}
+                  {isEma60WatchlistMode && <th>累計漲幅</th>}
                   {isVolumeBreakoutMode && <th>量比</th>}
                   {isInstitutionalBuyingMode && <th>連續買超天數</th>}
                   {isInstitutionalBuyingMode && <th>合計買超(張)</th>}
@@ -511,11 +541,20 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                         {s.weekly_change_pct != null ? `${s.weekly_change_pct > 0 ? "+" : ""}${s.weekly_change_pct}%` : "—"}
                       </td>
                     )}
-                    <td>{s.volume_zhang != null ? s.volume_zhang.toLocaleString() : "—"}</td>
+                    {!isEma60WatchlistMode && (
+                      <td>{s.volume_zhang != null ? s.volume_zhang.toLocaleString() : "—"}</td>
+                    )}
                     {isEma60Mode && <td>{s.ema60 ?? "—"}</td>}
                     {isEma60Mode && (
                       <td className="deviation-up">
                         {s.dev_pct != null ? `+${s.dev_pct}%` : "—"}
+                      </td>
+                    )}
+                    {isEma60WatchlistMode && <td>{s.first_seen_date ?? "—"}</td>}
+                    {isEma60WatchlistMode && <td>{s.entry_price ?? "—"}</td>}
+                    {isEma60WatchlistMode && (
+                      <td className={s.since_entry_pct > 0 ? "deviation-up" : s.since_entry_pct < 0 ? "deviation-down" : ""}>
+                        {s.since_entry_pct != null ? `${s.since_entry_pct > 0 ? "+" : ""}${s.since_entry_pct}%` : "—"}
                       </td>
                     )}
                     {isVolumeBreakoutMode && (

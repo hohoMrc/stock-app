@@ -75,6 +75,16 @@ async def near_ema60_scan(limit: int = Query(default=500, le=500)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/scan/near-ema60/watchlist")
+async def near_ema60_watchlist():
+    try:
+        from app.services.signal_tracking import get_ema60_watchlist_view
+        results = await run_in_threadpool(get_ema60_watchlist_view)
+        return {"count": len(results), "stocks": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/scan/volume-breakout")
 async def volume_breakout_scan(limit: int = Query(default=200, le=500)):
     try:

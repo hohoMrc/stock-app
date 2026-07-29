@@ -134,6 +134,35 @@ def check_ema60_breakouts() -> list[dict]:
     return triggered
 
 
+def get_ema60_watchlist_view() -> list[dict]:
+    """觀察名單 + 即時報價，供前端「EMA60貼線觀察名單」頁面顯示用。
+    依加入觀察名單的日期新到舊排序（最新盯上的排最前面）。
+    """
+    from app.services.stock_data import get_watchlist_quotes
+    rows = get_ema60_watchlist()
+    if not rows:
+        return []
+    quote_map = {q["ticker"]: q for q in get_watchlist_quotes([r["ticker"] for r in rows])}
+    result = []
+    for r in rows:
+        q = quote_map.get(r["ticker"], {})
+        close = q.get("close")
+        entry = r.get("entry_price")
+        since_entry_pct = round((close - entry) / entry * 100, 2) if close and entry else None
+        result.append({
+            "ticker":           r["ticker"],
+            "name":             r.get("name") or q.get("name") or "",
+            "first_seen_date":  r["first_seen_date"],
+            "last_seen_date":   r["last_seen_date"],
+            "entry_price":      entry,
+            "price":            close,
+            "change_pct":       q.get("change_pct"),
+            "since_entry_pct":  since_entry_pct,
+        })
+    result.sort(key=lambda x: x["first_seen_date"], reverse=True)
+    return result
+
+
 def _avg(vals: list) -> float | None:
     vals = [v for v in vals if v is not None]
     return round(sum(vals) / len(vals), 2) if vals else None
