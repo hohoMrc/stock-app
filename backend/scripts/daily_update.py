@@ -211,7 +211,7 @@ if __name__ == "__main__":
         print("[EMA60近線] 開始掃描...")
         try:
             from app.services.stock_data import scan_near_ema60
-            from app.services.signal_tracking import record_signals
+            from app.services.signal_tracking import record_signals, update_ema60_watchlist, check_ema60_breakouts
             ema_hits = scan_near_ema60(500)
             _check_scan_alerts("near_ema60", ema_hits)
             record_signals("near_ema60", ema_hits)
@@ -224,6 +224,21 @@ if __name__ == "__main__":
                 lines,
                 "[EMA60近線] 今日無符合條件的股票",
             )
+
+            # 貼線觀察名單：今天掃到的加進去（已存在的只刷新最後出現日），
+            # 再檢查名單裡的股票今天有沒有噴出（爆量或站回EMA10），有的話發通知並從名單移除。
+            update_ema60_watchlist(ema_hits)
+            breakout_hits = check_ema60_breakouts()
+            breakout_lines = []
+            for b in breakout_hits:
+                entry = b.get("entry_price")
+                pct = round((b["close"] - entry) / entry * 100, 2) if entry else None
+                extra = f"　貼線價 {entry} → 現在 {b['close']}（{'+' if pct and pct > 0 else ''}{pct}%）" if pct is not None else ""
+                breakout_lines.append(
+                    f'{_stock_link(b["ticker"], b.get("name", ""))}　{"、".join(b["reasons"])}{extra}'
+                )
+            if breakout_lines:
+                _tg_notify_lines(f"[EMA60貼線噴出] 今日觸發 {len(breakout_hits)} 支", breakout_lines, "")
         except Exception as e:
             print(f"[EMA60近線] 掃描失敗: {e}")
 

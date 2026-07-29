@@ -1,9 +1,10 @@
 """追蹤快速篩選訊號的後續表現（5/10/20 個交易日報酬率），評估各篩選條件是否真的有效。"""
-from datetime import date
+from datetime import date, timedelta
 
 from app.db import (
     save_scan_signals, get_signals_pending_evaluation, update_signal_returns,
     get_scan_signal_stats, get_candles,
+    upsert_ema60_watch, get_ema60_watchlist, remove_ema60_watch, prune_stale_ema60_watch,
 )
 
 SCAN_LABELS = {
@@ -56,6 +57,81 @@ def evaluate_pending_signals():
         r20 = _pct_change(base, p20) if p20 is not None else None
         if r5 is not None or r10 is not None or r20 is not None:
             update_signal_returns(sig["id"], r5, r10, r20)
+
+
+EMA60_WATCH_EXPIRY_DAYS = 21  # 太久沒再貼近EMA60、也一直沒噴出的股票，型態視為失效，從觀察名單清掉
+
+
+def update_ema60_watchlist(hits: list):
+    """把今天 EMA60近線 掃到的股票加進觀察名單；已經在名單裡的只刷新 last_seen（不重複計入）。"""
+    today = date.today().strftime("%Y-%m-%d")
+    for h in hits:
+        if not h.get("ticker"):
+            continue
+        upsert_ema60_watch(h["ticker"], h.get("name", ""), today, h.get("close"))
+
+
+def check_ema60_breakouts() -> list[dict]:
+    """檢查觀察名單裡的股票今天有沒有「噴出」：
+    (a) 爆量：今日量 ≥ 近5日均量 3倍
+    (b) 站回EMA10：昨天收盤 < 昨天EMA10，今天收盤 ≥ 今天EMA10（由下往上穿越，不是單純「現在站上」）
+    任一條件觸發就算噴出，從觀察名單移除（不重複通知）。同時清掉太久沒動靜的股票。
+    回傳觸發清單，供排程發 Telegram 通知用。
+    """
+    watchlist = get_ema60_watchlist()
+    if not watchlist:
+        return []
+
+    today_str  = date.today().strftime("%Y-%m-%d")
+    from_date  = (date.today() - timedelta(days=90)).strftime("%Y-%m-%d")
+
+    triggered = []
+    for w in watchlist:
+        ticker = w["ticker"]
+        records = get_candles(ticker, from_date, today_str)
+        if not records or len(records) < 12:
+            continue
+
+        today_vol = records[-1].get("volume") or 0
+        recent5   = records[-6:-1]
+        vols5     = [r.get("volume") or 0 for r in recent5]
+        avg_vol_5d = sum(vols5) / len(vols5) if len(vols5) == 5 else 0
+        vol_ratio  = today_vol / avg_vol_5d if avg_vol_5d > 0 else 0
+        volume_trigger = vol_ratio >= 3.0
+
+        closes = [r["close"] for r in records if r["close"] is not None]
+        if len(closes) < 2:
+            continue
+        k, ema = 2 / 11, None
+        ema_series = []
+        for c in closes:
+            ema = c if ema is None else c * k + ema * (1 - k)
+            ema_series.append(ema)
+        today_close, today_ema10 = closes[-1], ema_series[-1]
+        prev_close,  prev_ema10  = closes[-2], ema_series[-2]
+        ema10_cross_trigger = prev_close < prev_ema10 and today_close >= today_ema10
+
+        if not (volume_trigger or ema10_cross_trigger):
+            continue
+
+        reasons = []
+        if volume_trigger:
+            reasons.append(f"爆量（今日量為近5日均量 {round(vol_ratio, 1)} 倍）")
+        if ema10_cross_trigger:
+            reasons.append("站回 EMA10")
+        triggered.append({
+            "ticker": ticker, "name": w.get("name", ""),
+            "close": today_close, "entry_price": w.get("entry_price"),
+            "reasons": reasons,
+        })
+
+    if triggered:
+        remove_ema60_watch([t["ticker"] for t in triggered])
+
+    cutoff = (date.today() - timedelta(days=EMA60_WATCH_EXPIRY_DAYS)).strftime("%Y-%m-%d")
+    prune_stale_ema60_watch(cutoff)
+
+    return triggered
 
 
 def _avg(vals: list) -> float | None:

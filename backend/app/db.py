@@ -117,6 +117,14 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_scan_signals_type
             ON scan_signals(scan_type, signal_date);
 
+        CREATE TABLE IF NOT EXISTS ema60_watchlist (
+            ticker          TEXT PRIMARY KEY,
+            name            TEXT,
+            first_seen_date TEXT NOT NULL,
+            last_seen_date  TEXT NOT NULL,
+            entry_price     REAL
+        );
+
         CREATE TABLE IF NOT EXISTS warrants (
             ticker            TEXT PRIMARY KEY,
             name              TEXT,
@@ -625,6 +633,47 @@ def get_scan_signal_stats(scan_type: str, since_date: str) -> list[dict]:
             (scan_type, since_date)
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ── ema60_watchlist（EMA60近線候選觀察名單→等噴出訊號）──────
+
+def upsert_ema60_watch(ticker: str, name: str, date_str: str, price: float | None):
+    """新股票：first_seen/last_seen 都設今天。已存在：只更新 last_seen（first_seen/entry_price 不變）。"""
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO ema60_watchlist(ticker, name, first_seen_date, last_seen_date, entry_price) "
+            "VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(ticker) DO UPDATE SET last_seen_date=excluded.last_seen_date",
+            (ticker, name, date_str, date_str, price)
+        )
+
+
+def get_ema60_watchlist() -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker, name, first_seen_date, last_seen_date, entry_price FROM ema60_watchlist"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def remove_ema60_watch(tickers: list[str]):
+    """噴出訊號已觸發，從觀察名單移除（任務結束，不重複通知）。"""
+    if not tickers:
+        return
+    with _conn() as conn:
+        conn.executemany("DELETE FROM ema60_watchlist WHERE ticker=?", [(t,) for t in tickers])
+
+
+def prune_stale_ema60_watch(cutoff_date: str) -> list[str]:
+    """清掉太久沒再出現在EMA60近線名單裡、也一直沒噴出的股票（型態已失效）。回傳被清掉的 ticker 清單。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker FROM ema60_watchlist WHERE last_seen_date < ?", (cutoff_date,)
+        ).fetchall()
+        removed = [r["ticker"] for r in rows]
+        if removed:
+            conn.executemany("DELETE FROM ema60_watchlist WHERE ticker=?", [(t,) for t in removed])
+    return removed
 
 
 # ── warrants（權證→標的股對照表，每日排程批次更新）──────────
