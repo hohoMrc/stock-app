@@ -635,6 +635,20 @@ def get_scan_signal_stats(scan_type: str, since_date: str) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def get_recent_scan_signals(scan_type: str, since_date: str, limit: int = 100) -> list[dict]:
+    """撈某篩選類型近期的訊號快照，不論5/10/20日報酬率算出來沒（供「噴出後繼續追蹤」這類
+    畫面用，跟 get_scan_signal_stats 不同——那個只看已經滿20個交易日、可完整評估的）。
+    """
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker, name, signal_date, signal_price, return_5d, return_10d, return_20d "
+            "FROM scan_signals WHERE scan_type=? AND signal_date>=? "
+            "ORDER BY signal_date DESC LIMIT ?",
+            (scan_type, since_date, limit)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 # ── ema60_watchlist（EMA60近線候選觀察名單→等噴出訊號）──────
 
 def upsert_ema60_watch(ticker: str, name: str, date_str: str, price: float | None):

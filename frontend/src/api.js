@@ -30,6 +30,7 @@ export const scanWeeklySurge = (params) => api.get("/api/stocks/scan/weekly-surg
 export const scanMaSqueeze   = (limit = 200) => api.get("/api/stocks/scan/ma-squeeze",  { params: { limit } });
 export const scanNearEma60   = (limit = 500) => api.get("/api/stocks/scan/near-ema60", { params: { limit } });
 export const getEma60Watchlist = () => api.get("/api/stocks/scan/near-ema60/watchlist");
+export const getEma60Breakouts = () => api.get("/api/stocks/scan/near-ema60/breakouts");
 export const scanVolumeBreakout = (limit = 200) => api.get("/api/stocks/scan/volume-breakout", { params: { limit } });
 export const scanInstitutionalBuying = (minDays = 3, limit = 200, minTotalNetZhang = 0) => api.get("/api/stocks/scan/institutional-buying", { params: { min_days: minDays, limit, min_total_net_zhang: minTotalNetZhang } });
 export const getIndustryStocks = (industry, exclude, useParent = false) =>

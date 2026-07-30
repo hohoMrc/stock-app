@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 from app.db import (
     save_scan_signals, get_signals_pending_evaluation, update_signal_returns,
-    get_scan_signal_stats, get_candles,
+    get_scan_signal_stats, get_recent_scan_signals, get_candles,
     upsert_ema60_watch, get_ema60_watchlist, remove_ema60_watch, prune_stale_ema60_watch,
 )
 
@@ -13,6 +13,7 @@ SCAN_LABELS = {
     "near_ema60":             "EMA60近線",
     "volume_breakout":        "量價突破",
     "institutional_buying":   "法人連買",
+    "ema60_breakout":         "EMA60貼線噴出",
 }
 
 
@@ -71,11 +72,15 @@ def update_ema60_watchlist(hits: list):
         upsert_ema60_watch(h["ticker"], h.get("name", ""), today, h.get("close"))
 
 
+EMA60_BREAKOUT_TRACKING_DAYS = 30  # 噴出追蹤清單只看最近30天內觸發的，太久之前的不繼續佔畫面
+
+
 def check_ema60_breakouts() -> list[dict]:
     """檢查觀察名單裡的股票今天有沒有「噴出」：
     (a) 爆量：今日量 ≥ 近5日均量 3倍
     (b) 站回EMA10：昨天收盤 < 昨天EMA10，今天收盤 ≥ 今天EMA10（由下往上穿越，不是單純「現在站上」）
-    任一條件觸發就算噴出，從觀察名單移除（不重複通知）。同時清掉太久沒動靜的股票。
+    任一條件觸發就算噴出：記錄一筆訊號快照（供噴出後繼續追蹤表現、以及5/10/20日報酬率評估用）、
+    從觀察名單移除（已經噴出，不用再等下一次噴出通知）。同時清掉太久沒動靜的股票。
     回傳觸發清單，供排程發 Telegram 通知用。
     """
     watchlist = get_ema60_watchlist()
@@ -126,6 +131,7 @@ def check_ema60_breakouts() -> list[dict]:
         })
 
     if triggered:
+        record_signals("ema60_breakout", triggered)
         remove_ema60_watch([t["ticker"] for t in triggered])
 
     cutoff = (date.today() - timedelta(days=EMA60_WATCH_EXPIRY_DAYS)).strftime("%Y-%m-%d")
@@ -160,6 +166,38 @@ def get_ema60_watchlist_view() -> list[dict]:
             "since_entry_pct":  since_entry_pct,
         })
     result.sort(key=lambda x: x["first_seen_date"], reverse=True)
+    return result
+
+
+def get_ema60_breakout_tracking() -> list[dict]:
+    """最近觸發「EMA60貼線噴出」的股票 + 即時報價，噴出後不會消失，繼續放這裡讓你觀察後續表現
+    （5/10/20 個交易日報酬率會隨時間自動補上）。只看最近 EMA60_BREAKOUT_TRACKING_DAYS 天內觸發的，
+    依觸發日期新到舊排序。
+    """
+    from app.services.stock_data import get_watchlist_quotes
+    since = (date.today() - timedelta(days=EMA60_BREAKOUT_TRACKING_DAYS)).strftime("%Y-%m-%d")
+    rows = get_recent_scan_signals("ema60_breakout", since)
+    if not rows:
+        return []
+    quote_map = {q["ticker"]: q for q in get_watchlist_quotes([r["ticker"] for r in rows])}
+    result = []
+    for r in rows:
+        q = quote_map.get(r["ticker"], {})
+        price  = q.get("close")
+        entry  = r.get("signal_price")
+        since_trigger_pct = round((price - entry) / entry * 100, 2) if price and entry else None
+        result.append({
+            "ticker":            r["ticker"],
+            "name":              r.get("name") or q.get("name") or "",
+            "trigger_date":      r["signal_date"],
+            "trigger_price":     entry,
+            "price":             price,
+            "change_pct":        q.get("change_pct"),
+            "since_trigger_pct": since_trigger_pct,
+            "return_5d":         r.get("return_5d"),
+            "return_10d":        r.get("return_10d"),
+            "return_20d":        r.get("return_20d"),
+        })
     return result
 
 

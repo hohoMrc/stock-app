@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { screenStocks, scanWeeklySurge, scanMaSqueeze, scanNearEma60, scanVolumeBreakout, scanInstitutionalBuying, getEma60Watchlist } from "../api";
+import { screenStocks, scanWeeklySurge, scanMaSqueeze, scanNearEma60, scanVolumeBreakout, scanInstitutionalBuying, getEma60Watchlist, getEma60Breakouts } from "../api";
 import { hasTodayCloseData } from "../marketHours";
 
 const DEFAULT_TICKERS = [
@@ -99,6 +99,24 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
     setFilters({ ...EMPTY_FILTERS });
     try {
       const res = await getEma60Watchlist();
+      setResults(res.data.stocks);
+      setSearched(true);
+    } catch (e) {
+      setError(e?.response?.data?.detail || e.message || "查詢失敗");
+      setSearched(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEma60Breakouts = async () => {
+    setResultMode("ema60_breakout");
+    setLoading(true);
+    setError(null);
+    setResults([]);
+    setFilters({ ...EMPTY_FILTERS });
+    try {
+      const res = await getEma60Breakouts();
       setResults(res.data.stocks);
       setSearched(true);
     } catch (e) {
@@ -239,6 +257,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
   const hasPattern = !!filters.pattern;
   const isEma60Mode = resultMode === "near_ema60";
   const isEma60WatchlistMode = resultMode === "ema60_watchlist";
+  const isEma60BreakoutMode = resultMode === "ema60_breakout";
   const isVolumeBreakoutMode = resultMode === "volume_breakout";
   const isInstitutionalBuyingMode = resultMode === "institutional_buying";
   const PATTERN_LABEL = { bird_beak: "⚡ 鳥嘴與分歧", divergence: "⚡ 鳥嘴與分歧" };
@@ -298,9 +317,17 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
           className="preset-btn preset-btn--pattern"
           onClick={handleEma60Watchlist}
           disabled={loading}
-          title="每天被 EMA60近線 掃到的股票會自動加進這份觀察名單，噴出（爆量或站回EMA10）就會發通知並移除；太久沒動靜也會自動清掉"
+          title="每天被 EMA60近線 掃到的股票會自動加進這份觀察名單，噴出（爆量或站回EMA10）就會發通知並移到「貼線噴出追蹤」；太久沒動靜也會自動清掉"
         >
           📋 貼線觀察名單
+        </button>
+        <button
+          className="preset-btn preset-btn--pattern"
+          onClick={handleEma60Breakouts}
+          disabled={loading}
+          title="最近30天內從貼線觀察名單噴出的股票，噴出後不會消失，繼續放這裡讓你追蹤後續表現（5/10/20個交易日報酬率會隨時間自動補上）"
+        >
+          🚀 貼線噴出追蹤
         </button>
         <button
           className="preset-btn preset-btn--pattern"
@@ -531,12 +558,18 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                   <th>股價</th>
                   <th>漲跌幅</th>
                   {resultMode === "weekly_surge" && <th>週漲幅</th>}
-                  {!isEma60WatchlistMode && <th>成交量(張)</th>}
+                  {!isEma60WatchlistMode && !isEma60BreakoutMode && <th>成交量(張)</th>}
                   {isEma60Mode && <th>EMA60</th>}
                   {isEma60Mode && <th>偏離</th>}
                   {isEma60WatchlistMode && <th>貼線日期</th>}
                   {isEma60WatchlistMode && <th>進場價</th>}
                   {isEma60WatchlistMode && <th>累計漲幅</th>}
+                  {isEma60BreakoutMode && <th>觸發日期</th>}
+                  {isEma60BreakoutMode && <th>觸發價</th>}
+                  {isEma60BreakoutMode && <th>累計漲幅</th>}
+                  {isEma60BreakoutMode && <th>5日報酬</th>}
+                  {isEma60BreakoutMode && <th>10日報酬</th>}
+                  {isEma60BreakoutMode && <th>20日報酬</th>}
                   {isVolumeBreakoutMode && <th>量比</th>}
                   {isInstitutionalBuyingMode && <th>連續買超天數</th>}
                   {isInstitutionalBuyingMode && <th>合計買超(張)</th>}
@@ -560,7 +593,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                         {s.weekly_change_pct != null ? `${s.weekly_change_pct > 0 ? "+" : ""}${s.weekly_change_pct}%` : "—"}
                       </td>
                     )}
-                    {!isEma60WatchlistMode && (
+                    {!isEma60WatchlistMode && !isEma60BreakoutMode && (
                       <td>{s.volume_zhang != null ? s.volume_zhang.toLocaleString() : "—"}</td>
                     )}
                     {isEma60Mode && <td>{s.ema60 ?? "—"}</td>}
@@ -574,6 +607,28 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                     {isEma60WatchlistMode && (
                       <td className={s.since_entry_pct > 0 ? "deviation-up" : s.since_entry_pct < 0 ? "deviation-down" : ""}>
                         {s.since_entry_pct != null ? `${s.since_entry_pct > 0 ? "+" : ""}${s.since_entry_pct}%` : "—"}
+                      </td>
+                    )}
+                    {isEma60BreakoutMode && <td>{s.trigger_date ?? "—"}</td>}
+                    {isEma60BreakoutMode && <td>{s.trigger_price ?? "—"}</td>}
+                    {isEma60BreakoutMode && (
+                      <td className={s.since_trigger_pct > 0 ? "deviation-up" : s.since_trigger_pct < 0 ? "deviation-down" : ""}>
+                        {s.since_trigger_pct != null ? `${s.since_trigger_pct > 0 ? "+" : ""}${s.since_trigger_pct}%` : "—"}
+                      </td>
+                    )}
+                    {isEma60BreakoutMode && (
+                      <td className={s.return_5d > 0 ? "deviation-up" : s.return_5d < 0 ? "deviation-down" : ""}>
+                        {s.return_5d != null ? `${s.return_5d > 0 ? "+" : ""}${s.return_5d}%` : "—"}
+                      </td>
+                    )}
+                    {isEma60BreakoutMode && (
+                      <td className={s.return_10d > 0 ? "deviation-up" : s.return_10d < 0 ? "deviation-down" : ""}>
+                        {s.return_10d != null ? `${s.return_10d > 0 ? "+" : ""}${s.return_10d}%` : "—"}
+                      </td>
+                    )}
+                    {isEma60BreakoutMode && (
+                      <td className={s.return_20d > 0 ? "deviation-up" : s.return_20d < 0 ? "deviation-down" : ""}>
+                        {s.return_20d != null ? `${s.return_20d > 0 ? "+" : ""}${s.return_20d}%` : "—"}
                       </td>
                     )}
                     {isVolumeBreakoutMode && (
