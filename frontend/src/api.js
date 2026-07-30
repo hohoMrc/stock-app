@@ -89,3 +89,5 @@ export const createAlert = (body) => api.post("/api/alerts", body);
 export const getAlerts   = () => api.get("/api/alerts");
 export const updateAlert = (id, body) => api.patch(`/api/alerts/${id}`, body);
 export const deleteAlert = (id) => api.delete(`/api/alerts/${id}`);
+
+export const getMarketOverview = () => api.get("/api/market/overview");

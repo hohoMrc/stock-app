@@ -1977,6 +1977,7 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   .info-item { padding: 10px 12px; }
   .info-value { font-size: 15px; }
 
+
   /* 股票卡片 */
   .stock-card { padding: 16px; border-radius: 12px; }
   .stock-header { flex-direction: column; gap: 10px; }
@@ -2245,6 +2246,26 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .inst-bar      { height: 100%; border-radius: 4px; opacity: 0.8; transition: width 0.3s; }
 
 .inst-legend { display: flex; gap: 16px; margin-top: 10px; font-size: 12px; }
+
+/* 大盤狀態首頁 */
+.market-overview-page .info-grid { grid-template-columns: repeat(4, 1fr); }
+.market-overview-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.market-panel { margin-bottom: 0; }
+.market-link-list { display: flex; flex-direction: column; gap: 2px; }
+.market-link-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 4px; border-bottom: 1px solid var(--border-light); font-size: 14px;
+}
+.market-link-row:last-child { border-bottom: none; }
+.market-link-clickable { cursor: pointer; }
+.market-link-clickable:hover { color: var(--accent); }
+.market-link-count { color: var(--text-muted); font-size: 13px; }
+
+@media (max-width: 640px) {
+  /* 大盤狀態首頁：4欄→2欄，兩欄卡片疊成單欄（要放在上面基礎規則後面，CSS層疊順序才會贏過去） */
+  .market-overview-page .info-grid { grid-template-columns: repeat(2, 1fr); }
+  .market-overview-cols { grid-template-columns: 1fr; }
+}
 
 .futures-product-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
 .futures-product-btn { padding: 6px 18px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; font-size: 14px; font-weight: 500; }

@@ -15,6 +15,7 @@ import NewsPage from "./components/NewsPage";
 import AlertsPage from "./components/AlertsPage";
 import DividendCalendar from "./components/DividendCalendar";
 import WarrantLookup from "./components/WarrantLookup";
+import MarketOverview from "./components/MarketOverview";
 import { fetchWatchlist, addWatch, removeWatch, updateWatchNote } from "./api";
 
 const ADMIN_USERNAME = "hoholin";
@@ -46,7 +47,7 @@ export default function App() {
   // 支援 ?ticker=XXXX&scan=YYYY 深層連結（從 TG 通知點進來，scan 決定預設顯示的均線）
   const urlParams = new URLSearchParams(window.location.search);
   const urlTicker = urlParams.get("ticker");
-  const [activePage, setActivePage] = useState(urlTicker ? "detail" : "ranking");
+  const [activePage, setActivePage] = useState(urlTicker ? "detail" : "dashboard");
   const [selectedTicker, setSelectedTicker] = useState(urlTicker || null);
   const [selectedTickerContext, setSelectedTickerContext] = useState(urlParams.get("scan") || null);
   const [selectedIndustry, setSelectedIndustry] = useState(null);
@@ -190,6 +191,12 @@ export default function App() {
         </div>
         <nav className="top-nav desktop-only">
           <button
+            className={activePage === "dashboard" ? "active" : ""}
+            onClick={() => setActivePage("dashboard")}
+          >
+            大盤狀態
+          </button>
+          <button
             className={activePage === "terminal" ? "active" : ""}
             onClick={() => setActivePage("terminal")}
           >
@@ -293,6 +300,10 @@ export default function App() {
         {menuOpen && (
           <div className="mobile-menu" onClick={() => setMenuOpen(false)}>
             <button
+              className={activePage === "dashboard" ? "active" : ""}
+              onClick={() => setActivePage("dashboard")}
+            >大盤狀態</button>
+            <button
               className={["search", "detail", "industry"].includes(activePage) ? "active" : ""}
               onClick={() => setActivePage("search")}
             >個股查詢</button>
@@ -354,6 +365,13 @@ export default function App() {
       </header>
 
       <main className={`main${activePage === "terminal" ? " main-terminal" : ""}`}>
+        {activePage === "dashboard" && (
+          <MarketOverview
+            onSelect={(t) => handleSelectStock(t)}
+            onSelectIndustry={(ind) => handleSelectIndustry(ind, null, true)}
+            onNavigate={(p) => setActivePage(p)}
+          />
+        )}
         {activePage === "search" && (
           <StockSearch onSelect={(t) => handleSelectStock(t)} />
         )}
