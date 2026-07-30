@@ -2555,6 +2555,86 @@ def get_movers_ranking(direction: str = "up", limit: int = 50, force: bool = Fal
     return results[:limit]
 
 
+def _get_all_market_quotes(force: bool = False) -> dict[str, dict]:
+    """全市場（TSE+OTC）即時報價快照：{ticker: {change_pct, trade_value}}。
+    給產業表現、漲跌家數共用，避免同一時間重複打 Fugle API。5分鐘快取。
+    """
+    if not force:
+        cached = _cache_get(_ranking_cache, "market_quotes_snapshot", RANKING_TTL)
+        if cached is not None:
+            return cached
+
+    client = _get_fugle()
+    quotes: dict[str, dict] = {}
+    if client:
+        for market in ("TSE", "OTC"):
+            try:
+                resp = client.stock.snapshot.quotes(market=market)
+                for item in (resp.get("data", []) if isinstance(resp, dict) else []):
+                    symbol  = item.get("symbol", "")
+                    chg_pct = item.get("changePercent")
+                    tv      = item.get("tradeValue")
+                    if symbol and chg_pct is not None:
+                        quotes[symbol] = {"change_pct": float(chg_pct), "trade_value": float(tv or 0)}
+            except Exception as e:
+                print(f"[Fugle] snapshot quotes {market} 失敗: {e}")
+
+    _cache_set(_ranking_cache, "market_quotes_snapshot", quotes)
+    return quotes
+
+
+def get_market_breadth(force: bool = False) -> dict:
+    """今日全市場漲跌家數（上漲/下跌/平盤），供大盤狀態首頁使用。"""
+    quotes = _get_all_market_quotes(force)
+    up   = sum(1 for q in quotes.values() if q["change_pct"] > 0)
+    down = sum(1 for q in quotes.values() if q["change_pct"] < 0)
+    flat = sum(1 for q in quotes.values() if q["change_pct"] == 0)
+    return {"up": up, "down": down, "flat": flat, "total": len(quotes)}
+
+
+def get_taiex_quote() -> dict:
+    """加權指數（^TWII）即時報價，5分鐘快取。"""
+    cached = _cache_get(_ranking_cache, "taiex_quote", RANKING_TTL)
+    if cached is not None:
+        return cached
+
+    result = {"price": None, "prev_close": None, "change": None, "change_pct": None}
+    try:
+        hist = yf.Ticker("^TWII").history(period="5d", interval="1d")
+        if hist.index.tz is not None:
+            hist.index = hist.index.tz_localize(None)
+        if len(hist) >= 1:
+            price      = round(float(hist.iloc[-1]["Close"]), 2)
+            prev_close = round(float(hist.iloc[-2]["Close"]), 2) if len(hist) >= 2 else None
+            change     = round(price - prev_close, 2) if prev_close else None
+            change_pct = round(change / prev_close * 100, 2) if change is not None and prev_close else None
+            result = {"price": price, "prev_close": prev_close, "change": change, "change_pct": change_pct}
+    except Exception as e:
+        print(f"[TAIEX] 抓取失敗: {e}")
+
+    _cache_set(_ranking_cache, "taiex_quote", result)
+    return result
+
+
+def get_institutional_summary() -> dict:
+    """今日三大法人（外資/投信/自營商）全市場買賣超合計（張），供大盤狀態首頁使用。
+    盤中 TWSE T86 常常還沒公布當天資料，欄位會是 None，前端要處理缺值。5分鐘快取。
+    """
+    cached = _cache_get(_ranking_cache, "institutional_summary", RANKING_TTL)
+    if cached is not None:
+        return cached
+
+    rows = fetch_institutional_trades_today()
+    result = {
+        "date":               date.today().strftime("%Y-%m-%d"),
+        "foreign_net_zhang":  round(sum(r["foreign_net"] for r in rows) / 1000) if rows else None,
+        "trust_net_zhang":    round(sum(r["trust_net"]   for r in rows) / 1000) if rows else None,
+        "dealer_net_zhang":   round(sum(r["dealer_net"]  for r in rows) / 1000) if rows else None,
+    }
+    _cache_set(_ranking_cache, "institutional_summary", result)
+    return result
+
+
 def get_industry_performance(force: bool = False) -> list:
     """依 TWSE 產業大分類（parent_industry）計算今日各產業平均漲跌幅與成交值，
     用 Fugle snapshot/quotes 全市場即時報價（盤中即時），找出當天熱門產業。
@@ -2564,23 +2644,7 @@ def get_industry_performance(force: bool = False) -> list:
         if cached is not None:
             return cached
 
-    client = _get_fugle()
-    if not client:
-        return []
-
-    quotes: dict[str, dict] = {}
-    for market in ("TSE", "OTC"):
-        try:
-            resp = client.stock.snapshot.quotes(market=market)
-            for item in (resp.get("data", []) if isinstance(resp, dict) else []):
-                symbol  = item.get("symbol", "")
-                chg_pct = item.get("changePercent")
-                tv      = item.get("tradeValue")
-                if symbol and chg_pct is not None:
-                    quotes[symbol] = {"change_pct": float(chg_pct), "trade_value": float(tv or 0)}
-        except Exception as e:
-            print(f"[Fugle] snapshot quotes {market} 失敗: {e}")
-
+    quotes = _get_all_market_quotes(force)
     if not quotes:
         return []
 
