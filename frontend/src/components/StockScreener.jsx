@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { screenStocks, scanWeeklySurge, scanMaSqueeze, scanNearEma60, scanVolumeBreakout, scanInstitutionalBuying, getEma60Watchlist } from "../api";
+import { hasTodayCloseData } from "../marketHours";
 
 const DEFAULT_TICKERS = [
   // 半導體
@@ -245,6 +246,10 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
   return (
     <div className="page">
       <h2>選股篩選</h2>
+      <p className="ranking-hint">
+        全市場類的篩選（週漲幅急漲／鳥嘴與分歧／EMA60近線／貼線觀察名單／量價突破／法人連買）都是讀資料庫收盤價，
+        平日 15:30 排程更新，目前顯示的是{hasTodayCloseData() ? "今天" : "前一個交易日"}收盤的資料，不是即時股價。
+      </p>
 
       <div className="ranking-tabs">
         <button
