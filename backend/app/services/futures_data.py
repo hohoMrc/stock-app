@@ -156,6 +156,34 @@ def get_futures_quote(symbol: str | None = None) -> dict:
     }
 
 
+_SESSION_CLOSE_TOD = {"134500", "050000"}  # 日盤13:45／夜盤05:00收盤那一刻
+
+
+def _merge_closing_tick_bars(candles: list) -> list:
+    """收盤那一刻常常只剩個位數口數的官方定價成交，Fubon 會把它拆成獨立一根貼在
+    13:45/05:00 整點上，K棒因此被壓成一條扁平橫線。這根本身沒有實際交易區間的意義，
+    直接併回前一根：high/low 取聯集、close 用它的（才是真正官方收盤價）、量加總。
+    """
+    if not candles:
+        return candles
+    result = [dict(candles[0])]
+    for c in candles[1:]:
+        dt = datetime.fromtimestamp(c["time"], tz=TZ_TAIPEI)
+        is_closing_tick = dt.strftime("%H%M%S") in _SESSION_CLOSE_TOD and (c.get("volume") or 0) < 500
+        if is_closing_tick and result:
+            prev = result[-1]
+            result[-1] = {
+                **prev,
+                "high":   max(prev["high"], c["high"]),
+                "low":    min(prev["low"], c["low"]),
+                "close":  c["close"],
+                "volume": (prev.get("volume") or 0) + (c.get("volume") or 0),
+            }
+        else:
+            result.append(dict(c))
+    return result
+
+
 def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> list:
     """K 線：日盤＋夜盤接續成一條連續走勢，不分開查。"""
     symbol = symbol or _current_symbol()
@@ -251,7 +279,7 @@ def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> lis
         today_min_time = today_candles[0]["time"]
         hist = [c for c in hist if c["time"] < today_min_time]
 
-    return hist + today_candles
+    return _merge_closing_tick_bars(hist + today_candles)
 
 
 def get_institutional_positions() -> list:
