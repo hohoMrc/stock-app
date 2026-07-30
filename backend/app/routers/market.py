@@ -26,7 +26,7 @@ def _build_overview() -> dict:
         "ma_squeeze":           lambda: scan_ma_squeeze(500),
         "near_ema60":           lambda: scan_near_ema60(500),
         "volume_breakout":      lambda: scan_volume_breakout(500),
-        "institutional_buying": lambda: scan_institutional_buying(3, 500, 0),
+        "institutional_buying": lambda: scan_institutional_buying(3, 500, 2000),
         "futures_quote":        get_futures_quote,
         "futures_positions":    get_institutional_positions,
     }
