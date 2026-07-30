@@ -77,10 +77,10 @@ const IDENTITY_COLOR = { foreign: "#38bdf8", trust: "#f59e0b", dealer: "#a78bfa"
 function QuoteHeader({ quote, loading, livePrice, priceFlash }) {
   if (loading) return <div className="futures-quote-loading">載入中...</div>;
   if (!quote)  return null;
-  const displayPrice = livePrice ?? quote.price;
-  const hasPrice  = displayPrice != null;
-  const change    = hasPrice && quote.prev_close ? Math.round(displayPrice - quote.prev_close) : quote.change;
-  const changePct = hasPrice && quote.prev_close ? Math.round((displayPrice - quote.prev_close) / quote.prev_close * 10000) / 100 : quote.change_pct;
+  const isLive       = (livePrice ?? quote.price) != null;
+  const displayPrice = isLive ? (livePrice ?? quote.price) : quote.prev_close;
+  const change    = isLive && quote.prev_close ? Math.round(displayPrice - quote.prev_close) : (isLive ? quote.change : null);
+  const changePct = isLive && quote.prev_close ? Math.round((displayPrice - quote.prev_close) / quote.prev_close * 10000) / 100 : (isLive ? quote.change_pct : null);
   const hasChange = change != null;
   const up = hasChange && change >= 0;
   return (
@@ -89,14 +89,14 @@ function QuoteHeader({ quote, loading, livePrice, priceFlash }) {
         <span className="futures-symbol">{quote.symbol}</span>
         <span className="futures-name">{quote.name}</span>
         <span className={`futures-price ${hasChange ? (up ? "up" : "down") : ""} ${priceFlash ? `flash-${priceFlash}` : ""}`}>
-          {hasPrice ? displayPrice.toLocaleString() : "—"}
+          {displayPrice != null ? displayPrice.toLocaleString() : "—"}
         </span>
         {hasChange ? (
           <span className={`futures-change ${up ? "up" : "down"}`}>
             {up ? "▲" : "▼"} {Math.abs(change)} ({up ? "+" : ""}{changePct}%)
           </span>
         ) : (
-          <span className="futures-change">尚無成交</span>
+          <span className="futures-change">尚無成交（上一盤收盤）</span>
         )}
         <span className="futures-live-dot" title="即時報價">●</span>
       </div>
