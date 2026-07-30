@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { login, register } from "../api";
 
-export default function AuthModal({ onSuccess, onClose }) {
+export default function AuthModal({ onSuccess, onClose, message }) {
   const [mode, setMode]         = useState("login");
   const [username, setUsername] = useState("");
   const [password, setPass]     = useState("");
@@ -32,6 +32,8 @@ export default function AuthModal({ onSuccess, onClose }) {
           <button className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setError(""); }}>登入</button>
           <button className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setError(""); }}>註冊</button>
         </div>
+
+        {message && <p className="auth-error">{message}</p>}
 
         <form onSubmit={submit} className="auth-form">
           <input

@@ -9,6 +9,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// token 過期/無效：後端統一回這句話（跟登入失敗的「帳號或密碼錯誤」是不同訊息，
+// 這裡故意用精確比對，避免把登入表單本身輸入錯密碼也誤判成需要自動登出重開視窗）。
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.data?.detail === "Token 無效或已過期") {
+      window.dispatchEvent(new CustomEvent("auth:expired"));
+    }
+    return Promise.reject(err);
+  }
+);
+
 export const searchStocks = (q) => api.get("/api/stocks/search", { params: { q } });
 export const getStock = (ticker) => api.get(`/api/stocks/${ticker}`);
 export const getHistory = (ticker, period = "3mo", interval = "1d") => api.get(`/api/stocks/${ticker}/history`, { params: { period, interval } });

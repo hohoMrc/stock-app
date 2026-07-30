@@ -147,6 +147,7 @@ export default function App() {
   // 帳號狀態
   const [username, setUsername] = useState(() => localStorage.getItem("username") || null);
   const [showAuth, setShowAuth] = useState(false);
+  const [authExpired, setAuthExpired] = useState(false); // 是否是因為token過期才自動彈出登入視窗
   const [pendingWatch, setPendingWatch] = useState(null); // 等待填備注的 ticker
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -159,6 +160,18 @@ export default function App() {
     setWatchlist([]);
     setWatchNotes({});
   };
+
+  // token 過期/無效時（api.js 攔截器偵測到後端那句「Token 無效或已過期」），
+  // 自動登出並彈出登入視窗，不用讓使用者自己意會那句錯誤訊息代表要重新登入。
+  useEffect(() => {
+    const onAuthExpired = () => {
+      logout();
+      setAuthExpired(true);
+      setShowAuth(true);
+    };
+    window.addEventListener("auth:expired", onAuthExpired);
+    return () => window.removeEventListener("auth:expired", onAuthExpired);
+  }, []);
 
   // 自選清單（登入後從後端同步，否則用 localStorage）
   const [watchlist, setWatchlist] = useState(() => {
@@ -549,8 +562,9 @@ export default function App() {
 
       {showAuth && (
         <AuthModal
-          onSuccess={(name) => { setUsername(name); setShowAuth(false); }}
-          onClose={() => setShowAuth(false)}
+          message={authExpired ? "登入已過期，請重新登入" : null}
+          onSuccess={(name) => { setUsername(name); setShowAuth(false); setAuthExpired(false); }}
+          onClose={() => { setShowAuth(false); setAuthExpired(false); }}
         />
       )}
 
