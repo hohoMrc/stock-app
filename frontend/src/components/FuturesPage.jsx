@@ -74,11 +74,14 @@ const PRODUCTS = [
 const IDENTITY_LABEL = { foreign: "外資", trust: "投信", dealer: "自營商" };
 const IDENTITY_COLOR = { foreign: "#38bdf8", trust: "#f59e0b", dealer: "#a78bfa" };
 
-function QuoteHeader({ quote, loading, livePrice, priceFlash }) {
+function QuoteHeader({ quote, loading, livePrice, priceFlash, lastClose }) {
   if (loading) return <div className="futures-quote-loading">載入中...</div>;
   if (!quote)  return null;
   const isLive       = (livePrice ?? quote.price) != null;
-  const displayPrice = isLive ? (livePrice ?? quote.price) : quote.prev_close;
+  // 還沒開盤成交時，優先顯示K線圖上最新一根的收盤價（實際成交過的價格），
+  // 而不是 quote.prev_close——那是交易所給下一個日盤當基準用的官方參考價，
+  // 跟夜盤最後成交價常常不一樣，拿來當「最後收盤」顯示反而會誤導。
+  const displayPrice = isLive ? (livePrice ?? quote.price) : (lastClose ?? quote.prev_close);
   const change    = isLive && quote.prev_close ? Math.round(displayPrice - quote.prev_close) : (isLive ? quote.change : null);
   const changePct = isLive && quote.prev_close ? Math.round((displayPrice - quote.prev_close) / quote.prev_close * 10000) / 100 : (isLive ? quote.change_pct : null);
   const hasChange = change != null;
@@ -96,7 +99,7 @@ function QuoteHeader({ quote, loading, livePrice, priceFlash }) {
             {up ? "▲" : "▼"} {Math.abs(change)} ({up ? "+" : ""}{changePct}%)
           </span>
         ) : (
-          <span className="futures-change">尚無成交（上一盤收盤）</span>
+          <span className="futures-change">尚無成交（顯示最後收盤）</span>
         )}
         <span className="futures-live-dot" title="即時報價">●</span>
       </div>
@@ -573,7 +576,10 @@ export default function FuturesPage() {
         ))}
       </div>
 
-      <QuoteHeader quote={quote} loading={quoteLoading} livePrice={livePrice} priceFlash={priceFlash} />
+      <QuoteHeader
+        quote={quote} loading={quoteLoading} livePrice={livePrice} priceFlash={priceFlash}
+        lastClose={candles.length ? candles[candles.length - 1].close : null}
+      />
 
       {error && <p className="error">❌ {error}</p>}
 
