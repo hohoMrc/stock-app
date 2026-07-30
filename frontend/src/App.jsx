@@ -43,16 +43,100 @@ const INIT_FILTERS = {
   custom_tickers: "",
 };
 
+// 網址 <-> 畫面狀態互轉，讓切頁會反映在網址上，重新整理/上一頁/下一頁才不會跳掉。
+// 也支援 ?ticker=XXXX&scan=YYYY 深層連結（從 TG 通知點進來，scan 決定預設顯示的均線）。
+function parseStateFromLocation() {
+  const params = new URLSearchParams(window.location.search);
+  const ticker = params.get("ticker");
+  const industry = params.get("industry");
+  if (ticker) {
+    return {
+      activePage: "detail", selectedTicker: ticker,
+      selectedTickerContext: params.get("scan") || null,
+      selectedIndustry: null, paperPrefillTicker: null,
+    };
+  }
+  if (industry) {
+    return {
+      activePage: "industry", selectedTicker: null, selectedTickerContext: null,
+      selectedIndustry: {
+        name: industry,
+        excludeTicker: params.get("exclude") || null,
+        useParent: params.get("parent") === "1",
+      },
+      paperPrefillTicker: null,
+    };
+  }
+  if (params.get("page") === "paper" && params.get("paperTicker")) {
+    return {
+      activePage: "paper", selectedTicker: null, selectedTickerContext: null,
+      selectedIndustry: null, paperPrefillTicker: params.get("paperTicker"),
+    };
+  }
+  return {
+    activePage: params.get("page") || "dashboard",
+    selectedTicker: null, selectedTickerContext: null,
+    selectedIndustry: null, paperPrefillTicker: null,
+  };
+}
+
+function buildUrlFromState(s) {
+  const params = new URLSearchParams();
+  if (s.activePage === "detail" && s.selectedTicker) {
+    params.set("ticker", s.selectedTicker);
+    if (s.selectedTickerContext) params.set("scan", s.selectedTickerContext);
+  } else if (s.activePage === "industry" && s.selectedIndustry) {
+    params.set("page", "industry");
+    params.set("industry", s.selectedIndustry.name);
+    if (s.selectedIndustry.excludeTicker) params.set("exclude", s.selectedIndustry.excludeTicker);
+    if (s.selectedIndustry.useParent) params.set("parent", "1");
+  } else if (s.activePage === "paper" && s.paperPrefillTicker) {
+    params.set("page", "paper");
+    params.set("paperTicker", s.paperPrefillTicker);
+  } else {
+    params.set("page", s.activePage);
+  }
+  const qs = params.toString();
+  return qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+}
+
 export default function App() {
-  // 支援 ?ticker=XXXX&scan=YYYY 深層連結（從 TG 通知點進來，scan 決定預設顯示的均線）
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlTicker = urlParams.get("ticker");
-  const [activePage, setActivePage] = useState(urlTicker ? "detail" : "dashboard");
-  const [selectedTicker, setSelectedTicker] = useState(urlTicker || null);
-  const [selectedTickerContext, setSelectedTickerContext] = useState(urlParams.get("scan") || null);
-  const [selectedIndustry, setSelectedIndustry] = useState(null);
+  const initialNavState = parseStateFromLocation();
+  const [activePage, setActivePage] = useState(initialNavState.activePage);
+  const [selectedTicker, setSelectedTicker] = useState(initialNavState.selectedTicker);
+  const [selectedTickerContext, setSelectedTickerContext] = useState(initialNavState.selectedTickerContext);
+  const [selectedIndustry, setSelectedIndustry] = useState(initialNavState.selectedIndustry);
   const [pageHistory, setPageHistory] = useState([]);
-  const [paperPrefillTicker, setPaperPrefillTicker] = useState(null);
+  const [paperPrefillTicker, setPaperPrefillTicker] = useState(initialNavState.paperPrefillTicker);
+
+  // 每次切頁狀態變動就同步進網址（第一次進頁時只 replace，不佔用一筆歷史記錄）
+  const isFirstNavSync = useRef(true);
+  useEffect(() => {
+    const navState = { activePage, selectedTicker, selectedTickerContext, selectedIndustry, paperPrefillTicker };
+    const url = buildUrlFromState(navState);
+    if (isFirstNavSync.current) {
+      isFirstNavSync.current = false;
+      window.history.replaceState(navState, "", url);
+      return;
+    }
+    if (url !== window.location.pathname + window.location.search) {
+      window.history.pushState(navState, "", url);
+    }
+  }, [activePage, selectedTicker, selectedTickerContext, selectedIndustry, paperPrefillTicker]);
+
+  // 瀏覽器上一頁/下一頁：從 history state 還原（沒有 state 代表更早的紀錄，退回用網址自己解析）
+  useEffect(() => {
+    const onPopState = (e) => {
+      const s = e.state || parseStateFromLocation();
+      setActivePage(s.activePage);
+      setSelectedTicker(s.selectedTicker ?? null);
+      setSelectedTickerContext(s.selectedTickerContext ?? null);
+      setSelectedIndustry(s.selectedIndustry ?? null);
+      setPaperPrefillTicker(s.paperPrefillTicker ?? null);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // 篩選頁狀態提升，切頁後不遺失
   const [screenerFilters, setScreenerFilters] = useState(INIT_FILTERS);
