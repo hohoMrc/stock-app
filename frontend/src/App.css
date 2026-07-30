@@ -46,6 +46,7 @@
 }
 
 .header h1 {
+  cursor: pointer;
   font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.04em;

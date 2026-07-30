@@ -176,7 +176,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>台股分析工具</h1>
+        <h1 onClick={() => setActivePage("dashboard")}>台股分析工具</h1>
 
         {/* 桌機版：帳號區 + 導覽 */}
         <div className="header-right desktop-only">
