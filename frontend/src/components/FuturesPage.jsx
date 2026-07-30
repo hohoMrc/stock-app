@@ -78,20 +78,26 @@ function QuoteHeader({ quote, loading, livePrice, priceFlash }) {
   if (loading) return <div className="futures-quote-loading">載入中...</div>;
   if (!quote)  return null;
   const displayPrice = livePrice ?? quote.price;
-  const change    = quote.prev_close ? Math.round(displayPrice - quote.prev_close) : quote.change;
-  const changePct = quote.prev_close ? Math.round((displayPrice - quote.prev_close) / quote.prev_close * 10000) / 100 : quote.change_pct;
-  const up = change >= 0;
+  const hasPrice  = displayPrice != null;
+  const change    = hasPrice && quote.prev_close ? Math.round(displayPrice - quote.prev_close) : quote.change;
+  const changePct = hasPrice && quote.prev_close ? Math.round((displayPrice - quote.prev_close) / quote.prev_close * 10000) / 100 : quote.change_pct;
+  const hasChange = change != null;
+  const up = hasChange && change >= 0;
   return (
     <div className="futures-quote">
       <div className="futures-quote-main">
         <span className="futures-symbol">{quote.symbol}</span>
         <span className="futures-name">{quote.name}</span>
-        <span className={`futures-price ${up ? "up" : "down"} ${priceFlash ? `flash-${priceFlash}` : ""}`}>
-          {displayPrice?.toLocaleString()}
+        <span className={`futures-price ${hasChange ? (up ? "up" : "down") : ""} ${priceFlash ? `flash-${priceFlash}` : ""}`}>
+          {hasPrice ? displayPrice.toLocaleString() : "—"}
         </span>
-        <span className={`futures-change ${up ? "up" : "down"}`}>
-          {up ? "▲" : "▼"} {Math.abs(change)} ({up ? "+" : ""}{changePct}%)
-        </span>
+        {hasChange ? (
+          <span className={`futures-change ${up ? "up" : "down"}`}>
+            {up ? "▲" : "▼"} {Math.abs(change)} ({up ? "+" : ""}{changePct}%)
+          </span>
+        ) : (
+          <span className="futures-change">尚無成交</span>
+        )}
         <span className="futures-live-dot" title="即時報價">●</span>
       </div>
       <div className="futures-quote-detail">
