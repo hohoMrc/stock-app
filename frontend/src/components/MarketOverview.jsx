@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { getMarketOverview } from "../api";
+import { hasTodayCloseData } from "../marketHours";
 
 const SCAN_LABELS = {
   near_ema60:            "📈 EMA60近線",
@@ -83,7 +84,7 @@ function BreadthAndInstitutional({ breadth, institutional }) {
 function ScanCountsCard({ scanCounts, onNavigate }) {
   return (
     <div className="stock-card market-panel">
-      <h3 className="paper-section-title">📋 今日訊號</h3>
+      <h3 className="paper-section-title">📋 {hasTodayCloseData() ? "今日訊號" : "昨日訊號"}</h3>
       <div className="market-link-list">
         {Object.entries(SCAN_LABELS).map(([key, label]) => (
           <div key={key} className="market-link-row" onClick={() => onNavigate("screener")}>

@@ -43,3 +43,18 @@ export function isNightSessionHours() {
 export function isFuturesTradingHours() {
   return isDaySessionHours() || isNightSessionHours();
 }
+
+/**
+ * 資料庫的K線是否已經是「今天」的收盤價。
+ * daily_update.py 排程只有平日 15:30 才會把當天收盤價寫進DB，在那之前
+ * （或非交易日）DB 最後一筆還是前一個交易日的收盤，掃描類功能（EMA60近線、
+ * 量價突破等）標題要不要顯示「今日/昨日」看這個判斷。
+ */
+export function hasTodayCloseData() {
+  const now = new Date();
+  const tw  = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
+  const day  = tw.getDay();
+  if (day === 0 || day === 6) return false;
+  const mins = tw.getHours() * 60 + tw.getMinutes();
+  return mins >= 15 * 60 + 30;
+}
