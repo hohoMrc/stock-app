@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { screenStocks, scanWeeklySurge, scanMaSqueeze, scanNearEma60, scanVolumeBreakout, scanInstitutionalBuying, getEma60Watchlist } from "../api";
 
 const DEFAULT_TICKERS = [
@@ -41,7 +41,7 @@ const MA_OPTIONS = [
   { value: "ema60", label: "EMA60 (指數移動平均)" },
 ];
 
-export default function StockScreener({ onSelect, filters, setFilters, results, setResults, searched, setSearched }) {
+export default function StockScreener({ onSelect, filters, setFilters, results, setResults, searched, setSearched, autoScan, onAutoScanHandled }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [resultMode, setResultMode] = useState(""); // "weekly_surge" | ""
@@ -166,6 +166,20 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
     setResultMode("");
     runScreen(newFilters);
   };
+
+  // 從大盤狀態首頁「昨日/今日訊號」點進來時，帶著要跑哪個掃描一起過來，
+  // 不然只是導到這一頁、畫面卻是空的，還要使用者自己再點一次按鈕。
+  useEffect(() => {
+    if (!autoScan) return;
+    const runners = {
+      near_ema60:            handleNearEma60,
+      volume_breakout:       handleVolumeBreakout,
+      institutional_buying:  handleInstitutionalBuying,
+      ma_squeeze:            () => handlePattern("bird_beak"),
+    };
+    runners[autoScan]?.();
+    onAutoScanHandled?.();
+  }, [autoScan]);
 
   const handleScreen = () => runScreen(filters);
 

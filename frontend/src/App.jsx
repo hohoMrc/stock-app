@@ -142,6 +142,7 @@ export default function App() {
   const [screenerFilters, setScreenerFilters] = useState(INIT_FILTERS);
   const [screenerResults, setScreenerResults] = useState([]);
   const [screenerSearched, setScreenerSearched] = useState(false);
+  const [screenerAutoScan, setScreenerAutoScan] = useState(null);
 
   // 帳號狀態
   const [username, setUsername] = useState(() => localStorage.getItem("username") || null);
@@ -453,7 +454,10 @@ export default function App() {
           <MarketOverview
             onSelect={(t) => handleSelectStock(t)}
             onSelectIndustry={(ind) => handleSelectIndustry(ind, null, true)}
-            onNavigate={(p) => setActivePage(p)}
+            onNavigate={(p, scan) => {
+              if (scan) setScreenerAutoScan(scan);
+              setActivePage(p);
+            }}
           />
         )}
         {activePage === "search" && (
@@ -537,6 +541,8 @@ export default function App() {
             searched={screenerSearched}
             setSearched={setScreenerSearched}
             onSelect={handleSelectStock}
+            autoScan={screenerAutoScan}
+            onAutoScanHandled={() => setScreenerAutoScan(null)}
           />
         </div>
       </main>

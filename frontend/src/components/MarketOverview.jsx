@@ -87,7 +87,7 @@ function ScanCountsCard({ scanCounts, onNavigate }) {
       <h3 className="paper-section-title">📋 {hasTodayCloseData() ? "今日訊號" : "昨日訊號"}</h3>
       <div className="market-link-list">
         {Object.entries(SCAN_LABELS).map(([key, label]) => (
-          <div key={key} className="market-link-row" onClick={() => onNavigate("screener")}>
+          <div key={key} className="market-link-row" onClick={() => onNavigate("screener", key)}>
             <span>{label}</span>
             <span className="market-link-count">{scanCounts?.[key] ?? "—"} 支 →</span>
           </div>
