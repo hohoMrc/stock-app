@@ -4,7 +4,7 @@ from app.services.futures_data import get_futures_quote, get_futures_candles, ge
 
 router = APIRouter(prefix="/api/futures", tags=["futures"])
 
-VALID_TIMEFRAMES = {"1", "5", "15", "30", "60", "D"}
+VALID_TIMEFRAMES = {"1", "2", "5", "15", "30", "60", "D"}
 VALID_PRODUCTS   = {"TXF", "TMF"}
 
 

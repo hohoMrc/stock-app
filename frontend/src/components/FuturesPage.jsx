@@ -62,6 +62,7 @@ const TIMEFRAMES = [
   { key: "30", label: "30分" },
   { key: "15", label: "15分" },
   { key: "5",  label: "5分" },
+  { key: "2",  label: "2分" },
   { key: "1",  label: "1分" },
 ];
 

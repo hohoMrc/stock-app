@@ -184,9 +184,41 @@ def _merge_closing_tick_bars(candles: list) -> list:
     return result
 
 
+def _aggregate_1min_bars(bars: list, n: int = 2) -> list:
+    """把連續的1分K每n根合併成一根（開=第一根開、收=最後一根收、high/low取聯集、量相加）。
+    富邦期貨API本身沒有2分K這個週期，只能拿1分K自己併。遇到不連續（換盤別、跨日）的地方
+    就從新的一組開始，不會把不同時段的K棒錯誤合併在一起。
+    """
+    if not bars or n <= 1:
+        return bars
+    result, group = [], []
+
+    def flush():
+        if group:
+            result.append({
+                "time":   group[0]["time"],
+                "open":   group[0]["open"],
+                "high":   max(b["high"] for b in group),
+                "low":    min(b["low"] for b in group),
+                "close":  group[-1]["close"],
+                "volume": sum(b.get("volume") or 0 for b in group),
+            })
+
+    for b in bars:
+        if group and (b["time"] - group[-1]["time"] != 60 or len(group) >= n):
+            flush()
+            group = []
+        group.append(b)
+    flush()
+    return result
+
+
 def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> list:
     """K 線：日盤＋夜盤接續成一條連續走勢，不分開查。"""
     symbol = symbol or _current_symbol()
+
+    if timeframe == "2":
+        return _aggregate_1min_bars(get_futures_candles(symbol, "1"), 2)
 
     if timeframe == "D":
         import yfinance as yf
