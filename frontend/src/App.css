@@ -2218,7 +2218,7 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .futures-tf-btn { padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; font-size: 13px; }
 .futures-tf-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .futures-tf-btn:hover:not(.active) { background: var(--card); color: var(--text); }
-.futures-ma-bar { display: flex; gap: 4px; }
+.futures-ma-bar { display: flex; flex-wrap: wrap; gap: 4px; }
 .futures-ma-btn { padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; font-size: 12px; }
 .futures-ma-btn.active { border-color: var(--ma-color); color: var(--ma-color); background: color-mix(in srgb, var(--ma-color) 12%, transparent); }
 .futures-ma-btn:hover:not(.active) { background: var(--card); color: var(--text); }
