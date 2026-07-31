@@ -8,8 +8,7 @@ import {
 import Pagination, { PAGE_SIZE } from "./Pagination";
 
 const PRODUCT_LABEL = { TXF: "大台指", TMF: "微台指" };
-const ACTION_LABEL = { open: "建倉", close: "平倉" };
-const SIDE_LABEL = { long: "多", short: "空" };
+const TRADE_LABEL = { buy: "買進", sell: "賣出" };
 const SMART_STATUS_LABEL = { pending: "待觸發", triggered: "已成交", failed: "失敗", cancelled: "已取消" };
 
 // 重新整理/入金按鈕跟「模擬下單」標題放同一列（在 PaperTrading.jsx 的頁首），
@@ -27,8 +26,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
   // 下單表單
   const [product, setProduct]     = useState("TXF");
   const [quote, setQuote]         = useState(null);
-  const [side, setSide]           = useState("long");
-  const [action, setAction]       = useState("open");
+  const [side, setSide]           = useState("buy");
   const [qty, setQty]             = useState(1);
   const [priceMode, setPriceMode] = useState("market"); // "market" | "custom"
   const [customPrice, setCustomPrice] = useState("");
@@ -39,8 +37,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
   // 智慧單表單
   const [smartOrders, setSmartOrders]     = useState([]);
   const [smartProduct, setSmartProduct]   = useState("TXF");
-  const [smartSide, setSmartSide]         = useState("long");
-  const [smartAction, setSmartAction]     = useState("open");
+  const [smartSide, setSmartSide]         = useState("buy");
   const [smartQty, setSmartQty]           = useState(1);
   const [smartTrigger, setSmartTrigger]   = useState("");
   const [smartOrderType, setSmartOrderType] = useState("stop"); // "stop" | "limit"
@@ -94,14 +91,18 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
     setFormMsg("");
     try {
       const sendPrice = priceMode === "custom" ? Number(customPrice) : undefined;
-      const res = await placeFuturesOrder(product, side, action, Number(qty), sendPrice);
+      const res = await placeFuturesOrder(product, side, Number(qty), sendPrice);
       const d = res.data;
-      const actionLabel = d.action === "open" ? "開倉" : "平倉";
-      const sideLabel = d.side === "long" ? "多" : "空";
-      setFormMsg(
-        `${PRODUCT_LABEL[d.product]} ${actionLabel}${sideLabel} ${d.qty} 口成交，成交價 ${d.price}` +
-        (d.realized_pl != null ? `，已實現損益 ${d.realized_pl.toLocaleString()}` : "")
-      );
+      const parts = [];
+      if (d.closed_qty > 0) {
+        const closeVerb = d.side === "buy" ? "回補空單" : "賣出多單";
+        parts.push(`${closeVerb} ${d.closed_qty} 口` + (d.realized_pl != null ? `（實現損益 ${d.realized_pl.toLocaleString()}）` : ""));
+      }
+      if (d.opened_qty > 0) {
+        const openVerb = d.side === "buy" ? "做多" : "做空";
+        parts.push(`${d.closed_qty > 0 ? "並反手" : ""}${openVerb} ${d.opened_qty} 口`);
+      }
+      setFormMsg(`${PRODUCT_LABEL[d.product]} ${parts.join("，")}，成交價 ${d.price}`);
       setQty(1);
       setPriceMode("market");
       setCustomPrice("");
@@ -136,10 +137,10 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
     setSmartError("");
     setSmartMsg("");
     try {
-      const res = await createSmartOrder(smartProduct, smartSide, smartAction, Number(smartQty), Number(smartTrigger), smartOrderType);
+      const res = await createSmartOrder(smartProduct, smartSide, Number(smartQty), Number(smartTrigger), smartOrderType);
       const d = res.data;
       const fillNote = d.order_type === "limit" ? `以 ${d.trigger_price} 成交` : "用當下市價成交";
-      setSmartMsg(`已設定：指數${d.direction === "above" ? "漲到" : "跌到"} ${d.trigger_price} 時自動${ACTION_LABEL[d.action]}${SIDE_LABEL[d.side]}，${fillNote}`);
+      setSmartMsg(`已設定：指數${d.direction === "above" ? "漲到" : "跌到"} ${d.trigger_price} 時自動${TRADE_LABEL[d.side]}，${fillNote}`);
       setSmartTrigger("");
       setSmartOrderType("stop");
       loadAll();
@@ -254,13 +255,20 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
           </div>
 
           <div className="paper-side-tabs">
-            <button className={side === "long" ? "active" : ""} onClick={() => setSide("long")}>做多</button>
-            <button className={side === "short" ? "active" : ""} onClick={() => setSide("short")}>做空</button>
-          </div>
-
-          <div className="paper-side-tabs">
-            <button className={action === "open" ? "active" : ""} onClick={() => setAction("open")}>建倉</button>
-            <button className={action === "close" ? "active" : ""} onClick={() => setAction("close")}>平倉</button>
+            <button
+              className={side === "buy" ? "active" : ""}
+              onClick={() => setSide("buy")}
+              title="多單加碼、空單回補；回補口數超過空單口數會反手做多"
+            >
+              買
+            </button>
+            <button
+              className={side === "sell" ? "active" : ""}
+              onClick={() => setSide("sell")}
+              title="空單加碼、多單賣出；賣出口數超過多單口數會反手做空"
+            >
+              賣
+            </button>
           </div>
 
           <div className="paper-side-tabs">
@@ -292,7 +300,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
           </label>
 
           <button className="detail-btn" onClick={handleSubmit} disabled={submitting}>
-            {submitting ? "送出中..." : `送出${action === "open" ? "建倉" : "平倉"}單`}
+            {submitting ? "送出中..." : `送出${TRADE_LABEL[side]}單`}
           </button>
         </div>
 
@@ -311,12 +319,20 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
           <button className={smartProduct === "TMF" ? "active" : ""} onClick={() => setSmartProduct("TMF")}>微台指</button>
         </div>
         <div className="paper-side-tabs">
-          <button className={smartSide === "long" ? "active" : ""} onClick={() => setSmartSide("long")}>做多</button>
-          <button className={smartSide === "short" ? "active" : ""} onClick={() => setSmartSide("short")}>做空</button>
-        </div>
-        <div className="paper-side-tabs">
-          <button className={smartAction === "open" ? "active" : ""} onClick={() => setSmartAction("open")}>建倉</button>
-          <button className={smartAction === "close" ? "active" : ""} onClick={() => setSmartAction("close")}>平倉</button>
+          <button
+            className={smartSide === "buy" ? "active" : ""}
+            onClick={() => setSmartSide("buy")}
+            title="多單加碼、空單回補；回補口數超過空單口數會反手做多"
+          >
+            買
+          </button>
+          <button
+            className={smartSide === "sell" ? "active" : ""}
+            onClick={() => setSmartSide("sell")}
+            title="空單加碼、多單賣出；賣出口數超過多單口數會反手做空"
+          >
+            賣
+          </button>
         </div>
         <label className="paper-lots-label">
           口數
@@ -356,7 +372,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
           <table className="result-table">
             <thead>
               <tr>
-                <th>商品</th><th>方向</th><th>動作</th><th>口數</th><th>觸發指數</th>
+                <th>商品</th><th>買賣</th><th>口數</th><th>觸發指數</th>
                 <th>狀態</th><th>備註</th><th>操作</th>
               </tr>
             </thead>
@@ -364,8 +380,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
               {pagedSmartOrders.map((o) => (
                 <tr key={o.id}>
                   <td className="col-ticker">{PRODUCT_LABEL[o.product]}</td>
-                  <td>{SIDE_LABEL[o.side]}</td>
-                  <td>{ACTION_LABEL[o.action]}</td>
+                  <td>{TRADE_LABEL[o.side]}</td>
                   <td>{o.qty}</td>
                   <td>{o.trigger_price}（{o.direction === "above" ? "漲到" : "跌到"}）</td>
                   <td>{SMART_STATUS_LABEL[o.status]}</td>

@@ -45,8 +45,7 @@ def _tg_notify(text: str, html: bool = False):
 
 
 PRODUCT_LABEL = {"TXF": "大台指", "TMF": "微台指"}
-ACTION_LABEL = {"open": "建倉", "close": "平倉"}
-SIDE_LABEL = {"long": "多", "short": "空"}
+SIDE_LABEL = {"buy": "買進", "sell": "賣出"}
 
 print("[期貨智慧單] 開始檢查...")
 try:
@@ -57,9 +56,16 @@ try:
         print("[期貨智慧單] 這一輪沒有觸發")
     else:
         for r in results:
-            label = f'{PRODUCT_LABEL[r["product"]]} {ACTION_LABEL[r["action"]]}{SIDE_LABEL[r["side"]]} {r["qty"]}口'
+            label = f'{PRODUCT_LABEL[r["product"]]} {SIDE_LABEL[r["side"]]} {r["qty"]}口'
             if r["result"] == "triggered":
+                detail_parts = []
+                if r.get("closed_qty"):
+                    detail_parts.append(f'平倉{r["closed_qty"]}口')
+                if r.get("opened_qty"):
+                    detail_parts.append(f'開倉{r["opened_qty"]}口')
                 msg = f'🤖 [智慧單成交] {label}　成交價 {r["fill_price"]}'
+                if detail_parts:
+                    msg += "　" + "，".join(detail_parts)
                 if r.get("realized_pl") is not None:
                     msg += f'　已實現損益 {r["realized_pl"]:,.0f}'
             else:

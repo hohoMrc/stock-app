@@ -84,12 +84,12 @@ export const cancelStockSmartOrder = (orderId)  => api.delete(`/api/paper/smart-
 export const getFuturesPaperAccount   = ()                    => api.get("/api/paper-futures/account");
 export const getFuturesPaperPositions = ()                    => api.get("/api/paper-futures/positions");
 export const getFuturesPaperOrders    = (limit = 50)          => api.get("/api/paper-futures/orders", { params: { limit } });
-export const placeFuturesOrder = (product, side, action, qty, price) =>
-  api.post("/api/paper-futures/order", { product, side, action, qty, ...(price != null ? { price } : {}) });
+export const placeFuturesOrder = (product, side, qty, price) =>
+  api.post("/api/paper-futures/order", { product, side, qty, ...(price != null ? { price } : {}) });
 export const depositFuturesCash       = ()                    => api.post("/api/paper-futures/deposit");
 export const getFuturesPaperPerformance = ()                  => api.get("/api/paper-futures/performance");
-export const createSmartOrder = (product, side, action, qty, triggerPrice, orderType = "stop") =>
-  api.post("/api/paper-futures/smart-order", { product, side, action, qty, trigger_price: triggerPrice, order_type: orderType });
+export const createSmartOrder = (product, side, qty, triggerPrice, orderType = "stop") =>
+  api.post("/api/paper-futures/smart-order", { product, side, qty, trigger_price: triggerPrice, order_type: orderType });
 export const getSmartOrders  = ()          => api.get("/api/paper-futures/smart-orders");
 export const cancelSmartOrder = (orderId)  => api.delete(`/api/paper-futures/smart-orders/${orderId}`);
 

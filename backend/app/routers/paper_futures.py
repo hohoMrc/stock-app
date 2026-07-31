@@ -16,7 +16,6 @@ def _get_user(authorization: str | None) -> int:
 class FuturesOrderBody(BaseModel):
     product: str
     side: str
-    action: str
     qty: int
     price: float | None = None
 
@@ -24,7 +23,6 @@ class FuturesOrderBody(BaseModel):
 class SmartOrderBody(BaseModel):
     product: str
     side: str
-    action: str
     qty: int
     trigger_price: float
     order_type: str = "stop"
@@ -59,15 +57,13 @@ async def place_order(body: FuturesOrderBody, authorization: str | None = Header
     user_id = _get_user(authorization)
     if body.product not in ("TXF", "TMF"):
         raise HTTPException(status_code=400, detail="product 需為 TXF 或 TMF")
-    if body.side not in ("long", "short"):
-        raise HTTPException(status_code=400, detail="side 需為 long 或 short")
-    if body.action not in ("open", "close"):
-        raise HTTPException(status_code=400, detail="action 需為 open 或 close")
+    if body.side not in ("buy", "sell"):
+        raise HTTPException(status_code=400, detail="side 需為 buy 或 sell")
     if body.qty <= 0:
         raise HTTPException(status_code=400, detail="口數需大於 0")
     try:
         return await run_in_threadpool(
-            svc.place_futures_order, user_id, body.product, body.side, body.action, body.qty, body.price
+            svc.place_futures_order, user_id, body.product, body.side, body.qty, body.price
         )
     except svc.PaperFuturesError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -84,15 +80,13 @@ async def create_smart_order(body: SmartOrderBody, authorization: str | None = H
     user_id = _get_user(authorization)
     if body.product not in ("TXF", "TMF"):
         raise HTTPException(status_code=400, detail="product 需為 TXF 或 TMF")
-    if body.side not in ("long", "short"):
-        raise HTTPException(status_code=400, detail="side 需為 long 或 short")
-    if body.action not in ("open", "close"):
-        raise HTTPException(status_code=400, detail="action 需為 open 或 close")
+    if body.side not in ("buy", "sell"):
+        raise HTTPException(status_code=400, detail="side 需為 buy 或 sell")
     if body.qty <= 0:
         raise HTTPException(status_code=400, detail="口數需大於 0")
     try:
         return await run_in_threadpool(
-            svc.create_smart_order, user_id, body.product, body.side, body.action, body.qty,
+            svc.create_smart_order, user_id, body.product, body.side, body.qty,
             body.trigger_price, body.order_type
         )
     except svc.PaperFuturesError as e:

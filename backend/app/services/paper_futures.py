@@ -46,17 +46,18 @@ def _used_margin(user_id: int) -> float:
     return sum(p["qty"] * FUTURES_MARGIN[p["product"]] for p in positions)
 
 
-def place_futures_order(user_id: int, product: str, side: str, action: str, qty: int,
+def place_futures_order(user_id: int, product: str, side: str, qty: int,
                          price: float | None = None) -> dict:
-    """price 未提供時用即時市價成交；有提供時直接以該價格成交（不掛單等待，送出當下立即記帳）。
-    同一商品同時只能持有單一方向部位：action="open" 時若已有反方向部位會被拒絕，要先平倉。
+    """side="buy"（買，多單加碼／空單回補）或 "sell"（賣，空單加碼／多單賣出）。
+    採淨部位模式，跟真實期貨下單一樣不用自己選開倉/平倉：買賣方向跟目前部位相反時
+    會先抵銷掉既有部位，口數有剩的話直接反手開新部位（例如原本空 1 口，買 2 口，
+    結算後就變成多 1 口）。price 未提供時用即時市價成交；有提供時直接以該價格成交
+    （不掛單等待，送出當下立即記帳）。
     """
     if product not in FUTURES_MULTIPLIER:
         raise PaperFuturesError("product 需為 TXF 或 TMF")
-    if side not in ("long", "short"):
-        raise PaperFuturesError("side 需為 long 或 short")
-    if action not in ("open", "close"):
-        raise PaperFuturesError("action 需為 open 或 close")
+    if side not in ("buy", "sell"):
+        raise PaperFuturesError("side 需為 buy 或 sell")
     if qty <= 0:
         raise PaperFuturesError("口數需大於 0")
 
@@ -71,45 +72,69 @@ def place_futures_order(user_id: int, product: str, side: str, action: str, qty:
     account  = get_or_create_paper_futures_account(user_id)
     position = get_paper_futures_position(user_id, product)
     multiplier = FUTURES_MULTIPLIER[product]
-    fee = _fee(qty)
+    new_side = "long" if side == "buy" else "short"
 
-    if action == "open":
-        if position and position["side"] != side:
-            raise PaperFuturesError("目前持有反向部位，請先平倉")
+    # 跟目前部位方向相反 → 先抵銷（回補/賣出平倉），口數不夠抵銷完的話 closing_qty 只會是目前持有的口數
+    closing_qty = min(qty, position["qty"]) if position and position["side"] != new_side else 0
+    opening_qty = qty - closing_qty
 
-        required_margin = qty * FUTURES_MARGIN[product]
-        available = account["cash"] - _used_margin(user_id)
-        if required_margin + fee > available:
+    tax = 0
+    fee_close = 0
+    realized_pl = None
+    net_amount_close = 0
+    if closing_qty:
+        fee_close = _fee(closing_qty)
+        tax = _tax(price, closing_qty, product)
+        if position["side"] == "long":
+            realized_pl = (price - position["avg_price"]) * closing_qty * multiplier
+        else:
+            realized_pl = (position["avg_price"] - price) * closing_qty * multiplier
+        net_amount_close = realized_pl - fee_close - tax
+
+    fee_open = 0
+    new_qty = new_avg = None
+    if opening_qty:
+        fee_open = _fee(opening_qty)
+        # 有抵銷到既有部位（代表原本部位已被 closing_qty 全部抵銷掉）就是反手開新倉；
+        # 否則是原本沒有部位，或跟既有部位同方向加碼
+        if closing_qty:
+            old_qty, old_avg = 0, 0.0
+        else:
+            old_qty, old_avg = (position["qty"], position["avg_price"]) if position else (0, 0.0)
+        new_qty = old_qty + opening_qty
+        new_avg = (old_qty * old_avg + opening_qty * price) / new_qty
+
+        required_margin = opening_qty * FUTURES_MARGIN[product]
+        cash_after_close = account["cash"] + net_amount_close
+        used_margin_after_close = _used_margin(user_id) - (closing_qty * FUTURES_MARGIN[product] if closing_qty else 0)
+        available = cash_after_close - used_margin_after_close
+        if required_margin + fee_open > available:
             raise PaperFuturesError("可用保證金不足")
 
-        old_qty, old_avg = (position["qty"], position["avg_price"]) if position else (0, 0.0)
-        new_qty = old_qty + qty
-        new_avg = (old_qty * old_avg + qty * price) / new_qty
+    # 驗證都過關才真的寫入，避免平倉扣完錢後開倉才失敗變成半套狀態
+    if closing_qty:
+        update_paper_futures_cash(user_id, account["cash"] + net_amount_close)
+        upsert_paper_futures_position(user_id, product, position["side"], position["qty"] - closing_qty, position["avg_price"])
+        insert_paper_futures_order(user_id, product, position["side"], "close", closing_qty, price, fee_close, tax, net_amount_close, realized_pl)
+        account = get_or_create_paper_futures_account(user_id)
 
-        update_paper_futures_cash(user_id, account["cash"] - fee)
-        upsert_paper_futures_position(user_id, product, side, new_qty, new_avg)
-        insert_paper_futures_order(user_id, product, side, "open", qty, price, fee, 0, fee, None)
-        return {"product": product, "side": side, "action": "open", "qty": qty,
-                "price": price, "fee": fee, "tax": 0, "net_amount": fee, "realized_pl": None}
+    if opening_qty:
+        update_paper_futures_cash(user_id, account["cash"] - fee_open)
+        upsert_paper_futures_position(user_id, product, new_side, new_qty, new_avg)
+        insert_paper_futures_order(user_id, product, new_side, "open", opening_qty, price, fee_open, 0, -fee_open, None)
 
-    # action == "close"
-    if not position or position["side"] != side:
-        raise PaperFuturesError(f"目前沒有{'多' if side == 'long' else '空'}單部位可平")
-    if qty > position["qty"]:
-        raise PaperFuturesError("平倉口數超過持有口數")
+    remaining_qty = (position["qty"] - closing_qty) if position else 0
+    resulting_side = new_side if opening_qty else (position["side"] if remaining_qty > 0 else None)
+    resulting_qty  = new_qty if opening_qty else remaining_qty
 
-    tax = _tax(price, qty, product)
-    if side == "long":
-        realized_pl = (price - position["avg_price"]) * qty * multiplier
-    else:
-        realized_pl = (position["avg_price"] - price) * qty * multiplier
-    net_amount = realized_pl - fee - tax
-
-    update_paper_futures_cash(user_id, account["cash"] + net_amount)
-    upsert_paper_futures_position(user_id, product, side, position["qty"] - qty, position["avg_price"])
-    insert_paper_futures_order(user_id, product, side, "close", qty, price, fee, tax, net_amount, realized_pl)
-    return {"product": product, "side": side, "action": "close", "qty": qty,
-            "price": price, "fee": fee, "tax": tax, "net_amount": net_amount, "realized_pl": realized_pl}
+    return {
+        "product": product, "side": side, "qty": qty, "price": price,
+        "closed_qty": closing_qty, "opened_qty": opening_qty,
+        "fee": fee_close + fee_open, "tax": tax,
+        "net_amount": net_amount_close - fee_open,
+        "realized_pl": realized_pl,
+        "resulting_side": resulting_side, "resulting_qty": resulting_qty,
+    }
 
 
 def get_futures_positions_with_price(user_id: int) -> list[dict]:
@@ -204,21 +229,20 @@ def deposit_futures_cash(user_id: int) -> dict:
 
 # ── 智慧單（到價自動下單）─────────────────────────────────
 
-def create_smart_order(user_id: int, product: str, side: str, action: str, qty: int,
+def create_smart_order(user_id: int, product: str, side: str, qty: int,
                         trigger_price: float, order_type: str = "stop") -> dict:
-    """設定「指數到多少自動下單」。direction 不用使用者選，用目前市價跟 trigger_price
-    的相對關係自動判斷：trigger_price >= 目前市價 → 等漲到這個價位（above），
-    否則等跌到這個價位（below）——跟真實下單軟體設定停利/停損價的直覺一致。
+    """設定「指數到多少自動買/賣」。side="buy" 或 "sell"，跟送出下單一樣是淨部位模式，
+    不用自己選開倉/平倉，觸發當下會依實際持有部位自動判斷是加碼、回補、或反手。
+    direction 不用使用者選，用目前市價跟 trigger_price 的相對關係自動判斷：
+    trigger_price >= 目前市價 → 等漲到這個價位（above），否則等跌到這個價位（below）。
     order_type: "stop"（觸價後用當下市價成交，可能有滑價，跟真實停損/停利單一樣）
                 或 "limit"（觸價後直接用 trigger_price 成交，價格不會跑掉，但條件比較嚴格：
                     要漲/跌到那個價位「或更好」才會觸發，畢竟模擬環境沒有真的掛在市場排隊）
     """
     if product not in FUTURES_MULTIPLIER:
         raise PaperFuturesError("product 需為 TXF 或 TMF")
-    if side not in ("long", "short"):
-        raise PaperFuturesError("side 需為 long 或 short")
-    if action not in ("open", "close"):
-        raise PaperFuturesError("action 需為 open 或 close")
+    if side not in ("buy", "sell"):
+        raise PaperFuturesError("side 需為 buy 或 sell")
     if qty <= 0:
         raise PaperFuturesError("口數需大於 0")
     if trigger_price <= 0:
@@ -231,9 +255,9 @@ def create_smart_order(user_id: int, product: str, side: str, action: str, qty: 
         raise PaperFuturesError("目前無法取得期貨報價，請稍後再試")
 
     direction = "above" if trigger_price >= current else "below"
-    order_id = create_conditional_order(user_id, product, side, action, qty, trigger_price, direction, order_type)
+    order_id = create_conditional_order(user_id, product, side, qty, trigger_price, direction, order_type)
     return {
-        "id": order_id, "product": product, "side": side, "action": action, "qty": qty,
+        "id": order_id, "product": product, "side": side, "qty": qty,
         "trigger_price": trigger_price, "direction": direction, "order_type": order_type, "status": "pending",
     }
 
@@ -274,9 +298,10 @@ def check_and_execute_conditional_orders() -> list[dict]:
 
         fill_price = o["trigger_price"] if o.get("order_type") == "limit" else None
         try:
-            order = place_futures_order(o["user_id"], product, o["side"], o["action"], o["qty"], fill_price)
+            order = place_futures_order(o["user_id"], product, o["side"], o["qty"], fill_price)
             mark_conditional_order_triggered(o["id"])
             results.append({**o, "result": "triggered", "fill_price": order["price"],
+                             "closed_qty": order.get("closed_qty"), "opened_qty": order.get("opened_qty"),
                              "realized_pl": order.get("realized_pl")})
         except PaperFuturesError as e:
             mark_conditional_order_failed(o["id"], str(e))

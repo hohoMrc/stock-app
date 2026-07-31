@@ -1140,14 +1140,16 @@ def update_alert(alert_id: int, user_id: int, target_price: float | None = None,
 
 # ── paper_futures_conditional_orders（期貨模擬下單智慧單：到價自動下單）──
 
-def create_conditional_order(user_id: int, product: str, side: str, action: str, qty: int,
+def create_conditional_order(user_id: int, product: str, side: str, qty: int,
                               trigger_price: float, direction: str, order_type: str = "stop") -> int:
+    """side 存 "buy"/"sell"（淨部位下單模式，開倉/平倉在觸發當下依實際持有部位判斷，
+    不用使用者預先選，所以 action 欄位對新資料已不再使用，固定存空字串）。"""
     with _conn() as conn:
         cur = conn.execute(
             "INSERT INTO paper_futures_conditional_orders"
             "(user_id, product, side, action, qty, trigger_price, direction, order_type, status, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)",
-            (user_id, product, side, action, qty, trigger_price, direction, order_type, time.time())
+            "VALUES (?, ?, ?, '', ?, ?, ?, ?, 'pending', ?)",
+            (user_id, product, side, qty, trigger_price, direction, order_type, time.time())
         )
         return cur.lastrowid
 
