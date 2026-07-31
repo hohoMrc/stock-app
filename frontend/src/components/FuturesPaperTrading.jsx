@@ -30,6 +30,8 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
   const [side, setSide]           = useState("long");
   const [action, setAction]       = useState("open");
   const [qty, setQty]             = useState(1);
+  const [priceMode, setPriceMode] = useState("market"); // "market" | "custom"
+  const [customPrice, setCustomPrice] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [formMsg, setFormMsg]     = useState("");
@@ -82,11 +84,16 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
   const handleSubmit = async () => {
     if (!username) { onRequireLogin(); return; }
     if (!qty || qty <= 0) { setFormError("口數需大於 0"); return; }
+    if (priceMode === "custom" && (!customPrice || Number(customPrice) <= 0)) {
+      setFormError("請輸入有效價格");
+      return;
+    }
     setSubmitting(true);
     setFormError("");
     setFormMsg("");
     try {
-      const res = await placeFuturesOrder(product, side, action, Number(qty));
+      const sendPrice = priceMode === "custom" ? Number(customPrice) : undefined;
+      const res = await placeFuturesOrder(product, side, action, Number(qty), sendPrice);
       const d = res.data;
       const actionLabel = d.action === "open" ? "開倉" : "平倉";
       const sideLabel = d.side === "long" ? "多" : "空";
@@ -95,6 +102,8 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
         (d.realized_pl != null ? `，已實現損益 ${d.realized_pl.toLocaleString()}` : "")
       );
       setQty(1);
+      setPriceMode("market");
+      setCustomPrice("");
       loadAll();
     } catch (e) {
       setFormError(e.response?.data?.detail || "下單失敗");
@@ -250,6 +259,23 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
             <button className={action === "open" ? "active" : ""} onClick={() => setAction("open")}>建倉</button>
             <button className={action === "close" ? "active" : ""} onClick={() => setAction("close")}>平倉</button>
           </div>
+
+          <div className="paper-side-tabs">
+            <button className={priceMode === "market" ? "active" : ""} onClick={() => setPriceMode("market")}>市價</button>
+            <button className={priceMode === "custom" ? "active" : ""} onClick={() => setPriceMode("custom")}>指定價格</button>
+          </div>
+
+          {priceMode === "custom" && (
+            <label className="paper-lots-label">
+              價格（模擬用，送出後直接以這個價格記帳成交，不是真的掛單等成交）
+              <input
+                type="number"
+                step="1"
+                value={customPrice}
+                onChange={(e) => setCustomPrice(e.target.value)}
+              />
+            </label>
+          )}
 
           <label className="paper-lots-label">
             口數
