@@ -76,8 +76,8 @@ export const getPaperOrders    = (limit = 50)                => api.get("/api/pa
 export const placePaperOrder   = (ticker, side, lots, price)  => api.post("/api/paper/order", { ticker, side, lots, ...(price != null ? { price } : {}) });
 export const depositPaperCash  = ()                          => api.post("/api/paper/deposit");
 export const getPaperPerformance = ()                        => api.get("/api/paper/performance");
-export const createStockSmartOrder = (ticker, side, lots, triggerPrice) =>
-  api.post("/api/paper/smart-order", { ticker, side, lots, trigger_price: triggerPrice });
+export const createStockSmartOrder = (ticker, side, lots, triggerPrice, orderType = "stop") =>
+  api.post("/api/paper/smart-order", { ticker, side, lots, trigger_price: triggerPrice, order_type: orderType });
 export const getStockSmartOrders  = ()          => api.get("/api/paper/smart-orders");
 export const cancelStockSmartOrder = (orderId)  => api.delete(`/api/paper/smart-orders/${orderId}`);
 
@@ -88,8 +88,8 @@ export const placeFuturesOrder = (product, side, action, qty, price) =>
   api.post("/api/paper-futures/order", { product, side, action, qty, ...(price != null ? { price } : {}) });
 export const depositFuturesCash       = ()                    => api.post("/api/paper-futures/deposit");
 export const getFuturesPaperPerformance = ()                  => api.get("/api/paper-futures/performance");
-export const createSmartOrder = (product, side, action, qty, triggerPrice) =>
-  api.post("/api/paper-futures/smart-order", { product, side, action, qty, trigger_price: triggerPrice });
+export const createSmartOrder = (product, side, action, qty, triggerPrice, orderType = "stop") =>
+  api.post("/api/paper-futures/smart-order", { product, side, action, qty, trigger_price: triggerPrice, order_type: orderType });
 export const getSmartOrders  = ()          => api.get("/api/paper-futures/smart-orders");
 export const cancelSmartOrder = (orderId)  => api.delete(`/api/paper-futures/smart-orders/${orderId}`);
 

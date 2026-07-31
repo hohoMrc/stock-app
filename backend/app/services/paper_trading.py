@@ -190,10 +190,13 @@ def deposit_cash(user_id: int) -> dict:
 
 # ── 智慧單（到價自動買賣）─────────────────────────────────
 
-def create_smart_order(user_id: int, ticker: str, side: str, lots: int, trigger_price: float) -> dict:
+def create_smart_order(user_id: int, ticker: str, side: str, lots: int, trigger_price: float,
+                        order_type: str = "stop") -> dict:
     """設定「股價到多少自動下單」。direction 不用使用者選，用目前市價跟 trigger_price
     的相對關係自動判斷：trigger_price >= 目前市價 → 等漲到這個價位（above），
     否則等跌到這個價位（below）。
+    order_type: "stop"（觸價後用當下市價成交，可能有滑價）或 "limit"（觸價後直接用
+    trigger_price 成交，價格不會跑掉）。
     """
     if side not in ("buy", "sell"):
         raise PaperTradingError("side 需為 buy 或 sell")
@@ -201,16 +204,18 @@ def create_smart_order(user_id: int, ticker: str, side: str, lots: int, trigger_
         raise PaperTradingError("張數需大於 0")
     if trigger_price <= 0:
         raise PaperTradingError("觸發價格需大於 0")
+    if order_type not in ("stop", "limit"):
+        raise PaperTradingError("order_type 需為 stop 或 limit")
 
     current = get_stock_info(ticker).get("price")
     if not current:
         raise PaperTradingError("目前無法取得該股票報價，請稍後再試")
 
     direction = "above" if trigger_price >= current else "below"
-    order_id = create_stock_conditional_order(user_id, ticker, side, lots, trigger_price, direction)
+    order_id = create_stock_conditional_order(user_id, ticker, side, lots, trigger_price, direction, order_type)
     return {
         "id": order_id, "ticker": ticker, "side": side, "lots": lots,
-        "trigger_price": trigger_price, "direction": direction, "status": "pending",
+        "trigger_price": trigger_price, "direction": direction, "order_type": order_type, "status": "pending",
     }
 
 
@@ -224,7 +229,8 @@ def cancel_smart_order(user_id: int, order_id: int) -> bool:
 
 def check_and_execute_conditional_orders() -> list[dict]:
     """輪詢進入點，供 stock_conditional_check.py 排程呼叫。對每筆待觸發智慧單比對目前股價，
-    觸發就用當下市價（不是 trigger_price 本身）呼叫 place_market_order() 真的幫使用者下單。
+    觸發就呼叫 place_market_order() 真的幫使用者下單：order_type="stop" 用當下市價成交
+    （可能有滑價），"limit" 直接用 trigger_price 成交。
     現金不足/持股不足/現股不可當沖等既有限制在觸發當下才驗證，失敗會標記原因（尤其是當沖
     限制：智慧單常見情境是「買進後同一天股價漲到X就賣出」，剛好會踩到這個限制）。
     回傳這一輪有處理到的結果，供排程腳本發 TG 通知。
@@ -248,8 +254,9 @@ def check_and_execute_conditional_orders() -> list[dict]:
         if not hit:
             continue
 
+        fill_price = o["trigger_price"] if o.get("order_type") == "limit" else None
         try:
-            order = place_market_order(o["user_id"], ticker, o["side"], o["lots"])
+            order = place_market_order(o["user_id"], ticker, o["side"], o["lots"], fill_price)
             mark_stock_conditional_order_triggered(o["id"])
             results.append({**o, "result": "triggered", "fill_price": order["price"],
                              "realized_pl": order.get("realized_pl")})

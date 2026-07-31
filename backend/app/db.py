@@ -251,6 +251,7 @@ def init_db():
             qty           INTEGER NOT NULL,
             trigger_price REAL NOT NULL,
             direction     TEXT NOT NULL,
+            order_type    TEXT NOT NULL DEFAULT 'stop',
             status        TEXT NOT NULL DEFAULT 'pending',
             fail_reason   TEXT,
             created_at    REAL,
@@ -269,6 +270,7 @@ def init_db():
             lots          INTEGER NOT NULL,
             trigger_price REAL NOT NULL,
             direction     TEXT NOT NULL,
+            order_type    TEXT NOT NULL DEFAULT 'stop',
             status        TEXT NOT NULL DEFAULT 'pending',
             fail_reason   TEXT,
             created_at    REAL,
@@ -293,6 +295,15 @@ def init_db():
         # Migration: 舊版 watchlists 沒有 note 欄位
         try:
             conn.execute("ALTER TABLE watchlists ADD COLUMN note TEXT DEFAULT ''")
+        except Exception:
+            pass
+        # Migration: 智慧單新增訂單類型（stop=觸價後市價成交／原本的行為，limit=用設定價格成交）
+        try:
+            conn.execute("ALTER TABLE paper_futures_conditional_orders ADD COLUMN order_type TEXT NOT NULL DEFAULT 'stop'")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE paper_conditional_orders ADD COLUMN order_type TEXT NOT NULL DEFAULT 'stop'")
         except Exception:
             pass
 
@@ -1130,13 +1141,13 @@ def update_alert(alert_id: int, user_id: int, target_price: float | None = None,
 # ── paper_futures_conditional_orders（期貨模擬下單智慧單：到價自動下單）──
 
 def create_conditional_order(user_id: int, product: str, side: str, action: str, qty: int,
-                              trigger_price: float, direction: str) -> int:
+                              trigger_price: float, direction: str, order_type: str = "stop") -> int:
     with _conn() as conn:
         cur = conn.execute(
             "INSERT INTO paper_futures_conditional_orders"
-            "(user_id, product, side, action, qty, trigger_price, direction, status, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)",
-            (user_id, product, side, action, qty, trigger_price, direction, time.time())
+            "(user_id, product, side, action, qty, trigger_price, direction, order_type, status, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)",
+            (user_id, product, side, action, qty, trigger_price, direction, order_type, time.time())
         )
         return cur.lastrowid
 
@@ -1144,7 +1155,7 @@ def create_conditional_order(user_id: int, product: str, side: str, action: str,
 def get_conditional_orders(user_id: int) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT id, product, side, action, qty, trigger_price, direction, status, "
+            "SELECT id, product, side, action, qty, trigger_price, direction, order_type, status, "
             "fail_reason, created_at, triggered_at FROM paper_futures_conditional_orders "
             "WHERE user_id=? ORDER BY created_at DESC",
             (user_id,)
@@ -1156,7 +1167,7 @@ def get_pending_conditional_orders() -> list[dict]:
     """供 futures_conditional_check.py 用：全部待觸發的智慧單（跨使用者）。"""
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT id, user_id, product, side, action, qty, trigger_price, direction "
+            "SELECT id, user_id, product, side, action, qty, trigger_price, direction, order_type "
             "FROM paper_futures_conditional_orders WHERE status='pending'"
         ).fetchall()
     return [dict(r) for r in rows]
@@ -1192,13 +1203,13 @@ def cancel_conditional_order(user_id: int, order_id: int) -> bool:
 # ── paper_conditional_orders（股票模擬下單智慧單：到價自動買賣）───
 
 def create_stock_conditional_order(user_id: int, ticker: str, side: str, lots: int,
-                                    trigger_price: float, direction: str) -> int:
+                                    trigger_price: float, direction: str, order_type: str = "stop") -> int:
     with _conn() as conn:
         cur = conn.execute(
             "INSERT INTO paper_conditional_orders"
-            "(user_id, ticker, side, lots, trigger_price, direction, status, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)",
-            (user_id, ticker, side, lots, trigger_price, direction, time.time())
+            "(user_id, ticker, side, lots, trigger_price, direction, order_type, status, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)",
+            (user_id, ticker, side, lots, trigger_price, direction, order_type, time.time())
         )
         return cur.lastrowid
 
@@ -1206,7 +1217,7 @@ def create_stock_conditional_order(user_id: int, ticker: str, side: str, lots: i
 def get_stock_conditional_orders(user_id: int) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT id, ticker, side, lots, trigger_price, direction, status, "
+            "SELECT id, ticker, side, lots, trigger_price, direction, order_type, status, "
             "fail_reason, created_at, triggered_at FROM paper_conditional_orders "
             "WHERE user_id=? ORDER BY created_at DESC",
             (user_id,)
@@ -1218,7 +1229,7 @@ def get_pending_stock_conditional_orders() -> list[dict]:
     """供 stock_conditional_check.py 用：全部待觸發的股票智慧單（跨使用者）。"""
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT id, user_id, ticker, side, lots, trigger_price, direction "
+            "SELECT id, user_id, ticker, side, lots, trigger_price, direction, order_type "
             "FROM paper_conditional_orders WHERE status='pending'"
         ).fetchall()
     return [dict(r) for r in rows]

@@ -205,10 +205,13 @@ def deposit_futures_cash(user_id: int) -> dict:
 # ── 智慧單（到價自動下單）─────────────────────────────────
 
 def create_smart_order(user_id: int, product: str, side: str, action: str, qty: int,
-                        trigger_price: float) -> dict:
+                        trigger_price: float, order_type: str = "stop") -> dict:
     """設定「指數到多少自動下單」。direction 不用使用者選，用目前市價跟 trigger_price
     的相對關係自動判斷：trigger_price >= 目前市價 → 等漲到這個價位（above），
     否則等跌到這個價位（below）——跟真實下單軟體設定停利/停損價的直覺一致。
+    order_type: "stop"（觸價後用當下市價成交，可能有滑價，跟真實停損/停利單一樣）
+                或 "limit"（觸價後直接用 trigger_price 成交，價格不會跑掉，但條件比較嚴格：
+                    要漲/跌到那個價位「或更好」才會觸發，畢竟模擬環境沒有真的掛在市場排隊）
     """
     if product not in FUTURES_MULTIPLIER:
         raise PaperFuturesError("product 需為 TXF 或 TMF")
@@ -220,16 +223,18 @@ def create_smart_order(user_id: int, product: str, side: str, action: str, qty: 
         raise PaperFuturesError("口數需大於 0")
     if trigger_price <= 0:
         raise PaperFuturesError("觸發價格需大於 0")
+    if order_type not in ("stop", "limit"):
+        raise PaperFuturesError("order_type 需為 stop 或 limit")
 
     current = _current_price(product)
     if not current:
         raise PaperFuturesError("目前無法取得期貨報價，請稍後再試")
 
     direction = "above" if trigger_price >= current else "below"
-    order_id = create_conditional_order(user_id, product, side, action, qty, trigger_price, direction)
+    order_id = create_conditional_order(user_id, product, side, action, qty, trigger_price, direction, order_type)
     return {
         "id": order_id, "product": product, "side": side, "action": action, "qty": qty,
-        "trigger_price": trigger_price, "direction": direction, "status": "pending",
+        "trigger_price": trigger_price, "direction": direction, "order_type": order_type, "status": "pending",
     }
 
 
@@ -243,8 +248,10 @@ def cancel_smart_order(user_id: int, order_id: int) -> bool:
 
 def check_and_execute_conditional_orders() -> list[dict]:
     """輪詢進入點，供 futures_conditional_check.py 排程呼叫。對每筆待觸發智慧單比對目前市價，
-    觸發就用當下市價（不是 trigger_price 本身，跟真實停損/停利單一樣「觸價後市價成交」）
-    呼叫 place_futures_order() 真的幫使用者下單。回傳這一輪有處理到的結果，供排程腳本發 TG 通知。
+    觸發就呼叫 place_futures_order() 真的幫使用者下單：
+    - order_type="stop"：用當下市價成交（可能有滑價，跟真實停損/停利單一樣）
+    - order_type="limit"：直接用 trigger_price 成交（模擬「掛單等成交」，價格不會跑掉）
+    回傳這一輪有處理到的結果，供排程腳本發 TG 通知。
     """
     pending = get_pending_conditional_orders()
     if not pending:
@@ -265,8 +272,9 @@ def check_and_execute_conditional_orders() -> list[dict]:
         if not hit:
             continue
 
+        fill_price = o["trigger_price"] if o.get("order_type") == "limit" else None
         try:
-            order = place_futures_order(o["user_id"], product, o["side"], o["action"], o["qty"])
+            order = place_futures_order(o["user_id"], product, o["side"], o["action"], o["qty"], fill_price)
             mark_conditional_order_triggered(o["id"])
             results.append({**o, "result": "triggered", "fill_price": order["price"],
                              "realized_pl": order.get("realized_pl")})

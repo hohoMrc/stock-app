@@ -43,6 +43,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
   const [smartAction, setSmartAction]     = useState("open");
   const [smartQty, setSmartQty]           = useState(1);
   const [smartTrigger, setSmartTrigger]   = useState("");
+  const [smartOrderType, setSmartOrderType] = useState("stop"); // "stop" | "limit"
   const [smartSubmitting, setSmartSubmitting] = useState(false);
   const [smartError, setSmartError]       = useState("");
   const [smartMsg, setSmartMsg]           = useState("");
@@ -135,10 +136,12 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
     setSmartError("");
     setSmartMsg("");
     try {
-      const res = await createSmartOrder(smartProduct, smartSide, smartAction, Number(smartQty), Number(smartTrigger));
+      const res = await createSmartOrder(smartProduct, smartSide, smartAction, Number(smartQty), Number(smartTrigger), smartOrderType);
       const d = res.data;
-      setSmartMsg(`已設定：指數${d.direction === "above" ? "漲到" : "跌到"} ${d.trigger_price} 時自動${ACTION_LABEL[d.action]}${SIDE_LABEL[d.side]}`);
+      const fillNote = d.order_type === "limit" ? `以 ${d.trigger_price} 成交` : "用當下市價成交";
+      setSmartMsg(`已設定：指數${d.direction === "above" ? "漲到" : "跌到"} ${d.trigger_price} 時自動${ACTION_LABEL[d.action]}${SIDE_LABEL[d.side]}，${fillNote}`);
       setSmartTrigger("");
+      setSmartOrderType("stop");
       loadAll();
     } catch (e) {
       setSmartError(e.response?.data?.detail || "設定失敗");
@@ -323,6 +326,22 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
           觸發指數
           <input type="number" step="1" value={smartTrigger} onChange={(e) => setSmartTrigger(e.target.value)} />
         </label>
+        <div className="paper-side-tabs">
+          <button
+            className={smartOrderType === "stop" ? "active" : ""}
+            onClick={() => setSmartOrderType("stop")}
+            title="觸價後用當下市價成交，可能有滑價，跟真實停損/停利單一樣"
+          >
+            觸價後市價成交
+          </button>
+          <button
+            className={smartOrderType === "limit" ? "active" : ""}
+            onClick={() => setSmartOrderType("limit")}
+            title="觸價後直接用你設定的觸發指數成交，價格不會跑掉；但條件比較嚴格，要漲/跌到那個價位或更好才會觸發"
+          >
+            限價成交
+          </button>
+        </div>
         <button className="detail-btn" onClick={handleSmartSubmit} disabled={smartSubmitting}>
           {smartSubmitting ? "送出中..." : "設定智慧單"}
         </button>

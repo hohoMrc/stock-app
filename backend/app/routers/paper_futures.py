@@ -27,6 +27,7 @@ class SmartOrderBody(BaseModel):
     action: str
     qty: int
     trigger_price: float
+    order_type: str = "stop"
 
 
 @router.get("/account")
@@ -91,7 +92,8 @@ async def create_smart_order(body: SmartOrderBody, authorization: str | None = H
         raise HTTPException(status_code=400, detail="口數需大於 0")
     try:
         return await run_in_threadpool(
-            svc.create_smart_order, user_id, body.product, body.side, body.action, body.qty, body.trigger_price
+            svc.create_smart_order, user_id, body.product, body.side, body.action, body.qty,
+            body.trigger_price, body.order_type
         )
     except svc.PaperFuturesError as e:
         raise HTTPException(status_code=400, detail=str(e))
