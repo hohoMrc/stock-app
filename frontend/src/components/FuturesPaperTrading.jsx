@@ -46,6 +46,16 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
   const [smartMsg, setSmartMsg]           = useState("");
   const [smartOrdersPage, setSmartOrdersPage] = useState(1);
   const [ordersPage, setOrdersPage]       = useState(1);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 640px)").matches);
+
+  // 手機版畫面太窄，智慧單（觸價單）列表一頁顯示 3 筆就好，不然要一直往下滑
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    const handler = (e) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  const smartPageSize = isMobile ? 3 : PAGE_SIZE;
 
   const loadAll = async () => {
     setLoading(true);
@@ -169,9 +179,9 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
     );
   }
 
-  const smartOrdersTotalPages = Math.max(1, Math.ceil(smartOrders.length / PAGE_SIZE));
+  const smartOrdersTotalPages = Math.max(1, Math.ceil(smartOrders.length / smartPageSize));
   const smartOrdersCurPage    = Math.min(smartOrdersPage, smartOrdersTotalPages);
-  const pagedSmartOrders      = smartOrders.slice((smartOrdersCurPage - 1) * PAGE_SIZE, smartOrdersCurPage * PAGE_SIZE);
+  const pagedSmartOrders      = smartOrders.slice((smartOrdersCurPage - 1) * smartPageSize, smartOrdersCurPage * smartPageSize);
 
   const ordersTotalPages = Math.max(1, Math.ceil(orders.length / PAGE_SIZE));
   const ordersCurPage    = Math.min(ordersPage, ordersTotalPages);
