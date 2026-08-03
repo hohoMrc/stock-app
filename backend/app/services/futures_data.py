@@ -74,7 +74,7 @@ def _current_symbol(product: str = "TXF") -> str:
     if cached and time.time() - cached[0] < _SYMBOL_CACHE_TTL:
         return cached[1]
     try:
-        data = _get_client().futopt.intraday.tickers(type="FUTURE", product=product)
+        data = _call_futopt(lambda c: c.futopt.intraday.tickers(type="FUTURE", product=product))
         contracts = data.get("data", [])
         today_str = date.today().strftime("%Y-%m-%d")
         upcoming = sorted(
@@ -105,13 +105,31 @@ def _init_sdk():
     _rest_client = sdk.marketdata.rest_client
 
 
-def _get_client():
+def _get_client(force_refresh: bool = False):
     global _rest_client
+    if force_refresh:
+        with _lock:
+            _rest_client = None
     if _rest_client is None:
         with _lock:
             if _rest_client is None:
                 _init_sdk()
     return _rest_client
+
+
+def _call_futopt(fn):
+    """呼叫富邦 SDK 的 futopt 端點。富邦登入 session 的 token 會過期（曾經遇過噴
+    "Token expired" 401），但 _rest_client 是行程內快取到底，不會自動重新登入，
+    導致過期後所有請求一直失敗到手動重啟服務為止。這裡抓到過期錯誤就重新登入重試一次。
+    """
+    try:
+        return fn(_get_client())
+    except Exception as e:
+        msg = str(e).lower()
+        if "token expired" in msg or "unauthorized" in msg or "401" in msg:
+            print(f"[futures] SDK token 過期，重新登入後重試: {e}")
+            return fn(_get_client(force_refresh=True))
+        raise
 
 
 def shutdown_sdk():
@@ -137,7 +155,7 @@ def get_futures_quote(symbol: str | None = None) -> dict:
     kwargs = {"symbol": symbol}
     if _is_night_session_now():
         kwargs["session"] = "afterhours"
-    data   = _get_client().futopt.intraday.quote(**kwargs)
+    data   = _call_futopt(lambda c: c.futopt.intraday.quote(**kwargs))
     price  = data.get("closePrice") or (data.get("lastTrade") or {}).get("price")
     prev   = data.get("previousClose")
     change = round(price - prev, 0) if price and prev else None
@@ -253,7 +271,7 @@ def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> lis
         for kwargs in ({"symbol": symbol, "timeframe": "60"},
                         {"symbol": symbol, "timeframe": "60", "session": "afterhours"}):
             try:
-                data = _get_client().futopt.intraday.candles(**kwargs)
+                data = _call_futopt(lambda c: c.futopt.intraday.candles(**kwargs))
                 for c in data.get("data", []):
                     dt = datetime.fromisoformat(c["date"])
                     if dt.tzinfo is None:
@@ -286,7 +304,7 @@ def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> lis
     for kwargs in ({"symbol": symbol, "timeframe": timeframe},
                     {"symbol": symbol, "timeframe": timeframe, "session": "afterhours"}):
         try:
-            data = _get_client().futopt.intraday.candles(**kwargs)
+            data = _call_futopt(lambda c: c.futopt.intraday.candles(**kwargs))
             for c in data.get("data", []):
                 dt = datetime.fromisoformat(c["date"])
                 if dt.tzinfo is None:

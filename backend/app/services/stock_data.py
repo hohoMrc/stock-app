@@ -68,9 +68,12 @@ def _init_fugle():
         _fugle_available = False
 
 
-def _get_fugle():
+def _get_fugle(force_refresh: bool = False):
     """取得 Fugle RestClient，首次呼叫時做懶初始化。"""
     global _fugle_available
+    if force_refresh:
+        with _fugle_lock:
+            _fugle_available = None
     if _fugle_available is None:
         with _fugle_lock:
             if _fugle_available is None:
@@ -78,13 +81,31 @@ def _get_fugle():
     return _fugle_client if _fugle_available else None
 
 
-def _fugle_quote(ticker: str) -> dict:
-    """從 Fugle intraday quote 取得即時報價。"""
+def _call_fugle(fn):
+    """呼叫 Fugle 行情端點，登入 session 的 token 過期時（曾遇過 401 Token expired）
+    自動重新登入重試一次，避免過期後一路悄悄失敗到手動重啟服務為止。"""
     client = _get_fugle()
     if not client:
+        raise RuntimeError("Fugle 尚未初始化")
+    try:
+        return fn(client)
+    except Exception as e:
+        msg = str(e).lower()
+        if "token expired" in msg or "unauthorized" in msg or "401" in msg:
+            print(f"[Fugle] token 過期，重新登入後重試: {e}")
+            retry_client = _get_fugle(force_refresh=True)
+            if not retry_client:
+                raise
+            return fn(retry_client)
+        raise
+
+
+def _fugle_quote(ticker: str) -> dict:
+    """從 Fugle intraday quote 取得即時報價。"""
+    if not _get_fugle():
         return {}
     try:
-        resp = client.stock.intraday.quote(symbol=ticker)
+        resp = _call_fugle(lambda c: c.stock.intraday.quote(symbol=ticker))
         data = resp.get("data", resp) if isinstance(resp, dict) else {}
         if not isinstance(data, dict):
             data = {}
@@ -119,11 +140,10 @@ def _fugle_quote(ticker: str) -> dict:
 
 def _fugle_ticker(ticker: str) -> dict:
     """從 Fugle intraday ticker 取得股票基本資訊（股名、市場別、產業別、注意/處置股）。"""
-    client = _get_fugle()
-    if not client:
+    if not _get_fugle():
         return {}
     try:
-        resp = client.stock.intraday.ticker(symbol=ticker)
+        resp = _call_fugle(lambda c: c.stock.intraday.ticker(symbol=ticker))
         data = resp.get("data", resp) if isinstance(resp, dict) else {}
         if not isinstance(data, dict):
             data = {}
@@ -145,16 +165,15 @@ def _fugle_ticker(ticker: str) -> dict:
 
 def _fugle_candles(ticker: str, from_date: str, to_date: str) -> list:
     """從 Fugle historical candles 取得日K，回傳 list of {date,open,high,low,close,volume(股數)}。"""
-    client = _get_fugle()
-    if not client:
+    if not _get_fugle():
         return []
     try:
-        resp = client.stock.historical.candles(**{
+        resp = _call_fugle(lambda c: c.stock.historical.candles(**{
             "symbol": ticker,
             "from":   from_date,
             "to":     to_date,
             "fields": "open,high,low,close,volume",
-        })
+        }))
         raw     = resp.get("data", []) if isinstance(resp, dict) else []
         candles = raw if isinstance(raw, list) else raw.get("candles", [])
         result  = []
