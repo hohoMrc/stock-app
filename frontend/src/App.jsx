@@ -517,7 +517,13 @@ export default function App() {
         {activePage === "terminal" && (
           <TradingTerminal watchlist={watchlist} onToggleWatch={toggleWatch} username={username} onSelect={(t) => handleSelectStock(t)} />
         )}
-        {activePage === "futures" && <FuturesPage />}
+        {activePage === "futures" && (
+          <FuturesPage
+            username={username}
+            onRequireLogin={() => setShowAuth(true)}
+            onNavigate={(p) => setActivePage(p)}
+          />
+        )}
         {activePage === "news" && <NewsPage />}
         {activePage === "alerts" && (
           <AlertsPage

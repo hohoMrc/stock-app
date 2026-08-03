@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from "lightweight-charts";
-import { getFuturesQuote, getFuturesCandles, getFuturesInstitutional } from "../api";
+import {
+  getFuturesQuote, getFuturesCandles, getFuturesInstitutional,
+  placeFuturesOrder, getFuturesPaperAccount, getFuturesPaperPositions,
+} from "../api";
 import { isFuturesTradingHours } from "../marketHours";
 
 const MA_LINES = [
@@ -439,7 +442,111 @@ function InstitutionalChart({ data }) {
   );
 }
 
-export default function FuturesPage() {
+const TRADE_LABEL = { buy: "買進", sell: "賣出" };
+const POS_SIDE_LABEL = { long: "多", short: "空" };
+const PRODUCT_LABEL_MAP = { TXF: "大台指", TMF: "微台指" };
+
+// 邊看圖邊下單用的精簡面板：不用切去模擬下單分頁，直接對目前圖表商品下市價單。
+// 智慧單、成交紀錄等完整功能還是留在模擬下單頁面，這裡只做最常用的「馬上買/賣」。
+function QuickOrderPanel({ product, username, onRequireLogin, onGoFull }) {
+  const [collapsed, setCollapsed]   = useState(false);
+  const [side, setSide]             = useState("buy");
+  const [qty, setQty]               = useState(1);
+  const [account, setAccount]       = useState(null);
+  const [position, setPosition]     = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]           = useState("");
+  const [msg, setMsg]               = useState("");
+
+  const loadAccount = () => {
+    if (!username) return;
+    Promise.all([getFuturesPaperAccount(), getFuturesPaperPositions()])
+      .then(([accRes, posRes]) => {
+        setAccount(accRes.data);
+        setPosition(posRes.data.positions.find(p => p.product === product) ?? null);
+      })
+      .catch(() => {});
+  };
+
+  useEffect(loadAccount, [username, product]);
+
+  const handleSubmit = async () => {
+    if (!username) { onRequireLogin(); return; }
+    if (!qty || qty <= 0) { setError("口數需大於 0"); return; }
+    setSubmitting(true);
+    setError("");
+    setMsg("");
+    try {
+      const res = await placeFuturesOrder(product, side, Number(qty));
+      const d = res.data;
+      const parts = [];
+      if (d.closed_qty > 0) {
+        parts.push(`${d.side === "buy" ? "回補空單" : "賣出多單"} ${d.closed_qty} 口` + (d.realized_pl != null ? `（損益 ${d.realized_pl.toLocaleString()}）` : ""));
+      }
+      if (d.opened_qty > 0) {
+        parts.push(`${d.closed_qty > 0 ? "反手" : ""}${d.side === "buy" ? "做多" : "做空"} ${d.opened_qty} 口`);
+      }
+      setMsg(`${parts.join("，")}，成交價 ${d.price}`);
+      loadAccount();
+    } catch (e) {
+      setError(e.response?.data?.detail || "下單失敗");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="paper-order-panel quick-order-panel">
+      <div className="quick-order-header" onClick={() => setCollapsed(c => !c)}>
+        <h3 className="paper-section-title">⚡ 快速下單（{PRODUCT_LABEL_MAP[product]}）</h3>
+        <span className="quick-order-toggle">{collapsed ? "展開 ▾" : "收合 ▴"}</span>
+      </div>
+
+      {!collapsed && (
+        !username ? (
+          <p className="no-data">
+            <button className="login-btn" onClick={onRequireLogin}>登入 / 註冊</button> 後即可快速下單
+          </p>
+        ) : (
+          <>
+            <div className="quick-order-status">
+              {account && (
+                <span>可用保證金 <b>{account.available_margin?.toLocaleString()}</b></span>
+              )}
+              {position ? (
+                <span>目前部位 <b className={position.side === "long" ? "up" : "down"}>
+                  {POS_SIDE_LABEL[position.side]} {position.qty} 口 @ {position.avg_price}
+                </b></span>
+              ) : (
+                <span>目前無部位</span>
+              )}
+              {onGoFull && <button className="view-btn quick-order-full-link" onClick={onGoFull}>完整下單頁 →</button>}
+            </div>
+
+            <div className="paper-side-tabs">
+              <button className={side === "buy" ? "active" : ""} onClick={() => setSide("buy")}>買</button>
+              <button className={side === "sell" ? "active" : ""} onClick={() => setSide("sell")}>賣</button>
+            </div>
+
+            <label className="paper-lots-label">
+              口數
+              <input type="number" min="1" step="1" value={qty} onChange={(e) => setQty(e.target.value)} />
+            </label>
+
+            <button className="detail-btn" onClick={handleSubmit} disabled={submitting}>
+              {submitting ? "送出中..." : `市價${TRADE_LABEL[side]}`}
+            </button>
+
+            {error && <p className="error">{error}</p>}
+            {msg && <p className="paper-form-msg">{msg}</p>}
+          </>
+        )
+      )}
+    </div>
+  );
+}
+
+export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
   const [product,      setProduct]      = useState("TXF");
   const [timeframe,    setTimeframe]    = useState("60");
   const [quote,        setQuote]        = useState(null);
@@ -580,6 +687,13 @@ export default function FuturesPage() {
       <QuoteHeader
         quote={quote} loading={quoteLoading} livePrice={livePrice} priceFlash={priceFlash}
         lastClose={candles.length ? candles[candles.length - 1].close : null}
+      />
+
+      <QuickOrderPanel
+        product={product}
+        username={username}
+        onRequireLogin={onRequireLogin}
+        onGoFull={onNavigate ? () => onNavigate("paper") : null}
       />
 
       {error && <p className="error">❌ {error}</p>}
