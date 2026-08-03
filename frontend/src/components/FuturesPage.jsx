@@ -523,22 +523,28 @@ function QuickOrderPanel({ product, username, onRequireLogin, onGoFull }) {
               {onGoFull && <button className="view-btn quick-order-full-link" onClick={onGoFull}>完整下單頁 →</button>}
             </div>
 
-            <div className="paper-side-tabs">
-              <button className={side === "buy" ? "active" : ""} onClick={() => setSide("buy")}>買</button>
-              <button className={side === "sell" ? "active" : ""} onClick={() => setSide("sell")}>賣</button>
-            </div>
+            {product !== "TMF" ? (
+              <p className="no-data">大台指模擬下單暫時關閉，請切換到微台指</p>
+            ) : (
+              <>
+                <div className="paper-side-tabs">
+                  <button className={side === "buy" ? "active" : ""} onClick={() => setSide("buy")}>買</button>
+                  <button className={side === "sell" ? "active" : ""} onClick={() => setSide("sell")}>賣</button>
+                </div>
 
-            <label className="paper-lots-label">
-              口數
-              <input type="number" min="1" step="1" value={qty} onChange={(e) => setQty(e.target.value)} />
-            </label>
+                <label className="paper-lots-label">
+                  口數
+                  <input type="number" min="1" step="1" value={qty} onChange={(e) => setQty(e.target.value)} />
+                </label>
 
-            <button className="detail-btn" onClick={handleSubmit} disabled={submitting}>
-              {submitting ? "送出中..." : `市價${TRADE_LABEL[side]}`}
-            </button>
+                <button className="detail-btn" onClick={handleSubmit} disabled={submitting}>
+                  {submitting ? "送出中..." : `市價${TRADE_LABEL[side]}`}
+                </button>
 
-            {error && <p className="error">{error}</p>}
-            {msg && <p className="paper-form-msg">{msg}</p>}
+                {error && <p className="error">{error}</p>}
+                {msg && <p className="paper-form-msg">{msg}</p>}
+              </>
+            )}
           </>
         )
       )}

@@ -24,7 +24,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
   const [performance, setPerformance] = useState(null);
 
   // 下單表單
-  const [product, setProduct]     = useState("TXF");
+  const [product]                 = useState("TMF"); // 大台指模擬下單暫時關閉，先只開放微台指
   const [quote, setQuote]         = useState(null);
   const [side, setSide]           = useState("buy");
   const [qty, setQty]             = useState(1);
@@ -36,7 +36,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
 
   // 智慧單表單
   const [smartOrders, setSmartOrders]     = useState([]);
-  const [smartProduct, setSmartProduct]   = useState("TXF");
+  const [smartProduct]                    = useState("TMF"); // 大台指模擬下單暫時關閉，先只開放微台指
   const [smartSide, setSmartSide]         = useState("buy");
   const [smartQty, setSmartQty]           = useState(1);
   const [smartTrigger, setSmartTrigger]   = useState("");
@@ -253,8 +253,8 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
 
       <div className="paper-order-panel">
         <div className="paper-side-tabs">
-          <button className={product === "TXF" ? "active" : ""} onClick={() => setProduct("TXF")}>大台指</button>
-          <button className={product === "TMF" ? "active" : ""} onClick={() => setProduct("TMF")}>微台指</button>
+          {/* 大台指模擬下單暫時關閉，先只開放微台指 */}
+          <button className="active">微台指</button>
         </div>
 
         <div className="paper-order-form">
@@ -325,8 +325,8 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
       </p>
       <div className="paper-order-panel">
         <div className="paper-side-tabs">
-          <button className={smartProduct === "TXF" ? "active" : ""} onClick={() => setSmartProduct("TXF")}>大台指</button>
-          <button className={smartProduct === "TMF" ? "active" : ""} onClick={() => setSmartProduct("TMF")}>微台指</button>
+          {/* 大台指模擬下單暫時關閉，先只開放微台指 */}
+          <button className="active">微台指</button>
         </div>
         <div className="paper-side-tabs">
           <button
