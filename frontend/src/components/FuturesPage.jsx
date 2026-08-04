@@ -16,6 +16,28 @@ const MA_LINES = [
   { key: "ema60", period: 60, label: "EMA60", color: "#ef4444", ema: true },
 ];
 
+const KD_PERIOD  = 9;
+const KD_K_COLOR = "#fb7185";
+const KD_D_COLOR = "#22d3ee";
+
+// 台式KD：RSV 用 9 根highest high/lowest low，K/D 用 1/3 平滑（跟慢速隨機指標同概念）
+function calcKD(data, period = KD_PERIOD) {
+  const result = [];
+  let k = 50, d = 50;
+  for (let i = period - 1; i < data.length; i++) {
+    let high = -Infinity, low = Infinity;
+    for (let j = i - period + 1; j <= i; j++) {
+      if (data[j].high > high) high = data[j].high;
+      if (data[j].low  < low)  low  = data[j].low;
+    }
+    const rsv = high === low ? 50 : (data[i].close - low) / (high - low) * 100;
+    k = k * (2 / 3) + rsv * (1 / 3);
+    d = d * (2 / 3) + k * (1 / 3);
+    result.push({ time: data[i].time ?? data[i].date, k: parseFloat(k.toFixed(2)), d: parseFloat(d.toFixed(2)) });
+  }
+  return result;
+}
+
 function calcMA(data, period) {
   const result = [];
   for (let i = period - 1; i < data.length; i++) {
@@ -118,7 +140,7 @@ function QuoteHeader({ quote, loading, livePrice, priceFlash, lastClose }) {
   );
 }
 
-const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, activeMA }, ref) {
+const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, activeMA, showKD }, ref) {
   const containerRef    = useRef(null);
   const chartRef        = useRef(null);
   const candleSeriesRef = useRef(null);
@@ -130,6 +152,11 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
   const emaStateRef     = useRef({});   // key → 上一根已確認的 EMA 值
   const dataMapRef      = useRef(new Map()); // shifted time key → OHLC/漲跌/量
   const maValueMapRef   = useRef(new Map()); // shifted time key → { maKey: value }
+  const kSeriesRef      = useRef(null);
+  const dSeriesRef      = useRef(null);
+  const kdBarsRef        = useRef([]);   // 最近 high/low/close（滑動窗口，最後一筆＝目前這根即時值）
+  const kdStateRef       = useRef({ k: 50, d: 50 }); // 上一根已確認收盤時的 K/D
+  const kdValueMapRef    = useRef(new Map()); // shifted time key → { k, d }
 
   const [hoveredBar, setHoveredBar] = useState(null);
   const [lastBar,    setLastBar]    = useState(null);
@@ -203,6 +230,35 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
         }
         series.update({ time: nextBar.time, value: parseFloat(val.toFixed(2)) });
       });
+
+      // 更新 KD：先用「舊視窗」把剛收盤的 bar 正式推進 K/D，再 push 新一根、算即時 preview
+      if (kSeriesRef.current && dSeriesRef.current) {
+        const bars = kdBarsRef.current;
+        if (isNewBar && bars.length >= KD_PERIOD) {
+          const oldWindow = bars.slice(-KD_PERIOD);
+          const oldHigh = Math.max(...oldWindow.map(b => b.high));
+          const oldLow  = Math.min(...oldWindow.map(b => b.low));
+          const oldRsv  = oldHigh === oldLow ? 50 : (bar.close - oldLow) / (oldHigh - oldLow) * 100;
+          const committedK = kdStateRef.current.k * (2 / 3) + oldRsv * (1 / 3);
+          const committedD = kdStateRef.current.d * (2 / 3) + committedK * (1 / 3);
+          kdStateRef.current = { k: committedK, d: committedD };
+          bars.push({ high: nextBar.high, low: nextBar.low, close: nextBar.close });
+          if (bars.length > KD_PERIOD + 2) kdBarsRef.current = bars.slice(-(KD_PERIOD + 2));
+        } else if (bars.length) {
+          bars[bars.length - 1] = { high: nextBar.high, low: nextBar.low, close: nextBar.close };
+        }
+
+        const window = kdBarsRef.current.slice(-KD_PERIOD);
+        if (window.length >= KD_PERIOD) {
+          const high = Math.max(...window.map(b => b.high));
+          const low  = Math.min(...window.map(b => b.low));
+          const rsv  = high === low ? 50 : (nextBar.close - low) / (high - low) * 100;
+          const kPreview = kdStateRef.current.k * (2 / 3) + rsv * (1 / 3);
+          const dPreview = kdStateRef.current.d * (2 / 3) + kPreview * (1 / 3);
+          kSeriesRef.current.update({ time: nextBar.time, value: parseFloat(kPreview.toFixed(2)) });
+          dSeriesRef.current.update({ time: nextBar.time, value: parseFloat(dPreview.toFixed(2)) });
+        }
+      }
     },
   }), [timeframe]);
 
@@ -217,6 +273,8 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
       lastBarRef.current      = null;
       lastBarVolumeRef.current = 0;
       maSeriesMap.current     = {};
+      kSeriesRef.current      = null;
+      dSeriesRef.current      = null;
     }
 
     const chart = createChart(containerRef.current, {
@@ -321,6 +379,39 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
     });
     maValueMapRef.current = maValueMap;
 
+    // KD（獨立子面板，不跟 K 棒共用價格軸）
+    const kdValueMap = new Map();
+    if (showKD) {
+      const kdData = calcKD(shifted, KD_PERIOD);
+      if (kdData.length) {
+        const kdPane = chart.addPane();
+        kdPane.setStretchFactor(0.3);
+        const kSeries = kdPane.addSeries(LineSeries, {
+          color: KD_K_COLOR, lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
+        });
+        const dSeries = kdPane.addSeries(LineSeries, {
+          color: KD_D_COLOR, lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
+        });
+        kSeries.setData(kdData.map(p => ({ time: p.time, value: p.k })));
+        dSeries.setData(kdData.map(p => ({ time: p.time, value: p.d })));
+        kSeriesRef.current = kSeries;
+        dSeriesRef.current = dSeries;
+        kdData.forEach(p => kdValueMap.set(String(p.time), { k: p.k, d: p.d }));
+      }
+      // 即時更新用的滑動窗口／狀態：用「不含最後一根」的資料算出上一根收盤時的 K/D，
+      // 讓 updateLastCandle() 對「目前這根」做即時 preview 時起點正確
+      kdBarsRef.current = shifted.slice(-(KD_PERIOD + 2)).map(c => ({ high: c.high, low: c.low, close: c.close }));
+      const kdBeforeLast = calcKD(shifted.slice(0, -1), KD_PERIOD);
+      const lastKdState = kdBeforeLast[kdBeforeLast.length - 1];
+      kdStateRef.current = lastKdState ? { k: lastKdState.k, d: lastKdState.d } : { k: 50, d: 50 };
+    } else {
+      kSeriesRef.current = null;
+      dSeriesRef.current = null;
+      kdBarsRef.current = [];
+      kdStateRef.current = { k: 50, d: 50 };
+    }
+    kdValueMapRef.current = kdValueMap;
+
     // 無 hover 時預設顯示最後一根K棒的資訊
     const lastKey = candleData.length ? String(candleData[candleData.length - 1].time) : null;
     setLastBar(lastKey ? (dataMap.get(lastKey) ?? null) : null);
@@ -344,13 +435,14 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
 
     chartRef.current = chart;
     return () => { ro.disconnect(); chart.remove(); chartRef.current = null; };
-  }, [candles, timeframe, activeMA]);
+  }, [candles, timeframe, activeMA, showKD]);
 
   const bar  = hoveredBar ?? lastBar;
   const clrC = bar?.change > 0 ? "#ef4444" : bar?.change < 0 ? "#22c55e" : "#94a3b8";
   const sign = (v) => v > 0 ? "+" : "";
   const activeMaEntries = MA_LINES.filter(({ key }) => activeMA[key]);
   const barMA = bar ? maValueMapRef.current.get(String(bar.time)) : null;
+  const barKD = bar ? kdValueMapRef.current.get(String(bar.time)) : null;
 
   return (
     <div>
@@ -377,6 +469,12 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
                 <span key={key} style={{ color }}>{label}: {barMA[key]}</span>
               ) : null
             )}
+          </div>
+        )}
+        {showKD && barKD && (
+          <div className="chart-info-line">
+            <span style={{ color: KD_K_COLOR }}>K: {barKD.k}</span>
+            <span style={{ color: KD_D_COLOR }}>D: {barKD.d}</span>
           </div>
         )}
       </div>
@@ -563,6 +661,7 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
   const [livePrice,    setLivePrice]    = useState(null);
   const [priceFlash,   setPriceFlash]   = useState(null); // "up" | "down"
   const [activeMA,     setActiveMA]     = useState({ ma5: false, ma20: false, ma60: false, ema5: false, ema10: true, ema20: false, ema60: true });
+  const [showKD,       setShowKD]       = useState(true);
   const [error, setError] = useState(null);
   const [wsKey, setWsKey] = useState(0);   // 遞增觸發 WebSocket 重連
   const wsRef        = useRef(null);
@@ -727,6 +826,13 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
               {label}
             </button>
           ))}
+          <button
+            className={`futures-ma-btn ${showKD ? "active" : ""}`}
+            style={{ "--ma-color": KD_K_COLOR }}
+            onClick={() => setShowKD(v => !v)}
+          >
+            KD
+          </button>
         </div>
       </div>
 
@@ -734,7 +840,7 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
         ? <div className="futures-chart-loading">K 線載入中...</div>
         : candles.length === 0 && timeframe !== "D"
           ? <div className="futures-chart-empty">盤中 K 線資料暫無（交易時段 08:45–13:45、15:00–隔日05:00）</div>
-          : <FuturesChart ref={chartRef} candles={candles} timeframe={timeframe} activeMA={activeMA} />
+          : <FuturesChart ref={chartRef} candles={candles} timeframe={timeframe} activeMA={activeMA} showKD={showKD} />
       }
 
       <InstitutionalChart data={institutional} />
