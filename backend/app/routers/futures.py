@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from app.services.futures_data import get_futures_quote, get_futures_candles, get_institutional_positions, _current_symbol
+from app.services.futures_signals import get_ut_bot_tracking
 
 router = APIRouter(prefix="/api/futures", tags=["futures"])
 
@@ -39,6 +40,15 @@ async def futures_candles(
 async def institutional_positions():
     try:
         data = await run_in_threadpool(get_institutional_positions)
+        return {"data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ut-bot-signals")
+async def ut_bot_signals():
+    try:
+        data = await run_in_threadpool(get_ut_bot_tracking)
         return {"data": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

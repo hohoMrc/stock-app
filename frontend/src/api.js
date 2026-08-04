@@ -52,6 +52,7 @@ export const getWarrantLookup = (q) => api.get("/api/warrants/lookup", { params:
 export const getFuturesQuote         = (product = "TXF")                  => api.get("/api/futures/quote",         { params: { product } });
 export const getFuturesCandles       = (timeframe = "60", product = "TXF") => api.get("/api/futures/candles",        { params: { timeframe, product } });
 export const getFuturesInstitutional = ()                                   => api.get("/api/futures/institutional");
+export const getUtBotSignals         = ()                                   => api.get("/api/futures/ut-bot-signals");
 export const getTrades            = (ticker, limit = 30) => api.get(`/api/stocks/${ticker}/trades`, { params: { limit } });
 
 // Auth

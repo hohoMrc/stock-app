@@ -14,7 +14,22 @@ SCAN_LABELS = {
     "volume_breakout":        "量價突破",
     "institutional_buying":   "法人連買",
     "ema60_breakout":         "EMA60貼線噴出",
+    "ut_bot_long":            "UT Bot 多單",
+    "ut_bot_short":           "UT Bot 空單",
 }
+
+# 大部分篩選都是「看多」訊號，報酬率正的算贏；UT Bot 空單訊號方向相反，跌才算贏，
+# 統計時要把報酬率符號反過來才能跟其他篩選用同一套「正的=贏」邏輯比較。
+SCAN_DIRECTION = {"ut_bot_short": -1}
+
+# 期貨（大台指/微台指）訊號的日K要從期貨自己的資料來源拿，不是股票的 candles 表
+FUTURES_SCAN_TYPES = {"ut_bot_long", "ut_bot_short"}
+
+
+def _futures_daily_candles(product: str) -> list[dict]:
+    from app.services.futures_data import get_futures_candles
+    rows = get_futures_candles(product, "D")
+    return [{"date": r["date"], "close": r["close"]} for r in rows]
 
 
 def record_signals(scan_type: str, hits: list):
@@ -45,7 +60,14 @@ def evaluate_pending_signals():
     for sig in get_signals_pending_evaluation():
         if not sig.get("signal_price"):
             continue
-        candles = get_candles(sig["ticker"], sig["signal_date"], today_str)
+        if sig["scan_type"] in FUTURES_SCAN_TYPES:
+            try:
+                candles = _futures_daily_candles(sig["ticker"])
+            except Exception as e:
+                print(f"[篩選成效] 取得 {sig['ticker']} 期貨日K失敗: {e}")
+                continue
+        else:
+            candles = get_candles(sig["ticker"], sig["signal_date"], today_str)
         after = [c for c in candles if c["date"] > sig["signal_date"] and c.get("close") is not None]
 
         def price_at(idx):
@@ -217,15 +239,17 @@ def get_performance_summary(days: int = 90) -> list[dict]:
         rows = get_scan_signal_stats(scan_type, since)
         if not rows:
             continue
+        direction = SCAN_DIRECTION.get(scan_type, 1)
         n = len(rows)
-        win = sum(1 for r in rows if r["return_20d"] is not None and r["return_20d"] > 0)
+        win = sum(1 for r in rows if r["return_20d"] is not None and r["return_20d"] * direction > 0)
+        flip = lambda v: v * direction if v is not None else None
         summary.append({
             "scan_type": scan_type,
             "label": label,
             "count": n,
             "win_rate": round(win / n * 100, 1),
-            "avg_return_5d":  _avg([r["return_5d"]  for r in rows]),
-            "avg_return_10d": _avg([r["return_10d"] for r in rows]),
-            "avg_return_20d": _avg([r["return_20d"] for r in rows]),
+            "avg_return_5d":  _avg([flip(r["return_5d"])  for r in rows]),
+            "avg_return_10d": _avg([flip(r["return_10d"]) for r in rows]),
+            "avg_return_20d": _avg([flip(r["return_20d"]) for r in rows]),
         })
     return summary

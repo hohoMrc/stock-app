@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from "lightweight-charts";
 import {
-  getFuturesQuote, getFuturesCandles, getFuturesInstitutional,
+  getFuturesQuote, getFuturesCandles, getFuturesInstitutional, getUtBotSignals,
   placeFuturesOrder, getFuturesPaperAccount, getFuturesPaperPositions,
 } from "../api";
 import { isFuturesTradingHours } from "../marketHours";
@@ -540,6 +540,49 @@ function InstitutionalChart({ data }) {
   );
 }
 
+function UtBotSignals({ data }) {
+  return (
+    <div>
+      <h3 className="futures-section-title">UT Bot 訊號追蹤</h3>
+      <p className="ranking-hint">
+        ATR 移動停損翻轉訊號（Key Value=2、ATR 週期=11），每天收盤後檢查一次。
+        5/10/20 個交易日報酬率會隨時間自動補上，方向欄「空」的訊號是跌才算賺。
+      </p>
+      {data.length === 0 ? (
+        <p className="no-data">最近 30 天沒有觸發過訊號</p>
+      ) : (
+        <div className="ranking-table-wrap">
+          <table className="result-table">
+            <thead>
+              <tr>
+                <th>商品</th><th>方向</th><th>觸發日</th><th>觸發價</th><th>現價</th>
+                <th>至今</th><th>5日</th><th>10日</th><th>20日</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((r, i) => (
+                <tr key={i}>
+                  <td className="col-ticker">{r.name}</td>
+                  <td className={r.side === "多" ? "up" : "down"}>{r.side}</td>
+                  <td>{r.trigger_date}</td>
+                  <td>{r.trigger_price}</td>
+                  <td>{r.price ?? "—"}</td>
+                  <td className={r.since_trigger_pct > 0 ? "up" : r.since_trigger_pct < 0 ? "down" : ""}>
+                    {r.since_trigger_pct != null ? `${r.since_trigger_pct > 0 ? "+" : ""}${r.since_trigger_pct}%` : "—"}
+                  </td>
+                  <td>{r.return_5d  != null ? `${r.return_5d  > 0 ? "+" : ""}${r.return_5d}%`  : "—"}</td>
+                  <td>{r.return_10d != null ? `${r.return_10d > 0 ? "+" : ""}${r.return_10d}%` : "—"}</td>
+                  <td>{r.return_20d != null ? `${r.return_20d > 0 ? "+" : ""}${r.return_20d}%` : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const TRADE_LABEL = { buy: "買進", sell: "賣出" };
 const POS_SIDE_LABEL = { long: "多", short: "空" };
 const PRODUCT_LABEL_MAP = { TXF: "大台指", TMF: "微台指" };
@@ -656,6 +699,7 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
   const [quote,        setQuote]        = useState(null);
   const [candles,      setCandles]      = useState([]);
   const [institutional, setInstitutional] = useState([]);
+  const [utBotSignals, setUtBotSignals]   = useState([]);
   const [quoteLoading,  setQuoteLoading]  = useState(true);
   const [candleLoading, setCandleLoading] = useState(true);
   const [livePrice,    setLivePrice]    = useState(null);
@@ -751,6 +795,9 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
     getFuturesInstitutional()
       .then(r => setInstitutional(r.data.data || []))
       .catch(() => {});
+    getUtBotSignals()
+      .then(r => setUtBotSignals(r.data.data || []))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -844,6 +891,8 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
       }
 
       <InstitutionalChart data={institutional} />
+
+      <UtBotSignals data={utBotSignals} />
     </div>
   );
 }

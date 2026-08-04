@@ -356,6 +356,18 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"[期貨K線] 整體失敗: {e}")
 
+    print("[UT Bot] 檢查大台指/微台指今日訊號...")
+    try:
+        from app.services.futures_signals import check_ut_bot_signals
+        ut_hits = check_ut_bot_signals()
+        for h in ut_hits:
+            side_label = "買進" if h["side"] == "buy" else "賣出"
+            _tg_notify(f'🤖 [UT Bot] {h["name"]} 觸發{side_label}訊號，收盤價 {h["close"]}')
+        if not ut_hits:
+            print("[UT Bot] 今日無觸發")
+    except Exception as e:
+        print(f"[UT Bot] 失敗: {e}")
+
     # SDK 的 init_realtime() 會啟動背景連線元件，短命腳本結束前要主動收尾，
     # 不然直譯器關閉時背景執行緒還活著會噴 Fatal Python error（gilstate_tss_set）。
     try:
