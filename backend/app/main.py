@@ -16,6 +16,7 @@ from app.routers.news import router as news_router
 from app.routers.alerts import router as alerts_router
 from app.routers.warrants import router as warrants_router
 from app.routers.market import router as market_router
+from app.routers.claude_trader import router as claude_trader_router
 
 load_dotenv()
 
@@ -60,6 +61,7 @@ app.include_router(news_router)
 app.include_router(alerts_router)
 app.include_router(warrants_router)
 app.include_router(market_router)
+app.include_router(claude_trader_router)
 
 
 @app.get("/")

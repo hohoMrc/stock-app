@@ -189,6 +189,9 @@ if __name__ == "__main__":
 
     # 全量模式不跑 MA 黏合（資料剛回填，不具參考性）
     if not FULL_MODE:
+        # 先初始化好，避免對應的掃描失敗時，後面 Claude 自動交易那段拿不到變數
+        vb_hits, buy_hits, breakout_hits = [], [], []
+
         print("[鳥嘴與分歧] 開始掃描（日K 5MA/20MA）...")
         try:
             from app.services.stock_data import scan_ma_squeeze
@@ -303,6 +306,58 @@ if __name__ == "__main__":
             print(f"[基本面] 存入 {len(fund_records)} 筆")
         except Exception as e:
             print(f"[基本面] 失敗: {e}")
+
+        print("[Claude短期交易] 檢查出場、依訊號進場...")
+        try:
+            from app.services.claude_trader import run_shortterm_exits, run_shortterm_daily
+            st_exits = run_shortterm_exits()
+            for x in st_exits:
+                pl_note = f'　已實現損益 {x["realized_pl"]:,.0f}' if x.get("realized_pl") is not None else ""
+                _tg_notify(f'🤖 [Claude短期出場] {x["ticker"]} {x.get("name","")}　{x["reason"]}{pl_note}')
+            st_entries = run_shortterm_daily({
+                "volume_breakout": vb_hits, "institutional_buying": buy_hits, "ema60_breakout": breakout_hits,
+            })
+            for e_ in st_entries:
+                _tg_notify(f'🤖 [Claude短期進場] {e_["ticker"]} {e_.get("name","")}　{e_["lots"]}張 @ {e_["price"]}　{e_["reason"]}')
+            print(f"[Claude短期交易] 出場 {len(st_exits)} 筆、進場 {len(st_entries)} 筆")
+        except Exception as e:
+            print(f"[Claude短期交易] 失敗: {e}")
+
+        print("[Claude長期投資] 檢查是否需要月度換股...")
+        try:
+            from app.services.claude_trader import run_longterm_rebalance
+            lt_result = run_longterm_rebalance()
+            if lt_result:
+                lines = [f'賣出：{s["ticker"]} {s.get("name","")}' for s in lt_result["sold"]] + \
+                        [f'買進：{b["ticker"]} {b.get("name","")} {b["lots"]}張 @ {b["price"]}' for b in lt_result["bought"]]
+                _tg_notify_lines(
+                    f'🤖 [Claude長期換股] 候選 {lt_result["candidates_found"]} 檔，'
+                    f'賣出 {len(lt_result["sold"])} 檔、買進 {len(lt_result["bought"])} 檔',
+                    lines, "",
+                )
+            else:
+                print("[Claude長期投資] 這個月已經跑過，跳過")
+        except Exception as e:
+            print(f"[Claude長期投資] 失敗: {e}")
+
+        print("[Claude策略回顧] 檢查是否需要月度/季度調整參數...")
+        try:
+            from app.services.claude_trader import (
+                run_shortterm_monthly_review, run_longterm_quarterly_review, SCAN_SOURCE_LABEL,
+            )
+            review = run_shortterm_monthly_review()
+            if review:
+                lines = [f'{SCAN_SOURCE_LABEL.get(k, k)}：{v["count"]}筆、勝率{v["win_rate"]}%、權重調整為{v["weight"]}'
+                         for k, v in review.items()]
+                _tg_notify_lines("🤖 [Claude短期策略回顧] 依近90天訊號績效調整下單權重", lines, "")
+            q_review = run_longterm_quarterly_review()
+            if q_review and q_review.get("adjustment"):
+                _tg_notify(
+                    f'🤖 [Claude長期策略回顧] {q_review["adjustment"]}　'
+                    f'新門檻：本益比<{q_review["new_max_pe"]}、殖利率>{q_review["new_min_div_yield"]}%'
+                )
+        except Exception as e:
+            print(f"[Claude策略回顧] 失敗: {e}")
 
         print("[融資融券] 抓取資料...")
         try:

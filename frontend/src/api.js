@@ -105,3 +105,7 @@ export const updateAlert = (id, body) => api.patch(`/api/alerts/${id}`, body);
 export const deleteAlert = (id) => api.delete(`/api/alerts/${id}`);
 
 export const getMarketOverview = () => api.get("/api/market/overview");
+
+// Claude 自動選股交易（長期投資／短期交易，唯讀觀察用）
+export const getClaudePortfolio      = (strategy) => api.get(`/api/claude-trader/portfolio/${strategy}`);
+export const getClaudeStrategyConfig = ()          => api.get("/api/claude-trader/config");

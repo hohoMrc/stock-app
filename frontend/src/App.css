@@ -1093,6 +1093,8 @@
 /* 排行表列漲跌配色：代號(.col-ticker)、名稱(.col-name) 維持白色 */
 tr.row-up   td:not(.col-ticker):not(.col-name) { color: var(--up)   !important; }
 tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; }
+
+.reason-cell { max-width: 320px; white-space: normal; font-size: 13px; color: var(--text-secondary); }
 .col-ticker, .col-name { color: var(--text-primary) !important; }
 
 /* ── Misc ── */

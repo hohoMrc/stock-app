@@ -32,8 +32,11 @@ def _today_start_ts() -> float:
     return datetime.combine(date.today(), datetime.min.time()).timestamp()
 
 
-def place_market_order(user_id: int, ticker: str, side: str, lots: int, price: float | None = None) -> dict:
-    """price 未提供時用即時市價成交；有提供時直接以該價格成交（不掛單等待，送出當下立即記帳）。"""
+def place_market_order(user_id: int, ticker: str, side: str, lots: int, price: float | None = None,
+                        reason: str | None = None) -> dict:
+    """price 未提供時用即時市價成交；有提供時直接以該價格成交（不掛單等待，送出當下立即記帳）。
+    reason：記錄這筆單是為什麼下的（目前給 Claude 自動交易用，一般使用者手動下單不會傳）。
+    """
     qty = lots * 1000
     info  = get_stock_info(ticker)
     name  = info.get("name")
@@ -61,7 +64,7 @@ def place_market_order(user_id: int, ticker: str, side: str, lots: int, price: f
 
         update_paper_cash(user_id, account["cash"] - cost)
         upsert_paper_position(user_id, ticker, new_qty, new_avg)
-        insert_paper_order(user_id, ticker, name, "buy", qty, price, fee, 0, cost, None)
+        insert_paper_order(user_id, ticker, name, "buy", qty, price, fee, 0, cost, None, reason)
         return {"ticker": ticker, "name": name, "side": "buy", "qty": qty,
                 "price": price, "fee": fee, "tax": 0, "net_amount": cost, "realized_pl": None}
 
@@ -82,7 +85,7 @@ def place_market_order(user_id: int, ticker: str, side: str, lots: int, price: f
 
         update_paper_cash(user_id, account["cash"] + net)
         upsert_paper_position(user_id, ticker, held - qty, position["avg_cost"])
-        insert_paper_order(user_id, ticker, name, "sell", qty, price, fee, tax, net, realized_pl)
+        insert_paper_order(user_id, ticker, name, "sell", qty, price, fee, tax, net, realized_pl, reason)
         return {"ticker": ticker, "name": name, "side": "sell", "qty": qty,
                 "price": price, "fee": fee, "tax": tax, "net_amount": net, "realized_pl": realized_pl}
 

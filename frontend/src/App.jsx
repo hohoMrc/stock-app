@@ -15,6 +15,7 @@ import NewsPage from "./components/NewsPage";
 import AlertsPage from "./components/AlertsPage";
 import DividendCalendar from "./components/DividendCalendar";
 import WarrantLookup from "./components/WarrantLookup";
+import ClaudeTrader from "./components/ClaudeTrader";
 import MarketOverview from "./components/MarketOverview";
 import { fetchWatchlist, addWatch, removeWatch, updateWatchNote } from "./api";
 
@@ -341,7 +342,7 @@ export default function App() {
           </button>
           <div className="nav-more-wrap" ref={moreMenuRef}>
             <button
-              className={`nav-more-btn ${["alerts", "dividends", "news", "warrant-lookup"].includes(activePage) ? "active" : ""}`}
+              className={`nav-more-btn ${["alerts", "dividends", "news", "warrant-lookup", "claude-trader"].includes(activePage) ? "active" : ""}`}
               onClick={() => setMoreMenuOpen((v) => !v)}
             >
               更多 ▾
@@ -371,6 +372,12 @@ export default function App() {
                   onClick={() => { setActivePage("warrant-lookup"); setMoreMenuOpen(false); }}
                 >
                   權證查詢
+                </button>
+                <button
+                  className={activePage === "claude-trader" ? "active" : ""}
+                  onClick={() => { setActivePage("claude-trader"); setMoreMenuOpen(false); }}
+                >
+                  Claude自動交易
                 </button>
               </div>
             )}
@@ -443,6 +450,10 @@ export default function App() {
               className={activePage === "warrant-lookup" ? "active" : ""}
               onClick={() => setActivePage("warrant-lookup")}
             >權證查詢</button>
+            <button
+              className={activePage === "claude-trader" ? "active" : ""}
+              onClick={() => setActivePage("claude-trader")}
+            >Claude自動交易</button>
             {username === ADMIN_USERNAME && (
               <button
                 className={activePage === "admin" ? "active" : ""}
@@ -538,6 +549,7 @@ export default function App() {
         {activePage === "warrant-lookup" && (
           <WarrantLookup onSelect={(t) => handleSelectStock(t)} />
         )}
+        {activePage === "claude-trader" && <ClaudeTrader />}
         {activePage === "paper" && (
           <PaperTrading
             username={username}

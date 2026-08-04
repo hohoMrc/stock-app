@@ -286,6 +286,12 @@ def init_db():
             summary    TEXT NOT NULL,
             created_at REAL NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS claude_strategy_config (
+            id         INTEGER PRIMARY KEY CHECK (id = 1),
+            config_json TEXT NOT NULL,
+            updated_at  REAL NOT NULL
+        );
         """)
         # Migration: 舊版 DB 沒有 parent_industry 欄位
         try:
@@ -304,6 +310,11 @@ def init_db():
             pass
         try:
             conn.execute("ALTER TABLE paper_conditional_orders ADD COLUMN order_type TEXT NOT NULL DEFAULT 'stop'")
+        except Exception:
+            pass
+        # Migration: 股票模擬下單成交紀錄加「理由」欄位（Claude自動交易用，記錄為什麼下這筆單）
+        try:
+            conn.execute("ALTER TABLE paper_orders ADD COLUMN reason TEXT")
         except Exception:
             pass
 
@@ -916,24 +927,45 @@ def get_paper_positions(user_id: int) -> list[dict]:
 
 def insert_paper_order(user_id: int, ticker: str, name: str | None, side: str, qty: int,
                         price: float, fee: float, tax: float, net_amount: float,
-                        realized_pl: float | None):
+                        realized_pl: float | None, reason: str | None = None):
     with _conn() as conn:
         conn.execute(
             "INSERT INTO paper_orders"
-            "(user_id, ticker, name, side, qty, price, fee, tax, net_amount, realized_pl, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (user_id, ticker, name, side, qty, price, fee, tax, net_amount, realized_pl, time.time())
+            "(user_id, ticker, name, side, qty, price, fee, tax, net_amount, realized_pl, created_at, reason) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (user_id, ticker, name, side, qty, price, fee, tax, net_amount, realized_pl, time.time(), reason)
         )
 
 
 def get_paper_orders(user_id: int, limit: int = 50) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT ticker, name, side, qty, price, fee, tax, net_amount, realized_pl, created_at "
+            "SELECT ticker, name, side, qty, price, fee, tax, net_amount, realized_pl, created_at, reason "
             "FROM paper_orders WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
             (user_id, limit)
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ── claude_strategy_config（Claude自動交易的自適應參數，單一列JSON） ──────
+
+def get_claude_strategy_config() -> dict | None:
+    with _conn() as conn:
+        row = conn.execute("SELECT config_json FROM claude_strategy_config WHERE id=1").fetchone()
+    if not row:
+        return None
+    import json
+    return json.loads(row["config_json"])
+
+
+def save_claude_strategy_config(config: dict):
+    import json
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO claude_strategy_config(id, config_json, updated_at) VALUES (1, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET config_json=excluded.config_json, updated_at=excluded.updated_at",
+            (json.dumps(config), time.time())
+        )
 
 
 def get_paper_realized_pl_total(user_id: int) -> float:
