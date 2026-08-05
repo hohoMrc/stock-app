@@ -426,7 +426,16 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
       setHoveredBar(dataMap.get(key) ?? null);
     });
 
-    chart.timeScale().fitContent();
+    // 預設只顯示最近 45 根K棒，不然一進頁面圖會被整段歷史塞滿，還要自己縮放才看得清楚
+    const DEFAULT_VISIBLE_BARS = 45;
+    if (candleData.length > DEFAULT_VISIBLE_BARS) {
+      chart.timeScale().setVisibleLogicalRange({
+        from: candleData.length - DEFAULT_VISIBLE_BARS,
+        to: candleData.length + 2,
+      });
+    } else {
+      chart.timeScale().fitContent();
+    }
 
     const ro = new ResizeObserver(() => {
       chart.applyOptions({ width: containerRef.current?.clientWidth || 600 });
