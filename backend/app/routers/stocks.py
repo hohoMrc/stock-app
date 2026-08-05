@@ -220,6 +220,7 @@ async def get_institutional_trades(ticker: str, days: int = Query(default=30, le
 
 @router.get("/{ticker}/warrants")
 async def get_stock_warrants_endpoint(ticker: str):
+    ticker = ticker.strip().upper()
     try:
         from app.services.warrant_data import get_stock_warrants
         result = await run_in_threadpool(get_stock_warrants, ticker)

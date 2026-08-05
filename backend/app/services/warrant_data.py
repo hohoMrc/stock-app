@@ -160,6 +160,14 @@ def _enrich_warrant(ticker: str, d: dict, meta: dict, underlying_price: float | 
     算成價內外/槓桿/隱含波動率齊全的一筆結果。已到期或到期日格式異常回傳 None
     （代表這檔不該顯示，呼叫端應該跳過)。
     """
+    # Fugle 對少數權證代號會回傳完全不相關商品的資料（代號在他們系統裡疑似被挪用/衝突，
+    # 即使 TWSE/TPEx 官方名單當下仍明確標示這個代號屬於本標的股）。用我們自己權威來源
+    # （TWSE/TPEx 每日排程掃到的名稱）交叉比對，對不上就整筆丟棄，不然會把不相關商品的
+    # 履約價/到期日誤算成這支股票的權證。
+    expected_name = meta.get("name")
+    if expected_name and d.get("name") and d["name"] != expected_name:
+        return None
+
     maturity_raw = d.get("maturity_date")
     if not maturity_raw or len(str(maturity_raw)) != 8:
         return None
