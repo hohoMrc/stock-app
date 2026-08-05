@@ -156,7 +156,8 @@ def get_futures_quote(symbol: str | None = None) -> dict:
     if _is_night_session_now():
         kwargs["session"] = "afterhours"
     data   = _call_futopt(lambda c: c.futopt.intraday.quote(**kwargs))
-    price  = data.get("closePrice") or (data.get("lastTrade") or {}).get("price")
+    last_trade = data.get("lastTrade") or {}
+    price  = data.get("closePrice") or last_trade.get("price")
     prev   = data.get("previousClose")
     change = round(price - prev, 0) if price and prev else None
     chg_pct = round(change / prev * 100, 2) if change and prev else None
@@ -171,6 +172,10 @@ def get_futures_quote(symbol: str | None = None) -> dict:
         "volume":     (data.get("total") or {}).get("tradeVolume"),
         "change":     change,
         "change_pct": chg_pct,
+        # 最近一筆成交當下的最佳買/賣價（不是完整五檔，富邦期貨API沒有提供），
+        # 讓使用者知道現在想買/賣大概要用什麼價位
+        "bid":        last_trade.get("bid"),
+        "ask":        last_trade.get("ask"),
     }
 
 

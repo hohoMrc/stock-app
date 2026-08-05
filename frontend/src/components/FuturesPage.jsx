@@ -135,6 +135,8 @@ function QuoteHeader({ quote, loading, livePrice, priceFlash, lastClose }) {
         <span>最高 <b className="up">{quote.high?.toLocaleString()}</b></span>
         <span>最低 <b className="down">{quote.low?.toLocaleString()}</b></span>
         <span>成交量 <b>{quote.volume?.toLocaleString()}</b></span>
+        {quote.bid != null && <span title="現在想賣，大約成交在這個價位">買價 <b className="down">{quote.bid.toLocaleString()}</b></span>}
+        {quote.ask != null && <span title="現在想買，大約成交在這個價位">賣價 <b className="up">{quote.ask.toLocaleString()}</b></span>}
       </div>
     </div>
   );
