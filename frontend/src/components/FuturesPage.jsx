@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from "lightweight-charts";
 import {
-  getFuturesQuote, getFuturesCandles, getFuturesInstitutional, getUtBotSignals,
+  getFuturesQuote, getFuturesCandles, getFuturesInstitutional, getUtBotSignals, getSupertrendSignals,
   placeFuturesOrder, getFuturesPaperAccount, getFuturesPaperPositions,
 } from "../api";
 import { isFuturesTradingHours } from "../marketHours";
@@ -540,14 +540,11 @@ function InstitutionalChart({ data }) {
   );
 }
 
-function UtBotSignals({ data }) {
+function SignalTracking({ title, hint, data }) {
   return (
     <div>
-      <h3 className="futures-section-title">UT Bot 訊號追蹤</h3>
-      <p className="ranking-hint">
-        ATR 移動停損翻轉訊號（Key Value=2、ATR 週期=11），每天收盤後檢查一次。
-        5/10/20 個交易日報酬率會隨時間自動補上，方向欄「空」的訊號是跌才算賺。
-      </p>
+      <h3 className="futures-section-title">{title}</h3>
+      <p className="ranking-hint">{hint}</p>
       {data.length === 0 ? (
         <p className="no-data">最近 30 天沒有觸發過訊號</p>
       ) : (
@@ -700,6 +697,7 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
   const [candles,      setCandles]      = useState([]);
   const [institutional, setInstitutional] = useState([]);
   const [utBotSignals, setUtBotSignals]   = useState([]);
+  const [supertrendSignals, setSupertrendSignals] = useState([]);
   const [quoteLoading,  setQuoteLoading]  = useState(true);
   const [candleLoading, setCandleLoading] = useState(true);
   const [livePrice,    setLivePrice]    = useState(null);
@@ -798,6 +796,9 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
     getUtBotSignals()
       .then(r => setUtBotSignals(r.data.data || []))
       .catch(() => {});
+    getSupertrendSignals()
+      .then(r => setSupertrendSignals(r.data.data || []))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -892,7 +893,17 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
 
       <InstitutionalChart data={institutional} />
 
-      <UtBotSignals data={utBotSignals} />
+      <SignalTracking
+        title="UT Bot 訊號追蹤"
+        hint="ATR 移動停損翻轉訊號（Key Value=2、ATR 週期=11），每天收盤後檢查一次。5/10/20 個交易日報酬率會隨時間自動補上，方向欄「空」的訊號是跌才算賺。"
+        data={utBotSignals}
+      />
+
+      <SignalTracking
+        title="SuperTrend 訊號追蹤"
+        hint="TradingView 內建標準參數（ATR 週期=10、乘數=3），每天收盤後檢查一次。5/10/20 個交易日報酬率會隨時間自動補上，方向欄「空」的訊號是跌才算賺。"
+        data={supertrendSignals}
+      />
     </div>
   );
 }

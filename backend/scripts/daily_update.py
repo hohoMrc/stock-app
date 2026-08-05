@@ -423,6 +423,18 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"[UT Bot] 失敗: {e}")
 
+    print("[SuperTrend] 檢查大台指/微台指今日訊號...")
+    try:
+        from app.services.futures_signals import check_supertrend_signals
+        st_hits = check_supertrend_signals()
+        for h in st_hits:
+            side_label = "買進" if h["side"] == "buy" else "賣出"
+            _tg_notify(f'🤖 [SuperTrend] {h["name"]} 觸發{side_label}訊號，收盤價 {h["close"]}')
+        if not st_hits:
+            print("[SuperTrend] 今日無觸發")
+    except Exception as e:
+        print(f"[SuperTrend] 失敗: {e}")
+
     # SDK 的 init_realtime() 會啟動背景連線元件，短命腳本結束前要主動收尾，
     # 不然直譯器關閉時背景執行緒還活著會噴 Fatal Python error（gilstate_tss_set）。
     try:

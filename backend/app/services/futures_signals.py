@@ -1,16 +1,24 @@
-"""UT Bot 訊號（ATR 移動停損翻轉系統）：每天排程檢查一次大台指/微台指的日K有沒有觸發
-buy/sell，觸發就記錄一筆快照，之後用既有的 signal_tracking 機制驗證 5/10/20 個交易日報酬率。
+"""台指期技術訊號：每天排程檢查一次大台指/微台指的日K有沒有觸發 buy/sell，觸發就記錄一筆
+快照，之後用既有的 signal_tracking 機制驗證 5/10/20 個交易日報酬率。
 
-參數是拿使用者提供的 TradingView Pine Script（UT Bot Strategy, a=1 c=11）回測後調整的：
-把 Key Value 從 1 拉高到 2，大幅減少雜訊翻倉；EMA60濾網／允許空手兩個方向回測後效果
-不穩定（甚至變差），所以沒有採用。
+目前有兩套：
+- UT Bot（ATR 移動停損翻轉）：拿使用者提供的 TradingView Pine Script（a=1 c=11）回測後
+  把 Key Value 拉高到 2，大幅減少雜訊翻倉；EMA60濾網／允許空手兩個方向回測後效果不穩定
+  （甚至變差），沒有採用。
+- SuperTrend（ATR週期=10、乘數=3，TradingView內建指標的標準參數）：掃過 ATR週期7~14、
+  乘數2~4 共15組參數，每個週期表現最好的組合都不一樣（典型過擬合特徵），標準參數在各
+  週期都排在中上游、比較穩健，所以直接採用標準參數，沒有另外調整。
 """
 from app.services.futures_data import get_futures_candles
 from app.services.signal_tracking import record_signals
 
 UT_BOT_A          = 2    # Key Value（回測後採用，原版 a=1 太敏感）
 UT_BOT_ATR_PERIOD = 11
-PRODUCT_LABEL     = {"TXF": "大台指", "TMF": "微台指"}
+
+SUPERTREND_ATR_PERIOD = 10
+SUPERTREND_MULTIPLIER = 3.0
+
+PRODUCT_LABEL = {"TXF": "大台指", "TMF": "微台指"}
 
 
 def _true_range(bars: list[dict]) -> list[float]:
@@ -102,20 +110,99 @@ def check_ut_bot_signals() -> list[dict]:
     return triggered
 
 
-def get_ut_bot_tracking(days: int = 30) -> list[dict]:
-    """最近 N 天觸發過的 UT Bot 訊號 + 即時報價，供前端顯示追蹤用。"""
+def _supertrend_last_signal(bars: list[dict], period: int = SUPERTREND_ATR_PERIOD,
+                             mult: float = SUPERTREND_MULTIPLIER) -> str | None:
+    """標準 SuperTrend 演算法（跟 TradingView 內建 ta.supertrend 邏輯一致），
+    回傳最後一根是否剛好翻轉方向（"buy"=轉多／"sell"=轉空，None代表沒有）。
+    """
+    n = len(bars)
+    tr = _true_range(bars)
+    atr = _rma(tr, period)
+
+    final_upper: list[float | None] = [None] * n
+    final_lower: list[float | None] = [None] * n
+    trend_up:    list[bool | None]  = [None] * n
+    last_signal = None
+
+    first = None
+    for i in range(n):
+        if atr[i] is None:
+            continue
+        hl2 = (bars[i]["high"] + bars[i]["low"]) / 2
+        basic_upper = hl2 + mult * atr[i]
+        basic_lower = hl2 - mult * atr[i]
+        close = bars[i]["close"]
+
+        if first is None:
+            final_upper[i], final_lower[i] = basic_upper, basic_lower
+            trend_up[i] = close > basic_upper
+            first = i
+            continue
+
+        prev_close = bars[i - 1]["close"]
+        prev_fu, prev_fl = final_upper[i - 1], final_lower[i - 1]
+        final_upper[i] = basic_upper if (basic_upper < prev_fu or prev_close > prev_fu) else prev_fu
+        final_lower[i] = basic_lower if (basic_lower > prev_fl or prev_close < prev_fl) else prev_fl
+
+        prev_trend_up = trend_up[i - 1]
+        trend_up[i] = (close >= final_lower[i]) if prev_trend_up else (close > final_upper[i])
+
+        if i == n - 1:
+            if trend_up[i] and not prev_trend_up:
+                last_signal = "buy"
+            elif not trend_up[i] and prev_trend_up:
+                last_signal = "sell"
+
+    return last_signal
+
+
+def check_supertrend_signals() -> list[dict]:
+    """每天排程呼叫一次：大台指、微台指的日K各檢查一次今天有沒有觸發 SuperTrend 翻轉訊號。
+    邏輯跟 check_ut_bot_signals() 一樣，只是換一套演算法、分開記錄成 supertrend_long/short。
+    """
+    triggered = []
+    for product in ("TXF", "TMF"):
+        try:
+            bars = get_futures_candles(product, "D")
+        except Exception as e:
+            print(f"[SuperTrend] 取得 {product} 日K失敗: {e}")
+            continue
+        if len(bars) < SUPERTREND_ATR_PERIOD + 5:
+            continue
+
+        signal = _supertrend_last_signal(bars)
+        if not signal:
+            continue
+
+        last = bars[-1]
+        hit = {
+            "ticker": product, "name": PRODUCT_LABEL[product],
+            "close": last["close"], "side": signal,
+        }
+        scan_type = "supertrend_long" if signal == "buy" else "supertrend_short"
+        record_signals(scan_type, [hit])
+        triggered.append({**hit, "scan_type": scan_type})
+
+    return triggered
+
+
+def _get_signal_tracking(scan_types: list[tuple[str, str]], days: int = 30) -> list[dict]:
+    """共用邏輯：最近 N 天觸發過的訊號 + 即時報價，供前端顯示追蹤用。
+    scan_types: [(scan_type, 方向顯示字, 是否空單方向), ...]
+    """
     from datetime import date, timedelta
     from app.services.signal_tracking import get_recent_scan_signals
     from app.services.futures_data import get_futures_quote, _current_symbol
 
     since = (date.today() - timedelta(days=days)).strftime("%Y-%m-%d")
     rows = []
-    for scan_type, side_label in (("ut_bot_long", "多"), ("ut_bot_short", "空")):
+    for scan_type, side_label in scan_types:
         for r in get_recent_scan_signals(scan_type, since):
             rows.append({**r, "side": side_label, "scan_type": scan_type})
     if not rows:
         return []
 
+    short_scan_types = {st for st, _ in scan_types if st.endswith("_short")}
     quote_cache: dict[str, float | None] = {}
     result = []
     for r in rows:
@@ -127,7 +214,7 @@ def get_ut_bot_tracking(days: int = 30) -> list[dict]:
                 quote_cache[product] = None
         price = quote_cache[product]
         entry = r.get("signal_price")
-        is_short = r["scan_type"] == "ut_bot_short"
+        is_short = r["scan_type"] in short_scan_types
         since_pct = None
         if price and entry:
             since_pct = round((price - entry) / entry * 100, 2)
@@ -151,3 +238,11 @@ def get_ut_bot_tracking(days: int = 30) -> list[dict]:
         })
     result.sort(key=lambda x: x["trigger_date"], reverse=True)
     return result
+
+
+def get_ut_bot_tracking(days: int = 30) -> list[dict]:
+    return _get_signal_tracking([("ut_bot_long", "多"), ("ut_bot_short", "空")], days)
+
+
+def get_supertrend_tracking(days: int = 30) -> list[dict]:
+    return _get_signal_tracking([("supertrend_long", "多"), ("supertrend_short", "空")], days)
