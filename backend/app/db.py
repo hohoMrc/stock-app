@@ -256,6 +256,7 @@ def init_db():
             fail_reason   TEXT,
             created_at    REAL,
             triggered_at  REAL,
+            user_note     TEXT DEFAULT '',
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
@@ -275,6 +276,7 @@ def init_db():
             fail_reason   TEXT,
             created_at    REAL,
             triggered_at  REAL,
+            user_note     TEXT DEFAULT '',
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
@@ -315,6 +317,15 @@ def init_db():
         # Migration: 股票模擬下單成交紀錄加「理由」欄位（Claude自動交易用，記錄為什麼下這筆單）
         try:
             conn.execute("ALTER TABLE paper_orders ADD COLUMN reason TEXT")
+        except Exception:
+            pass
+        # Migration: 智慧單加使用者可自行輸入的備註欄位（跟系統的 fail_reason 分開）
+        try:
+            conn.execute("ALTER TABLE paper_futures_conditional_orders ADD COLUMN user_note TEXT DEFAULT ''")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE paper_conditional_orders ADD COLUMN user_note TEXT DEFAULT ''")
         except Exception:
             pass
 
@@ -1190,11 +1201,21 @@ def get_conditional_orders(user_id: int) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
             "SELECT id, product, side, action, qty, trigger_price, direction, order_type, status, "
-            "fail_reason, created_at, triggered_at FROM paper_futures_conditional_orders "
+            "fail_reason, created_at, triggered_at, user_note FROM paper_futures_conditional_orders "
             "WHERE user_id=? ORDER BY created_at DESC",
             (user_id,)
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def update_conditional_order_note(user_id: int, order_id: int, note: str) -> bool:
+    """更新使用者自行輸入的智慧單備註，需驗證擁有者。回傳是否有更新成功。"""
+    with _conn() as conn:
+        cur = conn.execute(
+            "UPDATE paper_futures_conditional_orders SET user_note=? WHERE id=? AND user_id=?",
+            (note, order_id, user_id)
+        )
+        return cur.rowcount > 0
 
 
 def get_pending_conditional_orders() -> list[dict]:
@@ -1252,11 +1273,21 @@ def get_stock_conditional_orders(user_id: int) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
             "SELECT id, ticker, side, lots, trigger_price, direction, order_type, status, "
-            "fail_reason, created_at, triggered_at FROM paper_conditional_orders "
+            "fail_reason, created_at, triggered_at, user_note FROM paper_conditional_orders "
             "WHERE user_id=? ORDER BY created_at DESC",
             (user_id,)
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def update_stock_conditional_order_note(user_id: int, order_id: int, note: str) -> bool:
+    """更新使用者自行輸入的智慧單備註，需驗證擁有者。回傳是否有更新成功。"""
+    with _conn() as conn:
+        cur = conn.execute(
+            "UPDATE paper_conditional_orders SET user_note=? WHERE id=? AND user_id=?",
+            (note, order_id, user_id)
+        )
+        return cur.rowcount > 0
 
 
 def get_pending_stock_conditional_orders() -> list[dict]:

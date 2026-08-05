@@ -28,6 +28,10 @@ class SmartOrderBody(BaseModel):
     order_type: str = "stop"
 
 
+class SmartOrderNoteBody(BaseModel):
+    note: str
+
+
 @router.get("/account")
 async def account(authorization: str | None = Header(None)):
     user_id = _get_user(authorization)
@@ -99,4 +103,13 @@ async def delete_smart_order(order_id: int, authorization: str | None = Header(N
     ok = await run_in_threadpool(svc.cancel_smart_order, user_id, order_id)
     if not ok:
         raise HTTPException(status_code=400, detail="取消失敗（訂單不存在或已不是待觸發狀態）")
+    return {"ok": True}
+
+
+@router.patch("/smart-orders/{order_id}/note")
+async def update_smart_order_note(order_id: int, body: SmartOrderNoteBody, authorization: str | None = Header(None)):
+    user_id = _get_user(authorization)
+    ok = await run_in_threadpool(svc.update_smart_order_note, user_id, order_id, body.note)
+    if not ok:
+        raise HTTPException(status_code=400, detail="更新失敗（訂單不存在）")
     return {"ok": True}

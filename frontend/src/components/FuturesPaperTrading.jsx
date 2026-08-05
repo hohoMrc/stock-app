@@ -3,7 +3,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import {
   getFuturesQuote, getFuturesPaperAccount, getFuturesPaperPositions, getFuturesPaperOrders,
   placeFuturesOrder, depositFuturesCash, getFuturesPaperPerformance,
-  createSmartOrder, getSmartOrders, cancelSmartOrder,
+  createSmartOrder, getSmartOrders, cancelSmartOrder, updateSmartOrderNote,
 } from "../api";
 import Pagination, { PAGE_SIZE } from "./Pagination";
 
@@ -47,6 +47,8 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
   const [smartOrdersPage, setSmartOrdersPage] = useState(1);
   const [ordersPage, setOrdersPage]       = useState(1);
   const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 640px)").matches);
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editingNoteText, setEditingNoteText] = useState("");
 
   // 手機版畫面太窄，智慧單（觸價單）列表一頁顯示 3 筆就好，不然要一直往下滑
   useEffect(() => {
@@ -167,6 +169,21 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
       loadAll();
     } catch (e) {
       setSmartError(e.response?.data?.detail || "取消失敗");
+    }
+  };
+
+  const startNoteEdit = (order) => {
+    setEditingNoteId(order.id);
+    setEditingNoteText(order.user_note || "");
+  };
+
+  const commitNoteEdit = async (orderId) => {
+    setEditingNoteId(null);
+    try {
+      await updateSmartOrderNote(orderId, editingNoteText);
+      loadAll();
+    } catch (e) {
+      setSmartError(e.response?.data?.detail || "備註更新失敗");
     }
   };
 
@@ -383,7 +400,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
             <thead>
               <tr>
                 <th>商品</th><th>買賣</th><th>口數</th><th>觸發指數</th>
-                <th>狀態</th><th>備註</th><th>操作</th>
+                <th>設定時間</th><th>狀態</th><th>系統備註</th><th>備註</th><th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -393,8 +410,28 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
                   <td>{TRADE_LABEL[o.side]}</td>
                   <td>{o.qty}</td>
                   <td>{o.trigger_price}（{o.direction === "above" ? "漲到" : "跌到"}）</td>
+                  <td>{o.created_at ? new Date(o.created_at * 1000).toLocaleString("zh-TW", { hour12: false }) : "—"}</td>
                   <td>{SMART_STATUS_LABEL[o.status]}</td>
                   <td>{o.status === "failed" ? o.fail_reason : "—"}</td>
+                  <td className="note-cell">
+                    {editingNoteId === o.id ? (
+                      <input
+                        className="note-input"
+                        autoFocus
+                        value={editingNoteText}
+                        onChange={(e) => setEditingNoteText(e.target.value)}
+                        onBlur={() => commitNoteEdit(o.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitNoteEdit(o.id);
+                          if (e.key === "Escape") setEditingNoteId(null);
+                        }}
+                      />
+                    ) : (
+                      <span className="note-text" onClick={() => startNoteEdit(o)} title="點擊編輯備註">
+                        {o.user_note || <span className="note-placeholder">點擊新增</span>}
+                      </span>
+                    )}
+                  </td>
                   <td>
                     {o.status === "pending" && (
                       <button className="view-btn" onClick={() => handleSmartCancel(o.id)}>取消</button>

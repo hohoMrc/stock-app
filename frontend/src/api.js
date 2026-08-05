@@ -82,6 +82,7 @@ export const createStockSmartOrder = (ticker, side, lots, triggerPrice, orderTyp
   api.post("/api/paper/smart-order", { ticker, side, lots, trigger_price: triggerPrice, order_type: orderType });
 export const getStockSmartOrders  = ()          => api.get("/api/paper/smart-orders");
 export const cancelStockSmartOrder = (orderId)  => api.delete(`/api/paper/smart-orders/${orderId}`);
+export const updateStockSmartOrderNote = (orderId, note) => api.patch(`/api/paper/smart-orders/${orderId}/note`, { note });
 
 export const getFuturesPaperAccount   = ()                    => api.get("/api/paper-futures/account");
 export const getFuturesPaperPositions = ()                    => api.get("/api/paper-futures/positions");
@@ -94,6 +95,7 @@ export const createSmartOrder = (product, side, qty, triggerPrice, orderType = "
   api.post("/api/paper-futures/smart-order", { product, side, qty, trigger_price: triggerPrice, order_type: orderType });
 export const getSmartOrders  = ()          => api.get("/api/paper-futures/smart-orders");
 export const cancelSmartOrder = (orderId)  => api.delete(`/api/paper-futures/smart-orders/${orderId}`);
+export const updateSmartOrderNote = (orderId, note) => api.patch(`/api/paper-futures/smart-orders/${orderId}/note`, { note });
 
 // 新聞
 export const getHotNews = (limit = 30) => api.get("/api/news/hot", { params: { limit } });

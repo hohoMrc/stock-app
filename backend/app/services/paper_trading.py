@@ -7,6 +7,7 @@ from app.db import (
     get_paper_bought_qty_since, get_paper_closed_trades,
     create_stock_conditional_order, get_stock_conditional_orders, get_pending_stock_conditional_orders,
     mark_stock_conditional_order_triggered, mark_stock_conditional_order_failed, cancel_stock_conditional_order,
+    update_stock_conditional_order_note,
 )
 from app.services.stock_data import get_stock_info, _enrich_with_intraday
 
@@ -228,6 +229,10 @@ def get_smart_orders(user_id: int) -> list[dict]:
 
 def cancel_smart_order(user_id: int, order_id: int) -> bool:
     return cancel_stock_conditional_order(user_id, order_id)
+
+
+def update_smart_order_note(user_id: int, order_id: int, note: str) -> bool:
+    return update_stock_conditional_order_note(user_id, order_id, note)
 
 
 def check_and_execute_conditional_orders() -> list[dict]:

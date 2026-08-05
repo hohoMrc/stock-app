@@ -6,6 +6,7 @@ from app.db import (
     insert_paper_futures_order, get_paper_futures_orders, get_paper_futures_closed_trades,
     create_conditional_order, get_conditional_orders, get_pending_conditional_orders,
     mark_conditional_order_triggered, mark_conditional_order_failed, cancel_conditional_order,
+    update_conditional_order_note,
 )
 from app.services.futures_data import _current_symbol, get_futures_quote
 
@@ -268,6 +269,10 @@ def get_smart_orders(user_id: int) -> list[dict]:
 
 def cancel_smart_order(user_id: int, order_id: int) -> bool:
     return cancel_conditional_order(user_id, order_id)
+
+
+def update_smart_order_note(user_id: int, order_id: int, note: str) -> bool:
+    return update_conditional_order_note(user_id, order_id, note)
 
 
 def check_and_execute_conditional_orders() -> list[dict]:
