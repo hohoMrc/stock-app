@@ -196,11 +196,12 @@ def init_db():
         );
 
         CREATE TABLE IF NOT EXISTS paper_futures_positions (
-            user_id   INTEGER NOT NULL,
-            product   TEXT NOT NULL,
-            side      TEXT NOT NULL,
-            qty       INTEGER NOT NULL,
-            avg_price REAL NOT NULL,
+            user_id        INTEGER NOT NULL,
+            product        TEXT NOT NULL,
+            side           TEXT NOT NULL,
+            qty            INTEGER NOT NULL,
+            avg_price      REAL NOT NULL,
+            open_fee_total REAL NOT NULL DEFAULT 0,
             PRIMARY KEY (user_id, product),
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
@@ -326,6 +327,12 @@ def init_db():
             pass
         try:
             conn.execute("ALTER TABLE paper_conditional_orders ADD COLUMN user_note TEXT DEFAULT ''")
+        except Exception:
+            pass
+        # Migration: 期貨部位加「累積未結算開倉手續費」欄位（建倉先不記一筆成交紀錄，
+        # 等平倉時才把開倉+平倉手續費合併記一筆，減少歷史成交紀錄的筆數）
+        try:
+            conn.execute("ALTER TABLE paper_futures_positions ADD COLUMN open_fee_total REAL NOT NULL DEFAULT 0")
         except Exception:
             pass
 
@@ -1039,13 +1046,15 @@ def update_paper_futures_cash(user_id: int, cash: float):
 def get_paper_futures_position(user_id: int, product: str) -> dict | None:
     with _conn() as conn:
         row = conn.execute(
-            "SELECT product, side, qty, avg_price FROM paper_futures_positions WHERE user_id=? AND product=?",
+            "SELECT product, side, qty, avg_price, open_fee_total FROM paper_futures_positions "
+            "WHERE user_id=? AND product=?",
             (user_id, product)
         ).fetchone()
     return dict(row) if row else None
 
 
-def upsert_paper_futures_position(user_id: int, product: str, side: str, qty: int, avg_price: float):
+def upsert_paper_futures_position(user_id: int, product: str, side: str, qty: int, avg_price: float,
+                                   open_fee_total: float = 0):
     with _conn() as conn:
         if qty <= 0:
             conn.execute(
@@ -1053,11 +1062,12 @@ def upsert_paper_futures_position(user_id: int, product: str, side: str, qty: in
             )
         else:
             conn.execute(
-                "INSERT INTO paper_futures_positions(user_id, product, side, qty, avg_price) "
-                "VALUES (?, ?, ?, ?, ?) "
+                "INSERT INTO paper_futures_positions(user_id, product, side, qty, avg_price, open_fee_total) "
+                "VALUES (?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT(user_id, product) DO UPDATE SET "
-                "side=excluded.side, qty=excluded.qty, avg_price=excluded.avg_price",
-                (user_id, product, side, qty, avg_price)
+                "side=excluded.side, qty=excluded.qty, avg_price=excluded.avg_price, "
+                "open_fee_total=excluded.open_fee_total",
+                (user_id, product, side, qty, avg_price, open_fee_total)
             )
 
 

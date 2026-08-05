@@ -54,6 +54,11 @@ def place_futures_order(user_id: int, product: str, side: str, qty: int,
     會先抵銷掉既有部位，口數有剩的話直接反手開新部位（例如原本空 1 口，買 2 口，
     結算後就變成多 1 口）。price 未提供時用即時市價成交；有提供時直接以該價格成交
     （不掛單等待，送出當下立即記帳）。
+
+    建倉不會立刻記一筆成交紀錄（現金還是馬上扣手續費，只是不開新的一列），手續費
+    暫存在部位的 open_fee_total，等這個部位（或部分）被平倉時才把當初建倉的手續費
+    按比例併進平倉那筆記錄，一趟完整的建倉+平倉只會在歷史成交紀錄留一筆，不會多一筆
+    「只有扣手續費、沒有損益」的建倉紀錄。
     """
     if product not in FUTURES_MULTIPLIER:
         raise PaperFuturesError("product 需為 TXF 或 TMF")
@@ -81,32 +86,42 @@ def place_futures_order(user_id: int, product: str, side: str, qty: int,
 
     tax = 0
     fee_close = 0
+    open_fee_share = 0
     realized_pl = None
-    net_amount_close = 0
+    cash_delta_close = 0   # 這次平倉真正的現金流（建倉手續費在建倉當下就扣過了，這裡不能重複扣）
+    net_amount_close = 0   # 顯示用：併入建倉手續費後，這趟完整交易的真正淨損益
     if closing_qty:
         fee_close = _fee(closing_qty)
         tax = _tax(price, closing_qty, product)
+        # 把當初建倉、暫存在部位上的手續費，按這次平倉口數佔比併進來，這樣一趟完整的
+        # 建倉+平倉在歷史成交紀錄裡才會是「一筆」，手續費/損益也才是這趟真正的淨額
+        open_fee_share = round(position.get("open_fee_total", 0) * closing_qty / position["qty"])
         if position["side"] == "long":
             realized_pl = (price - position["avg_price"]) * closing_qty * multiplier
         else:
             realized_pl = (position["avg_price"] - price) * closing_qty * multiplier
-        net_amount_close = realized_pl - fee_close - tax
+        cash_delta_close = realized_pl - fee_close - tax
+        net_amount_close = cash_delta_close - open_fee_share
 
     fee_open = 0
-    new_qty = new_avg = None
+    new_qty = new_avg = new_open_fee_total = None
     if opening_qty:
         fee_open = _fee(opening_qty)
         # 有抵銷到既有部位（代表原本部位已被 closing_qty 全部抵銷掉）就是反手開新倉；
         # 否則是原本沒有部位，或跟既有部位同方向加碼
         if closing_qty:
-            old_qty, old_avg = 0, 0.0
+            old_qty, old_avg, old_open_fee_total = 0, 0.0, 0
         else:
-            old_qty, old_avg = (position["qty"], position["avg_price"]) if position else (0, 0.0)
+            if position:
+                old_qty, old_avg, old_open_fee_total = position["qty"], position["avg_price"], position.get("open_fee_total", 0)
+            else:
+                old_qty, old_avg, old_open_fee_total = 0, 0.0, 0
         new_qty = old_qty + opening_qty
         new_avg = (old_qty * old_avg + opening_qty * price) / new_qty
+        new_open_fee_total = old_open_fee_total + fee_open
 
         required_margin = opening_qty * FUTURES_MARGIN[product]
-        cash_after_close = account["cash"] + net_amount_close
+        cash_after_close = account["cash"] + cash_delta_close
         used_margin_after_close = _used_margin(user_id) - (closing_qty * FUTURES_MARGIN[product] if closing_qty else 0)
         available = cash_after_close - used_margin_after_close
         if required_margin + fee_open > available:
@@ -114,15 +129,18 @@ def place_futures_order(user_id: int, product: str, side: str, qty: int,
 
     # 驗證都過關才真的寫入，避免平倉扣完錢後開倉才失敗變成半套狀態
     if closing_qty:
-        update_paper_futures_cash(user_id, account["cash"] + net_amount_close)
-        upsert_paper_futures_position(user_id, product, position["side"], position["qty"] - closing_qty, position["avg_price"])
-        insert_paper_futures_order(user_id, product, position["side"], "close", closing_qty, price, fee_close, tax, net_amount_close, realized_pl)
+        update_paper_futures_cash(user_id, account["cash"] + cash_delta_close)
+        remaining_open_fee_total = position.get("open_fee_total", 0) - open_fee_share
+        upsert_paper_futures_position(user_id, product, position["side"], position["qty"] - closing_qty,
+                                       position["avg_price"], remaining_open_fee_total)
+        insert_paper_futures_order(user_id, product, position["side"], "close", closing_qty, price,
+                                    fee_close + open_fee_share, tax, net_amount_close, realized_pl)
         account = get_or_create_paper_futures_account(user_id)
 
     if opening_qty:
         update_paper_futures_cash(user_id, account["cash"] - fee_open)
-        upsert_paper_futures_position(user_id, product, new_side, new_qty, new_avg)
-        insert_paper_futures_order(user_id, product, new_side, "open", opening_qty, price, fee_open, 0, -fee_open, None)
+        upsert_paper_futures_position(user_id, product, new_side, new_qty, new_avg, new_open_fee_total)
+        # 建倉先不記成交紀錄，手續費已經計入 open_fee_total，等平倉時才會出現在歷史紀錄裡
 
     remaining_qty = (position["qty"] - closing_qty) if position else 0
     resulting_side = new_side if opening_qty else (position["side"] if remaining_qty > 0 else None)
@@ -132,7 +150,7 @@ def place_futures_order(user_id: int, product: str, side: str, qty: int,
         "product": product, "side": side, "qty": qty, "price": price,
         "closed_qty": closing_qty, "opened_qty": opening_qty,
         "fee": fee_close + fee_open, "tax": tax,
-        "net_amount": net_amount_close - fee_open,
+        "net_amount": cash_delta_close - fee_open,
         "realized_pl": realized_pl,
         "resulting_side": resulting_side, "resulting_qty": resulting_qty,
     }
