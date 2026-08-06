@@ -24,9 +24,10 @@ INITIAL_CASH = 1_000_000
 LT_MIN_VOLUME_ZHANG = 500   # 長期投資流動性門檻：最近一天成交量至少500張
 
 SCAN_SOURCE_LABEL = {
-    "volume_breakout":      "量價突破",
-    "institutional_buying": "法人連買",
-    "ema60_breakout":       "EMA60貼線噴出",
+    "volume_breakout_loose": "量價突破(寬鬆)",
+    "institutional_buying":  "法人連買",
+    "ema60_breakout":        "EMA60貼線噴出",
+    "rs_momentum":           "RS動能",
 }
 
 DEFAULT_CONFIG = {
@@ -37,7 +38,10 @@ DEFAULT_CONFIG = {
     "st_stop_loss_pct":   -6.0,
     "st_max_hold_days":   20,
     "st_max_positions":   12,
-    "st_scan_weights":    {"volume_breakout": 1.0, "institutional_buying": 1.0, "ema60_breakout": 1.0},
+    "st_scan_weights":    {
+        "volume_breakout_loose": 1.0, "institutional_buying": 1.0,
+        "ema60_breakout": 1.0, "rs_momentum": 1.0,
+    },
     "last_shortterm_review_month":    None,
     "last_longterm_rebalance_month":  None,
     "last_longterm_quarterly_review": None,
@@ -47,7 +51,13 @@ DEFAULT_CONFIG = {
 def _get_config() -> dict:
     cfg = get_claude_strategy_config() or {}
     merged = {**DEFAULT_CONFIG, **cfg}
-    merged["st_scan_weights"] = {**DEFAULT_CONFIG["st_scan_weights"], **cfg.get("st_scan_weights", {})}
+    # st_scan_weights 只保留目前還在用的訊號來源：換掉/淘汰某個來源後（例如量價突破改用
+    # 寬鬆版）舊版存檔裡殘留的權重欄位不會自動消失，用「已存的值覆蓋預設值，但只保留
+    # 現役來源」的方式做欄位淘汰，不然舊key會一直留在設定裡卡著。
+    saved_weights = cfg.get("st_scan_weights", {})
+    merged["st_scan_weights"] = {
+        k: saved_weights.get(k, v) for k, v in DEFAULT_CONFIG["st_scan_weights"].items()
+    }
     return merged
 
 
@@ -78,20 +88,29 @@ def ensure_claude_accounts() -> tuple[int, int]:
 
 def _shortterm_reason(scan_type: str, hit: dict) -> str:
     label = SCAN_SOURCE_LABEL.get(scan_type, scan_type)
-    if scan_type == "volume_breakout":
+    if scan_type == "volume_breakout_loose":
         return f"{label}：今日量為近5日均量 {hit.get('vol_ratio')} 倍，收盤創20日新高"
     if scan_type == "institutional_buying":
         return f"{label}：外資+投信連續 {hit.get('streak_days')} 天買超，合計 {hit.get('total_net_zhang')} 張"
     if scan_type == "ema60_breakout":
         return f"{label}：{'、'.join(hit.get('reasons', []))}"
+    if scan_type == "rs_momentum":
+        return f"{label}：近20個交易日漲幅 {hit.get('ret20_pct')}%，站上5日均線且量能放大"
     return label
 
 
 def run_shortterm_daily(scan_hits: dict[str, list]) -> list[dict]:
     """每天排程呼叫：scan_hits 是當天已經跑過的掃描結果
-    {"volume_breakout": [...], "institutional_buying": [...], "ema60_breakout": [...]}，
-    不用重新掃一次。依訊號來源目前的權重決定要不要進場（權重0＝該來源暫停使用），
-    已持有的不重複買，短期倉位數達上限就不再開新倉。
+    {"volume_breakout_loose": [...], "institutional_buying": [...], "ema60_breakout": [...],
+    "rs_momentum": [...]}，不用重新掃一次。依訊號來源目前的權重決定要不要進場
+    （權重0＝該來源暫停使用），已持有的不重複買，短期倉位數達上限就不再開新倉。
+
+    量價突破用的是2倍量增的寬鬆版，不是選股篩選頁/排程通知用的3倍版——回測13個月
+    真實資料後發現3倍門檻太嚴格，勝率(43.6%)、損益比(1.37)都比2倍版(46.7%/1.72)差，
+    所以Claude短期交易帳號改用寬鬆版；公開的選股篩選頁維持3倍不變。RS動能是新增的
+    相對強度動量選股（近20日漲幅≥25%+站上5日均線+量增），回測起來是表現最好的一個
+    （勝率48%、損益比1.76）。這些數字都只反映回測當時的市場狀況，之後會依實際追蹤
+    到的績效（run_shortterm_monthly_review）持續調整權重，不會固定不變。
     """
     cfg = _get_config()
     user_id = ensure_claude_accounts()[1]

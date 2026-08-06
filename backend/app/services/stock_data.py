@@ -1480,8 +1480,11 @@ def scan_near_ema60(limit: int = 500) -> list:
     return results
 
 
-def scan_volume_breakout(limit: int = 200) -> list:
-    """掃全市場，回傳今日爆量（≥近5日均量3倍）且收盤價創近20日新高、日量 ≥ 2000 張、非金融保險的股票。"""
+def scan_volume_breakout(limit: int = 200, vol_mult: float = 3.0) -> list:
+    """掃全市場，回傳今日爆量（≥近5日均量 vol_mult 倍）且收盤價創近20日新高、日量 ≥ 2000 張、
+    非金融保險的股票。vol_mult 預設3倍（既有的公開篩選頁/排程用這個），Claude短期交易帳號
+    回測後改用2倍（see claude_trader.py），量增門檻較嚴格的3倍版回測起來勝率/報酬都較差。
+    """
     from app.db import get_all_db_tickers_with_meta, get_candles
     from datetime import date, timedelta
 
@@ -1509,7 +1512,7 @@ def scan_volume_breakout(limit: int = 200) -> list:
         if avg_vol_5d <= 0:
             continue
         vol_ratio = today_vol / avg_vol_5d
-        if vol_ratio < 3.0:
+        if vol_ratio < vol_mult:
             continue
         close = last.get("close")
         closes20 = [r["close"] for r in records[-20:] if r["close"] is not None]
@@ -1530,6 +1533,64 @@ def scan_volume_breakout(limit: int = 200) -> list:
         if len(results) >= limit:
             break
     return results
+
+
+def scan_rs_momentum(limit: int = 200, min_ret20: float = 25.0, vol_mult: float = 1.5,
+                      min_vol_zhang: int = 1000) -> list:
+    """掃全市場，回傳近20個交易日漲幅 ≥ min_ret20% 的相對強勢股，且要站上5日均線（確認
+    還在噴、不是已經拉回）、今日量 ≥ 近20日均量 vol_mult 倍（確認有量能支撐）、日量 ≥
+    min_vol_zhang 張（流動性）、非金融保險。門檻用絕對漲幅（不是排名百分位），概念上是
+    Minervini/CANSLIM 那套相對強度動量選股法的簡化版，Claude短期交易帳號用；回測起來
+    是幾個候選條件裡表現最好的一個。
+    """
+    from app.db import get_all_db_tickers_with_meta, get_candles
+    from datetime import date, timedelta
+
+    from_date = (date.today() - timedelta(days=45)).strftime("%Y-%m-%d")
+    to_date   = date.today().strftime("%Y-%m-%d")
+
+    all_tickers = get_all_db_tickers_with_meta()
+    results = []
+    for row in all_tickers:
+        ticker = row["ticker"]
+        if row.get("parent_industry") == "金融保險":
+            continue
+        records = get_candles(ticker, from_date, to_date)
+        if not records or len(records) < 25:
+            continue
+        last = records[-1]
+        close = last.get("close")
+        today_vol = last.get("volume") or 0
+        if not close or today_vol < min_vol_zhang * 1000:
+            continue
+        base20 = records[-21]["close"] if len(records) >= 21 else None
+        if not base20:
+            continue
+        ret20 = (close - base20) / base20 * 100
+        if ret20 < min_ret20:
+            continue
+        ma5 = sum(r["close"] for r in records[-5:] if r["close"] is not None) / 5
+        if close < ma5:
+            continue
+        vols20 = [r.get("volume") or 0 for r in records[-20:]]
+        avg_vol_20d = sum(vols20) / 20
+        if avg_vol_20d <= 0 or today_vol / avg_vol_20d < vol_mult:
+            continue
+        prev = records[-2] if len(records) >= 2 else last
+        prev_close = prev.get("close")
+        change_pct = round((close - prev_close) / prev_close * 100, 2) if prev_close else None
+        results.append({
+            "ticker":       ticker,
+            "name":         row.get("name") or "",
+            "exchange":     row.get("exchange") or "",
+            "close":        round(float(close), 2),
+            "change_pct":   change_pct,
+            "volume_zhang": round(today_vol / 1000),
+            "ret20_pct":    round(ret20, 2),
+        })
+
+    results.sort(key=lambda x: x["ret20_pct"], reverse=True)
+    return results[:limit]
 
 
 def fetch_institutional_trades_today() -> list[dict]:

@@ -307,6 +307,21 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[基本面] 失敗: {e}")
 
+        print("[Claude短期交易] 掃描專用訊號來源（量價突破寬鬆版、RS動能）...")
+        vb_loose_hits, rs_momentum_hits = [], []
+        try:
+            from app.services.stock_data import scan_volume_breakout as _svb, scan_rs_momentum as _srm
+            from app.services.signal_tracking import record_signals
+            # 用2倍量增的寬鬆版，不是公開選股篩選頁/上面用的3倍版——回測13個月資料後
+            # 發現3倍門檻太嚴格，勝率/損益比都比2倍版差，只有 Claude 自己的帳號改用寬鬆版
+            vb_loose_hits = _svb(200, vol_mult=2.0)
+            rs_momentum_hits = _srm(200)
+            record_signals("volume_breakout_loose", vb_loose_hits)
+            record_signals("rs_momentum", rs_momentum_hits)
+            print(f"[Claude短期交易] 量價突破(寬鬆) {len(vb_loose_hits)} 支、RS動能 {len(rs_momentum_hits)} 支")
+        except Exception as e:
+            print(f"[Claude短期交易] 掃描專用訊號失敗: {e}")
+
         print("[Claude短期交易] 檢查出場、依訊號進場...")
         try:
             from app.services.claude_trader import run_shortterm_exits, run_shortterm_daily
@@ -315,7 +330,8 @@ if __name__ == "__main__":
                 pl_note = f'　已實現損益 {x["realized_pl"]:,.0f}' if x.get("realized_pl") is not None else ""
                 _tg_notify(f'🤖 [Claude短期出場] {x["ticker"]} {x.get("name","")}　{x["reason"]}{pl_note}')
             st_entries = run_shortterm_daily({
-                "volume_breakout": vb_hits, "institutional_buying": buy_hits, "ema60_breakout": breakout_hits,
+                "volume_breakout_loose": vb_loose_hits, "institutional_buying": buy_hits,
+                "ema60_breakout": breakout_hits, "rs_momentum": rs_momentum_hits,
             })
             for e_ in st_entries:
                 _tg_notify(f'🤖 [Claude短期進場] {e_["ticker"]} {e_.get("name","")}　{e_["lots"]}張 @ {e_["price"]}　{e_["reason"]}')

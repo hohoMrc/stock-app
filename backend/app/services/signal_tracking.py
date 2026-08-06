@@ -18,6 +18,8 @@ SCAN_LABELS = {
     "ut_bot_short":           "UT Bot 空單",
     "supertrend_long":        "SuperTrend 多單",
     "supertrend_short":       "SuperTrend 空單",
+    "volume_breakout_loose":  "量價突破(寬鬆)",
+    "rs_momentum":            "RS動能",
 }
 
 # 大部分篩選都是「看多」訊號，報酬率正的算贏；空單訊號方向相反，跌才算贏，
