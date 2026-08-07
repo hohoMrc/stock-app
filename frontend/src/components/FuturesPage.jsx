@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
-import { createChart, CandlestickSeries, LineSeries, HistogramSeries } from "lightweight-charts";
+import { createChart, CandlestickSeries, LineSeries, HistogramSeries, createSeriesMarkers } from "lightweight-charts";
 import {
   getFuturesQuote, getFuturesCandles, getFuturesInstitutional, getUtBotSignals, getSupertrendSignals,
   placeFuturesOrder, getFuturesPaperAccount, getFuturesPaperPositions,
@@ -61,6 +61,102 @@ function calcEMA(data, period) {
     result.push({ time: data[i].time ?? data[i].date, value: parseFloat(ema.toFixed(2)) });
   }
   return result;
+}
+
+// UT Bot / SuperTrend：跟後端 app/services/futures_signals.py 同一套邏輯移植到前端，
+// 直接用畫面上的日K算，這樣才能把訊號畫在走勢圖上（後端只存「當天有沒有觸發」，沒有整條線）。
+const UT_BOT_ATR_PERIOD = 11, UT_BOT_MULT = 2;
+const SUPERTREND_ATR_PERIOD = 10, SUPERTREND_MULT = 3;
+
+function calcTrueRange(data) {
+  const tr = [data[0].high - data[0].low];
+  for (let i = 1; i < data.length; i++) {
+    const h = data[i].high, l = data[i].low, pc = data[i - 1].close;
+    tr.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
+  }
+  return tr;
+}
+
+function calcRma(values, period) {
+  const result = new Array(values.length).fill(null);
+  if (values.length < period) return result;
+  let seed = 0;
+  for (let i = 0; i < period; i++) seed += values[i];
+  result[period - 1] = seed / period;
+  for (let i = period; i < values.length; i++) {
+    result[i] = (result[i - 1] * (period - 1) + values[i]) / period;
+  }
+  return result;
+}
+
+function calcUtBot(data, period = UT_BOT_ATR_PERIOD, mult = UT_BOT_MULT) {
+  const atr = calcRma(calcTrueRange(data), period);
+  const stop = new Array(data.length).fill(null);
+  const line = [], markers = [];
+  let firstValid = null;
+
+  for (let i = 0; i < data.length; i++) {
+    if (atr[i] == null) continue;
+    const src = data[i].close, nLoss = mult * atr[i];
+    if (firstValid === null) {
+      stop[i] = src - nLoss;
+      firstValid = i;
+    } else {
+      const prevStop = stop[i - 1], prevSrc = data[i - 1].close;
+      if (src > prevStop && prevSrc > prevStop) stop[i] = Math.max(prevStop, src - nLoss);
+      else if (src < prevStop && prevSrc < prevStop) stop[i] = Math.min(prevStop, src + nLoss);
+      else stop[i] = src > prevStop ? src - nLoss : src + nLoss;
+
+      const crossoverUp   = src > stop[i] && prevSrc <= prevStop;
+      const crossoverDown = stop[i] > src && prevStop <= prevSrc;
+      if (src > stop[i] && crossoverUp) {
+        markers.push({ time: data[i].time, position: "belowBar", color: "#f59e0b", shape: "arrowUp", text: "UT多" });
+      } else if (src < stop[i] && crossoverDown) {
+        markers.push({ time: data[i].time, position: "aboveBar", color: "#f59e0b", shape: "arrowDown", text: "UT空" });
+      }
+    }
+    line.push({ time: data[i].time, value: parseFloat(stop[i].toFixed(1)) });
+  }
+  return { line, markers };
+}
+
+function calcSuperTrend(data, period = SUPERTREND_ATR_PERIOD, mult = SUPERTREND_MULT) {
+  const atr = calcRma(calcTrueRange(data), period);
+  const finalUpper = new Array(data.length).fill(null);
+  const finalLower = new Array(data.length).fill(null);
+  const trendUp    = new Array(data.length).fill(null);
+  const line = [], markers = [];
+  let first = null;
+
+  for (let i = 0; i < data.length; i++) {
+    if (atr[i] == null) continue;
+    const hl2 = (data[i].high + data[i].low) / 2;
+    const basicUpper = hl2 + mult * atr[i], basicLower = hl2 - mult * atr[i];
+    const close = data[i].close;
+
+    if (first === null) {
+      finalUpper[i] = basicUpper;
+      finalLower[i] = basicLower;
+      trendUp[i] = close > basicUpper;
+      first = i;
+    } else {
+      const prevClose = data[i - 1].close;
+      const prevFu = finalUpper[i - 1], prevFl = finalLower[i - 1];
+      finalUpper[i] = (basicUpper < prevFu || prevClose > prevFu) ? basicUpper : prevFu;
+      finalLower[i] = (basicLower > prevFl || prevClose < prevFl) ? basicLower : prevFl;
+
+      const prevTrendUp = trendUp[i - 1];
+      trendUp[i] = prevTrendUp ? (close >= finalLower[i]) : (close > finalUpper[i]);
+
+      if (trendUp[i] && !prevTrendUp) {
+        markers.push({ time: data[i].time, position: "belowBar", color: "#a78bfa", shape: "arrowUp", text: "ST多" });
+      } else if (!trendUp[i] && prevTrendUp) {
+        markers.push({ time: data[i].time, position: "aboveBar", color: "#a78bfa", shape: "arrowDown", text: "ST空" });
+      }
+    }
+    line.push({ time: data[i].time, value: parseFloat((trendUp[i] ? finalLower[i] : finalUpper[i]).toFixed(1)) });
+  }
+  return { line, markers };
 }
 
 const WS_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000")
@@ -142,7 +238,7 @@ function QuoteHeader({ quote, loading, livePrice, priceFlash, lastClose }) {
   );
 }
 
-const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, activeMA, showKD }, ref) {
+const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, activeMA, showKD, showUtBot, showSuperTrend }, ref) {
   const containerRef    = useRef(null);
   const chartRef        = useRef(null);
   const candleSeriesRef = useRef(null);
@@ -414,6 +510,35 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
     }
     kdValueMapRef.current = kdValueMap;
 
+    // UT Bot / SuperTrend：只有日K有意義（兩者訊號都是拿日K算的），疊加停損線 + 反轉箭頭
+    if (timeframe === "D") {
+      const allMarkers = [];
+      if (showUtBot) {
+        const { line, markers } = calcUtBot(shifted);
+        if (line.length) {
+          const s = chart.addSeries(LineSeries, {
+            color: "#f59e0b", lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false,
+          });
+          s.setData(line);
+        }
+        allMarkers.push(...markers);
+      }
+      if (showSuperTrend) {
+        const { line, markers } = calcSuperTrend(shifted);
+        if (line.length) {
+          const s = chart.addSeries(LineSeries, {
+            color: "#a78bfa", lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false,
+          });
+          s.setData(line);
+        }
+        allMarkers.push(...markers);
+      }
+      if (allMarkers.length) {
+        allMarkers.sort((a, b) => a.time - b.time);
+        createSeriesMarkers(candleSeries, allMarkers);
+      }
+    }
+
     // 無 hover 時預設顯示最後一根K棒的資訊
     const lastKey = candleData.length ? String(candleData[candleData.length - 1].time) : null;
     setLastBar(lastKey ? (dataMap.get(lastKey) ?? null) : null);
@@ -446,7 +571,7 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
 
     chartRef.current = chart;
     return () => { ro.disconnect(); chart.remove(); chartRef.current = null; };
-  }, [candles, timeframe, activeMA, showKD]);
+  }, [candles, timeframe, activeMA, showKD, showUtBot, showSuperTrend]);
 
   const bar  = hoveredBar ?? lastBar;
   const clrC = bar?.change > 0 ? "#ef4444" : bar?.change < 0 ? "#22c55e" : "#94a3b8";
@@ -715,6 +840,8 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
   const [priceFlash,   setPriceFlash]   = useState(null); // "up" | "down"
   const [activeMA,     setActiveMA]     = useState({ ma5: false, ma20: false, ma60: false, ema5: false, ema10: true, ema20: false, ema60: true });
   const [showKD,       setShowKD]       = useState(true);
+  const [showUtBot,      setShowUtBot]      = useState(false);
+  const [showSuperTrend, setShowSuperTrend] = useState(false);
   const [error, setError] = useState(null);
   const [wsKey, setWsKey] = useState(0);   // 遞增觸發 WebSocket 重連
   const wsRef        = useRef(null);
@@ -892,6 +1019,24 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
           >
             KD
           </button>
+          <button
+            className={`futures-ma-btn ${showUtBot ? "active" : ""}`}
+            style={{ "--ma-color": "#f59e0b" }}
+            disabled={timeframe !== "D"}
+            title={timeframe !== "D" ? "UT Bot 訊號僅日K可用" : ""}
+            onClick={() => setShowUtBot(v => !v)}
+          >
+            UT Bot
+          </button>
+          <button
+            className={`futures-ma-btn ${showSuperTrend ? "active" : ""}`}
+            style={{ "--ma-color": "#a78bfa" }}
+            disabled={timeframe !== "D"}
+            title={timeframe !== "D" ? "SuperTrend 訊號僅日K可用" : ""}
+            onClick={() => setShowSuperTrend(v => !v)}
+          >
+            SuperTrend
+          </button>
         </div>
       </div>
 
@@ -899,7 +1044,10 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
         ? <div className="futures-chart-loading">K 線載入中...</div>
         : candles.length === 0 && timeframe !== "D"
           ? <div className="futures-chart-empty">盤中 K 線資料暫無（交易時段 08:45–13:45、15:00–隔日05:00）</div>
-          : <FuturesChart ref={chartRef} candles={candles} timeframe={timeframe} activeMA={activeMA} showKD={showKD} />
+          : <FuturesChart
+              ref={chartRef} candles={candles} timeframe={timeframe} activeMA={activeMA} showKD={showKD}
+              showUtBot={timeframe === "D" && showUtBot} showSuperTrend={timeframe === "D" && showSuperTrend}
+            />
       }
 
       <InstitutionalChart data={institutional} />

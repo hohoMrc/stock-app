@@ -2224,6 +2224,7 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .futures-ma-btn { padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; font-size: 12px; }
 .futures-ma-btn.active { border-color: var(--ma-color); color: var(--ma-color); background: color-mix(in srgb, var(--ma-color) 12%, transparent); }
 .futures-ma-btn:hover:not(.active) { background: var(--card); color: var(--text); }
+.futures-ma-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .futures-chart { width: 100%; border-radius: 8px; overflow: hidden; background: #1a1a2e; }
 .futures-chart-loading { height: 380px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); background: var(--card); border-radius: 8px; }
