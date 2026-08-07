@@ -400,7 +400,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
             <thead>
               <tr>
                 <th>商品</th><th>買賣</th><th>口數</th><th>觸發指數</th>
-                <th>設定時間</th><th>狀態</th><th>系統備註</th><th>備註</th><th>操作</th>
+                <th>設定時間</th><th>成交時間</th><th>狀態</th><th>系統備註</th><th>備註</th><th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -411,6 +411,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
                   <td>{o.qty}</td>
                   <td>{o.trigger_price}（{o.direction === "above" ? "漲到" : "跌到"}）</td>
                   <td>{o.created_at ? new Date(o.created_at * 1000).toLocaleString("zh-TW", { hour12: false }) : "—"}</td>
+                  <td>{o.triggered_at ? new Date(o.triggered_at * 1000).toLocaleString("zh-TW", { hour12: false }) : "—"}</td>
                   <td>{SMART_STATUS_LABEL[o.status]}</td>
                   <td>{o.status === "failed" ? o.fail_reason : "—"}</td>
                   <td className="note-cell">

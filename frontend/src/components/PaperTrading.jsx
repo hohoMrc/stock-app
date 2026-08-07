@@ -461,7 +461,7 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
             <thead>
               <tr>
                 <th>代號</th><th>買賣</th><th>張數</th><th>觸發價</th>
-                <th>設定時間</th><th>狀態</th><th>系統備註</th><th>備註</th><th>操作</th>
+                <th>設定時間</th><th>成交時間</th><th>狀態</th><th>系統備註</th><th>備註</th><th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -472,6 +472,7 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
                   <td>{o.lots}</td>
                   <td>{o.trigger_price}（{o.direction === "above" ? "漲到" : "跌到"}）</td>
                   <td>{o.created_at ? new Date(o.created_at * 1000).toLocaleString("zh-TW", { hour12: false }) : "—"}</td>
+                  <td>{o.triggered_at ? new Date(o.triggered_at * 1000).toLocaleString("zh-TW", { hour12: false }) : "—"}</td>
                   <td>{{ pending: "待觸發", triggered: "已成交", failed: "失敗", cancelled: "已取消" }[o.status]}</td>
                   <td>{o.status === "failed" ? o.fail_reason : "—"}</td>
                   <td className="note-cell">
