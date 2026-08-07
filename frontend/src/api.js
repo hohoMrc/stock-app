@@ -112,3 +112,7 @@ export const getMarketOverview = () => api.get("/api/market/overview");
 // Claude 自動選股交易（長期投資／短期交易，唯讀觀察用）
 export const getClaudePortfolio      = (strategy) => api.get(`/api/claude-trader/portfolio/${strategy}`);
 export const getClaudeStrategyConfig = ()          => api.get("/api/claude-trader/config");
+export const getClaudePerformance    = (strategy) => api.get(`/api/claude-trader/performance/${strategy}`);
+
+// 訊號績效總覽
+export const getSignalOverview = (days = 180) => api.get("/api/signals/overview", { params: { days } });

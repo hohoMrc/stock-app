@@ -380,3 +380,13 @@ def get_claude_portfolio(strategy: str) -> dict:
 def get_claude_strategy_summary() -> dict:
     """回傳目前生效的策略參數，供前端顯示透明度用。"""
     return _get_config()
+
+
+def get_claude_performance(strategy: str) -> dict:
+    """strategy: "longterm" 或 "shortterm"。回傳該帳戶已平倉交易的勝率/損益比等統計，
+    供「訊號績效總覽」頁比較兩個帳戶實際交易成效用。"""
+    username = LONGTERM_USERNAME if strategy == "longterm" else SHORTTERM_USERNAME
+    user = get_user_by_username(username)
+    if not user:
+        return {"total_trades": 0}
+    return get_performance_stats(user["id"])

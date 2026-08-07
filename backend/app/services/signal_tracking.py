@@ -257,3 +257,34 @@ def get_performance_summary(days: int = 90) -> list[dict]:
             "avg_return_20d": _avg([flip(r["return_20d"]) for r in rows]),
         })
     return summary
+
+
+def get_signal_overview(days: int = 180) -> list[dict]:
+    """給「訊號績效總覽」頁用：每個篩選類型目前累積了多少訊號、各期報酬率目前算得出來的
+    部分平均值。跟 get_performance_summary 不同的地方是不用等 20 日報酬率全部到齊才顯示
+    ——訊號剛滿5天但還沒滿20天時，5日報酬率已經看得到，這樣才能在訊號還在累積階段就看到
+    部分結果，不用整個乾等好幾週。
+    """
+    from datetime import timedelta
+    since = (date.today() - timedelta(days=days)).strftime("%Y-%m-%d")
+    summary = []
+    for scan_type, label in SCAN_LABELS.items():
+        rows = get_recent_scan_signals(scan_type, since, limit=2000)
+        if not rows:
+            continue
+        direction = SCAN_DIRECTION.get(scan_type, 1)
+        flip = lambda v: v * direction if v is not None else None
+        mature = [r for r in rows if r["return_20d"] is not None]
+        win = sum(1 for r in mature if flip(r["return_20d"]) > 0)
+        summary.append({
+            "scan_type":      scan_type,
+            "label":          label,
+            "count":          len(rows),
+            "mature_count":   len(mature),
+            "win_rate":       round(win / len(mature) * 100, 1) if mature else None,
+            "avg_return_5d":  _avg([flip(r["return_5d"])  for r in rows if r["return_5d"]  is not None]),
+            "avg_return_10d": _avg([flip(r["return_10d"]) for r in rows if r["return_10d"] is not None]),
+            "avg_return_20d": _avg([flip(r["return_20d"]) for r in rows if r["return_20d"] is not None]),
+        })
+    summary.sort(key=lambda x: x["count"], reverse=True)
+    return summary
