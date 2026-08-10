@@ -8,12 +8,14 @@ function formatPubDate(pubDate) {
   return d.toLocaleString("zh-TW", { timeZone: "Asia/Taipei", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
-export default function NewsPage() {
+const OTHER_TAG = "其他";
+
+export default function NewsPage({ onSelectStock }) {
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [updatedAt, setUpdatedAt] = useState(null);
-  const [sourceFilter, setSourceFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("all");
   const [summary, setSummary] = useState(null);
 
   useEffect(() => {
@@ -40,13 +42,19 @@ export default function NewsPage() {
 
   useEffect(() => { load(); }, []);
 
-  const sources = useMemo(() => [...new Set(news.map((n) => n.source))], [news]);
-  const filtered = sourceFilter === "all" ? news : news.filter((n) => n.source === sourceFilter);
+  const tags = useMemo(() => [...new Set(news.map((n) => n.tag || OTHER_TAG))], [news]);
+  const filtered = tagFilter === "all" ? news : news.filter((n) => (n.tag || OTHER_TAG) === tagFilter);
+
+  const goStock = (e, code) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onSelectStock?.(code);
+  };
 
   return (
     <div className="page news-page">
       <div className="news-header">
-        <h2>熱門新聞</h2>
+        <h2>台股新聞</h2>
         <div className="news-header-right">
           {updatedAt && <span className="news-updated">更新 {updatedAt}</span>}
           <button className="tl-refresh" onClick={load} title="重新整理">↻</button>
@@ -56,7 +64,7 @@ export default function NewsPage() {
       {summary && (
         <div className="analysis-section">
           <div className="analysis-header">
-            <h3>今日新聞重點與台股觀察</h3>
+            <h3>今日新聞重點</h3>
             <span className="news-updated">{summary.date}</span>
           </div>
           <div className="analysis-content">
@@ -64,24 +72,46 @@ export default function NewsPage() {
               <p key={i}>{line}</p>
             ))}
           </div>
+
+          {summary.stock_watch?.length > 0 && (
+            <>
+              <h3 className="paper-section-title">台股觀察</h3>
+              <div className="stock-watch-list">
+                {summary.stock_watch.map((s) => (
+                  <a
+                    key={s.code}
+                    className="stock-watch-item"
+                    href={s.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <span className="stock-watch-code" onClick={(e) => goStock(e, s.code)}>
+                      {s.name}({s.code})
+                    </span>
+                    <span className="stock-watch-headline">{s.headline}</span>
+                  </a>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
-      {sources.length > 0 && (
+      {tags.length > 0 && (
         <div className="news-source-tabs">
           <button
-            className={sourceFilter === "all" ? "active" : ""}
-            onClick={() => setSourceFilter("all")}
+            className={tagFilter === "all" ? "active" : ""}
+            onClick={() => setTagFilter("all")}
           >
             全部
           </button>
-          {sources.map((s) => (
+          {tags.map((t) => (
             <button
-              key={s}
-              className={sourceFilter === s ? "active" : ""}
-              onClick={() => setSourceFilter(s)}
+              key={t}
+              className={tagFilter === t ? "active" : ""}
+              onClick={() => setTagFilter(t)}
             >
-              {s}
+              {t}
             </button>
           ))}
         </div>
@@ -104,9 +134,17 @@ export default function NewsPage() {
             rel="noopener noreferrer"
           >
             <span className="news-item-title">
-              {n.hot_score >= 2 && <span className="news-item-hot" title={`${n.hot_score} 家來源同時報導`}>🔥</span>}
-              {n.source && <span className="news-item-source">{n.source}</span>}
+              {n.tag && <span className="news-item-source">{n.tag}</span>}
               {n.title}
+              {n.stocks?.length > 0 && (
+                <span className="news-item-stocks">
+                  {n.stocks.map((s) => (
+                    <span key={s.code} className="news-item-stock" onClick={(e) => goStock(e, s.code)}>
+                      {s.name}({s.code})
+                    </span>
+                  ))}
+                </span>
+              )}
             </span>
             <span className="news-item-date">{formatPubDate(n.pub_date)}</span>
           </a>

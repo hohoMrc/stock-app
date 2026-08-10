@@ -2,56 +2,54 @@ import os
 from groq import Groq
 
 
+def build_stock_watch(news_items: list[dict], limit: int = 15) -> list[dict]:
+    """直接用鉅亨網新聞自帶的關聯個股（market欄位）彙整台股觀察清單，
+    不用AI猜——比較準，也不用花Groq額度。news_items已依時間新到舊排序，
+    同一檔股票重複出現時保留最新那則新聞的標題。
+    """
+    seen = set()
+    watch = []
+    for n in news_items:
+        for s in n.get("stocks") or []:
+            code = s["code"]
+            if code in seen:
+                continue
+            seen.add(code)
+            watch.append({
+                "code": code, "name": s["name"],
+                "headline": n["title"], "link": n["link"], "tag": n.get("tag"),
+            })
+            if len(watch) >= limit:
+                return watch
+    return watch
+
+
 def summarize_news(news_items: list[dict]) -> str:
-    """用 Groq (llama) 整理當日財經新聞重點跟台股觀察，供每日新聞通知/網頁摘要用。
-    找個股優先根據「熱門新聞」（hot_score>=2，多家來源同時報導），
-    因為那些比較可能是真的會動到股價的事件，不是單一媒體的雜訊。
+    """用 Groq (llama) 整理今日財經新聞重點（純文字摘要）。
+    個股清單改用 build_stock_watch() 直接從新聞自帶的關聯個股欄位產生，不用AI猜，
+    這裡只需要負責把當天的新聞脈絡整理成幾點重點。
     """
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-    hot_items   = [n for n in news_items if n.get("hot_score", 1) >= 2]
-    other_items = [n for n in news_items if n.get("hot_score", 1) < 2]
+    titles = "\n".join(
+        f"{i + 1}. {n['title']}" for i, n in enumerate(news_items)
+    )
 
-    def _fmt(items, offset=0):
-        return "\n".join(f"{i + 1 + offset}. {n['title']}（{n['source']}）" for i, n in enumerate(items))
-
-    if hot_items:
-        news_section = (
-            "## 熱門新聞（多家媒體同時報導同一件事，代表性較高，找個股請優先根據這些）\n"
-            f"{_fmt(hot_items)}\n\n"
-            "## 其他新聞（單一來源，熱門新聞裡找不到明確關聯個股時才參考這裡）\n"
-            f"{_fmt(other_items, len(hot_items))}"
-        )
-    else:
-        news_section = (
-            "## 今日財經新聞（今天沒有被多家媒體同時報導的新聞，以下全部是一般新聞）\n"
-            f"{_fmt(other_items)}"
-        )
-
-    prompt = f"""你是一位台股投資分析師，請根據以下今日財經新聞標題，幫我整理重點跟台股觀察，
+    prompt = f"""你是一位台股投資分析師，請根據以下今日台股新聞標題，整理今天的重點，
 讓沒時間細讀每則新聞的人也能快速掌握狀況。
 
-{news_section}
+## 今日台股新聞標題
+{titles}
 
-請提供：
-1. **今日重點**：條列整理今天最重要的財經/產業新聞在說什麼，合併相似主題、不用每則都列，
-   優先取材自熱門新聞（多家媒體都報的比較重要），只抓真正重要的3-6點
-2. **台股觀察**：直接條列值得留意的「個股」，**優先根據「熱門新聞」去找關聯個股**，只有
-   熱門新聞裡真的找不到明確關聯個股，才退一步從其他新聞裡找。兩種關聯方式都要找：
-   (a) 新聞標題裡本來就直接點名的上市櫃公司（例如營收公告、財報、被提及的個股），這些
-       一定要列出來，不要因為看起來不重要就漏掉；
-   (b) 新聞主題明顯會帶動的相關個股（例如某產業政策/需求消息，會受惠或受害的具體公司）。
-   每一檔都必須「獨立一行」，嚴格照這個格式寫，不要換成別的寫法：
-   - 名稱(代號)：正面/負面 — 一句話原因
-   不確定代號就把「(代號)」整段拿掉、只留名稱，但**不要因為不知道代號就整檔跳過不提**，
-   也不要用「XX類股」「XX等公司」這種籠統寫法取代逐檔列出。
-   只有完全找不到任何可以點名的公司時，才退而求其次改講產業類股。
+請條列整理今天最重要的財經/產業/大盤動態在說什麼，合併相似主題、不用每則都列，
+只抓真正重要的3-6點，個股層級的細節（例如個別公司營收）不用在這裡重複列，
+那些已經有另外的個股清單呈現。
 
-注意：這只是新聞整理參考，不構成投資建議；個股僅為新聞關聯推測，正確性請自行查證。"""
+注意：這只是新聞整理參考，不構成投資建議。"""
 
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
-        max_tokens=1024,
+        max_tokens=512,
         temperature=0.3,
         messages=[{"role": "user", "content": prompt}],
     )

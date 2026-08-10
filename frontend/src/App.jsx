@@ -546,7 +546,7 @@ export default function App() {
             onNavigate={(p) => setActivePage(p)}
           />
         )}
-        {activePage === "news" && <NewsPage />}
+        {activePage === "news" && <NewsPage onSelectStock={handleSelectStock} />}
         {activePage === "alerts" && (
           <AlertsPage
             username={username}

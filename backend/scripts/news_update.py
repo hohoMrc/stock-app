@@ -74,30 +74,31 @@ def _tg_notify_lines(title: str, lines: list[str], empty_text: str):
 print("[熱門新聞] 抓取財經新聞...")
 try:
     from app.services.news_data import get_hot_news
-    news = get_hot_news(15)
+    news = get_hot_news(30)
 
-    # AI 整理今日重點+台股觀察，失敗不影響原本的新聞列表通知照常發送
+    # AI 整理今日重點 + 從新聞自帶的關聯個股直接產生台股觀察，失敗不影響新聞列表通知照常發送
     if news:
         try:
             from datetime import date
-            from app.services.news_summary import summarize_news
+            from app.services.news_summary import summarize_news, build_stock_watch
             from app.db import init_db, save_news_summary
 
             init_db()
             summary_text = summarize_news(news)
+            stock_watch  = build_stock_watch(news)
             today_str = date.today().strftime("%Y-%m-%d")
-            save_news_summary(today_str, summary_text)
-            print(summary_text)
-            _tg_notify(f"📰 今日新聞重點與台股觀察\n\n{summary_text[:3800]}")
+            save_news_summary(today_str, summary_text, stock_watch)
+
+            watch_lines = [f'{"🔥" if s["tag"] == "熱門股" else ""}{s["name"]}({s["code"]})：{s["headline"]}' for s in stock_watch]
+            msg = f"📰 今日新聞重點\n\n{summary_text[:2500]}\n\n📈 台股觀察\n" + "\n".join(watch_lines[:15])
+            print(msg)
+            _tg_notify(msg[:3900])
         except Exception as e:
             print(f"[熱門新聞] AI摘要失敗: {e}")
 
-    lines = [
-        f'{"🔥" if n.get("hot_score", 0) >= 2 else ""}<a href="{n["link"]}">{n["title"]}</a>　({n["source"]})'
-        for n in news
-    ]
+    lines = [f'<a href="{n["link"]}">{n["title"]}</a>' for n in news[:15]]
     _tg_notify_lines(
-        f"[熱門新聞] 今日財經新聞 Top {len(news)}",
+        f"[熱門新聞] 今日財經新聞 Top {len(lines)}",
         lines,
         "[熱門新聞] 抓取失敗，暫無新聞",
     )

@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import threading
 import time
@@ -285,9 +286,10 @@ def init_db():
             ON paper_conditional_orders(status);
 
         CREATE TABLE IF NOT EXISTS news_summaries (
-            date       TEXT PRIMARY KEY,
-            summary    TEXT NOT NULL,
-            created_at REAL NOT NULL
+            date             TEXT PRIMARY KEY,
+            summary          TEXT NOT NULL,
+            stock_watch_json TEXT NOT NULL DEFAULT '[]',
+            created_at       REAL NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS claude_strategy_config (
@@ -333,6 +335,11 @@ def init_db():
         # 等平倉時才把開倉+平倉手續費合併記一筆，減少歷史成交紀錄的筆數）
         try:
             conn.execute("ALTER TABLE paper_futures_positions ADD COLUMN open_fee_total REAL NOT NULL DEFAULT 0")
+        except Exception:
+            pass
+        # Migration: 新聞摘要加「台股觀察個股清單」欄位（改用鉅亨網後直接用新聞自帶關聯個股，不用AI猜）
+        try:
+            conn.execute("ALTER TABLE news_summaries ADD COLUMN stock_watch_json TEXT NOT NULL DEFAULT '[]'")
         except Exception:
             pass
 
@@ -1337,20 +1344,24 @@ def cancel_stock_conditional_order(user_id: int, order_id: int) -> bool:
         return cur.rowcount > 0
 
 
-def save_news_summary(date: str, summary: str):
-    """存每日新聞重點摘要+台股觀察（AI整理），一天一筆。"""
+def save_news_summary(date: str, summary: str, stock_watch: list | None = None):
+    """存每日新聞重點摘要（AI整理）+ 台股觀察個股清單（直接從新聞關聯個股產生），一天一筆。"""
     with _conn() as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO news_summaries(date, summary, created_at) VALUES (?, ?, ?)",
-            (date, summary, time.time())
+            "INSERT OR REPLACE INTO news_summaries(date, summary, stock_watch_json, created_at) VALUES (?, ?, ?, ?)",
+            (date, summary, json.dumps(stock_watch or [], ensure_ascii=False), time.time())
         )
 
 
 def get_latest_news_summary() -> dict | None:
     with _conn() as conn:
         row = conn.execute(
-            "SELECT date, summary, created_at FROM news_summaries ORDER BY date DESC LIMIT 1"
+            "SELECT date, summary, stock_watch_json, created_at FROM news_summaries ORDER BY date DESC LIMIT 1"
         ).fetchone()
-    return dict(row) if row else None
+    if not row:
+        return None
+    result = dict(row)
+    result["stock_watch"] = json.loads(result.pop("stock_watch_json") or "[]")
+    return result
 
 
