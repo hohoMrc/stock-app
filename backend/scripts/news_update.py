@@ -11,8 +11,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "../.env"))
 
+import re
+import html
 import urllib.request
 import urllib.parse
+
+
+def _md_bold_to_html(text: str) -> str:
+    """AI 摘要用 **粗體** 的 markdown 語法，但 TG 訊息是純文字模式送的不會被解析，
+    改成先跳脫 HTML 特殊字元、再把 **文字** 轉成 <b>文字</b>，訊息改用 HTML 模式送。"""
+    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", html.escape(text))
 
 
 def _tg_chat_ids() -> list:
@@ -89,10 +97,16 @@ try:
             today_str = date.today().strftime("%Y-%m-%d")
             save_news_summary(today_str, summary_text, stock_watch)
 
-            watch_lines = [f'{"🔥" if s["tag"] == "熱門股" else ""}{s["name"]}({s["code"]})：{s["headline"]}' for s in stock_watch]
-            msg = f"📰 今日新聞重點\n\n{summary_text[:2500]}\n\n📈 台股觀察\n" + "\n".join(watch_lines[:15])
+            watch_lines = [
+                f'{"🔥" if s["tag"] == "熱門股" else ""}<b>{html.escape(s["name"])}({s["code"]})</b>：{html.escape(s["headline"])}'
+                for s in stock_watch
+            ]
+            msg = (
+                f"📰 <b>今日新聞重點</b>\n\n{_md_bold_to_html(summary_text[:2500])}"
+                f"\n\n📈 <b>台股觀察</b>\n" + "\n".join(watch_lines[:15])
+            )
             print(msg)
-            _tg_notify(msg[:3900])
+            _tg_notify(msg[:3900], html=True)
         except Exception as e:
             print(f"[熱門新聞] AI摘要失敗: {e}")
 
