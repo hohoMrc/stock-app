@@ -92,7 +92,10 @@ try:
         except Exception as e:
             print(f"[熱門新聞] AI摘要失敗: {e}")
 
-    lines = [f'<a href="{n["link"]}">{n["title"]}</a>　({n["source"]})' for n in news]
+    lines = [
+        f'{"🔥" if n.get("hot_score", 0) >= 2 else ""}<a href="{n["link"]}">{n["title"]}</a>　({n["source"]})'
+        for n in news
+    ]
     _tg_notify_lines(
         f"[熱門新聞] 今日財經新聞 Top {len(news)}",
         lines,

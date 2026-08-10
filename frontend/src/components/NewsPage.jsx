@@ -104,6 +104,7 @@ export default function NewsPage() {
             rel="noopener noreferrer"
           >
             <span className="news-item-title">
+              {n.hot_score >= 2 && <span className="news-item-hot" title={`${n.hot_score} 家來源同時報導`}>🔥</span>}
               {n.source && <span className="news-item-source">{n.source}</span>}
               {n.title}
             </span>

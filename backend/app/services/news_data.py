@@ -1,5 +1,6 @@
 """全市場財經/股市熱門新聞，合併多家來源的官方 RSS（免金鑰、免爬蟲）。"""
 import time
+import difflib
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -42,8 +43,53 @@ def _parse_pubdate(pub: str):
         return None
 
 
+HOT_SIM_THRESHOLD = 0.55   # 標題相似度門檻（difflib ratio，0~1）
+HOT_WINDOW_HOURS = 12      # 只把發布時間相近的報導視為同一則事件，避免不同天的類似標題誤判
+
+
+def _cluster_hot_scores(items: list[dict]) -> list[int]:
+    """免費 RSS 沒有現成的熱度欄位，用「有幾家不同來源在差不多時間報同一則新聞」當替代訊號：
+    標題相似度夠高 + 發布時間夠接近 → 視為同一則事件，事件涵蓋的不同來源數就是熱度分數。
+    同一家來源自己重複發文不算數（只看跨來源）。
+    """
+    n = len(items)
+    parent = list(range(n))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(x, y):
+        rx, ry = find(x), find(y)
+        if rx != ry:
+            parent[rx] = ry
+
+    dates = [_parse_pubdate(it["pub_date"]) for it in items]
+    for i in range(n):
+        for j in range(i + 1, n):
+            if items[i]["source"] == items[j]["source"]:
+                continue
+            if dates[i] and dates[j]:
+                delta_hours = abs((dates[i] - dates[j]).total_seconds()) / 3600
+                if delta_hours > HOT_WINDOW_HOURS:
+                    continue
+            if difflib.SequenceMatcher(None, items[i]["title"], items[j]["title"]).ratio() >= HOT_SIM_THRESHOLD:
+                union(i, j)
+
+    cluster_sources: dict[int, set] = {}
+    for i in range(n):
+        root = find(i)
+        cluster_sources.setdefault(root, set()).add(items[i]["source"])
+
+    return [len(cluster_sources[find(i)]) for i in range(n)]
+
+
 def get_hot_news(limit: int = 20) -> list[dict]:
-    """抓多家來源的財經新聞 RSS，依發布時間排序（新到舊）合併回傳。"""
+    """抓多家來源的財經新聞 RSS，先依發布時間排序（新到舊），
+    再依「熱度」（多家來源報同一則事件）做一次穩定排序拉到前面，
+    熱度相同的新聞維持原本的時間新到舊順序。"""
     cached = _cache.get("news")
     if cached and time.time() - cached[0] < _CACHE_TTL:
         return cached[1][:limit]
@@ -57,6 +103,11 @@ def get_hot_news(limit: int = 20) -> list[dict]:
 
     epoch = datetime.min.replace(tzinfo=timezone.utc)
     all_items.sort(key=lambda n: _parse_pubdate(n["pub_date"]) or epoch, reverse=True)
+
+    hot_scores = _cluster_hot_scores(all_items)
+    for item, score in zip(all_items, hot_scores):
+        item["hot_score"] = score
+    all_items.sort(key=lambda n: n["hot_score"], reverse=True)
 
     _cache["news"] = (time.time(), all_items)
     return all_items[:limit]
