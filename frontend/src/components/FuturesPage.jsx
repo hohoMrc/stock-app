@@ -510,8 +510,9 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
     }
     kdValueMapRef.current = kdValueMap;
 
-    // UT Bot / SuperTrend：只有日K有意義（兩者訊號都是拿日K算的），疊加停損線 + 反轉箭頭
-    if (timeframe === "D") {
+    // UT Bot / SuperTrend：參數是拿日K調的，分K上只當輔助參考用（不是正式追蹤的訊號），
+    // 疊加停損線 + 反轉箭頭，直接用目前畫面上這個週期的K棒算
+    {
       const allMarkers = [];
       if (showUtBot) {
         const { line, markers } = calcUtBot(shifted);
@@ -1022,8 +1023,7 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
           <button
             className={`futures-ma-btn ${showUtBot ? "active" : ""}`}
             style={{ "--ma-color": "#f59e0b" }}
-            disabled={timeframe !== "D"}
-            title={timeframe !== "D" ? "UT Bot 訊號僅日K可用" : ""}
+            title="參數是拿日K調的，非日K週期僅供參考，不是正式追蹤的訊號"
             onClick={() => setShowUtBot(v => !v)}
           >
             UT Bot
@@ -1031,8 +1031,7 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
           <button
             className={`futures-ma-btn ${showSuperTrend ? "active" : ""}`}
             style={{ "--ma-color": "#a78bfa" }}
-            disabled={timeframe !== "D"}
-            title={timeframe !== "D" ? "SuperTrend 訊號僅日K可用" : ""}
+            title="參數是拿日K調的，非日K週期僅供參考，不是正式追蹤的訊號"
             onClick={() => setShowSuperTrend(v => !v)}
           >
             SuperTrend
@@ -1046,7 +1045,7 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
           ? <div className="futures-chart-empty">盤中 K 線資料暫無（交易時段 08:45–13:45、15:00–隔日05:00）</div>
           : <FuturesChart
               ref={chartRef} candles={candles} timeframe={timeframe} activeMA={activeMA} showKD={showKD}
-              showUtBot={timeframe === "D" && showUtBot} showSuperTrend={timeframe === "D" && showSuperTrend}
+              showUtBot={showUtBot} showSuperTrend={showSuperTrend}
             />
       }
 
