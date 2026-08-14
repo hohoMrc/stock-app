@@ -36,6 +36,8 @@ DEFAULT_CONFIG = {
     "lt_target_holdings": 10,
     "st_position_pct":    0.07,
     "st_stop_loss_pct":   -6.0,
+    "st_take_profit_trigger_pct": 10.0,  # 曾經漲到這個報酬率以上，才開始追蹤移動停利
+    "st_trailing_stop_pct":       5.0,   # 觸發後，從最高報酬回落超過這個百分點就出場
     "st_max_hold_days":   20,
     "st_max_positions":   12,
     "st_scan_weights":    {
@@ -152,7 +154,7 @@ def run_shortterm_daily(scan_hits: dict[str, list]) -> list[dict]:
 
 
 def run_shortterm_exits() -> list[dict]:
-    """每天排程呼叫：檢查短期帳戶持股，觸及停損或滿最大持有天數就出場。"""
+    """每天排程呼叫：檢查短期帳戶持股，觸及停損、觸發移動停利或滿最大持有天數就出場。"""
     cfg = _get_config()
     user_id = ensure_claude_accounts()[1]
     positions = get_positions_with_price(user_id)
@@ -179,7 +181,17 @@ def run_shortterm_exits() -> list[dict]:
             entry_date = date.fromtimestamp(entry_ts).strftime("%Y-%m-%d")
             candles = get_candles(ticker, entry_date, today_str)
             trading_days_held = max(0, len(candles) - 1)
-            if trading_days_held >= cfg["st_max_hold_days"]:
+
+            # 移動停利：曾經漲到「觸發門檻」以上，之後從最高報酬回落超過「回落幅度」才出場，
+            # 不用一漲到門檻就急著賣、讓真正噴出的飆股可以繼續抱，但拉回一定幅度要先落袋
+            if candles and p.get("avg_cost"):
+                peak_return_pct = (max(c["close"] for c in candles) - p["avg_cost"]) / p["avg_cost"] * 100
+                if peak_return_pct >= cfg["st_take_profit_trigger_pct"]:
+                    current_return = p.get("return_pct", peak_return_pct)
+                    if peak_return_pct - current_return >= cfg["st_trailing_stop_pct"]:
+                        reason = f"移動停利（最高報酬 {round(peak_return_pct, 2)}%，回落到 {current_return}% 出場）"
+
+            if not reason and trading_days_held >= cfg["st_max_hold_days"]:
                 reason = f"持有滿 {trading_days_held} 個交易日，依規則出場"
         if not reason:
             continue
