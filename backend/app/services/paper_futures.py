@@ -134,7 +134,8 @@ def place_futures_order(user_id: int, product: str, side: str, qty: int,
         upsert_paper_futures_position(user_id, product, position["side"], position["qty"] - closing_qty,
                                        position["avg_price"], remaining_open_fee_total)
         insert_paper_futures_order(user_id, product, position["side"], "close", closing_qty, price,
-                                    fee_close + open_fee_share, tax, net_amount_close, realized_pl)
+                                    fee_close + open_fee_share, tax, net_amount_close, realized_pl,
+                                    open_price=position["avg_price"])
         account = get_or_create_paper_futures_account(user_id)
 
     if opening_qty:

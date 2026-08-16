@@ -517,7 +517,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
             <thead>
               <tr>
                 <th>時間</th><th>商品</th><th>方向</th><th>動作</th><th>口數</th>
-                <th>成交價</th><th>手續費</th><th>期交稅</th><th>金額</th><th>已實現損益</th>
+                <th>成本價</th><th>成交價</th><th>手續費</th><th>期交稅</th><th>金額</th><th>已實現損益</th>
               </tr>
             </thead>
             <tbody>
@@ -530,6 +530,7 @@ const FuturesPaperTrading = forwardRef(function FuturesPaperTrading(
                     <td>{isDeposit ? "—" : (o.side === "long" ? "多" : "空")}</td>
                     <td>{isDeposit ? "入金" : (o.action === "open" ? "建倉" : "平倉")}</td>
                     <td>{isDeposit ? "—" : o.qty}</td>
+                    <td>{o.open_price ?? "—"}</td>
                     <td>{isDeposit ? "—" : o.price}</td>
                     <td>{isDeposit ? "—" : o.fee}</td>
                     <td>{isDeposit ? "—" : o.tax}</td>

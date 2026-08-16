@@ -215,6 +215,7 @@ def init_db():
             action      TEXT NOT NULL,
             qty         INTEGER NOT NULL,
             price       REAL NOT NULL,
+            open_price  REAL,
             fee         REAL NOT NULL,
             tax         REAL NOT NULL,
             net_amount  REAL NOT NULL,
@@ -340,6 +341,12 @@ def init_db():
         # Migration: 新聞摘要加「台股觀察個股清單」欄位（改用鉅亨網後直接用新聞自帶關聯個股，不用AI猜）
         try:
             conn.execute("ALTER TABLE news_summaries ADD COLUMN stock_watch_json TEXT NOT NULL DEFAULT '[]'")
+        except Exception:
+            pass
+        # Migration: 期貨成交紀錄加「成本價」欄位（平倉那筆紀錄順便存當初的建倉均價，
+        # 不然只看得到平倉價跟已實現損益，看不出這趟交易的成本是多少）
+        try:
+            conn.execute("ALTER TABLE paper_futures_orders ADD COLUMN open_price REAL")
         except Exception:
             pass
 
@@ -1089,20 +1096,20 @@ def get_paper_futures_positions(user_id: int) -> list[dict]:
 
 def insert_paper_futures_order(user_id: int, product: str, side: str, action: str, qty: int,
                                 price: float, fee: float, tax: float, net_amount: float,
-                                realized_pl: float | None):
+                                realized_pl: float | None, open_price: float | None = None):
     with _conn() as conn:
         conn.execute(
             "INSERT INTO paper_futures_orders"
-            "(user_id, product, side, action, qty, price, fee, tax, net_amount, realized_pl, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (user_id, product, side, action, qty, price, fee, tax, net_amount, realized_pl, time.time())
+            "(user_id, product, side, action, qty, price, open_price, fee, tax, net_amount, realized_pl, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (user_id, product, side, action, qty, price, open_price, fee, tax, net_amount, realized_pl, time.time())
         )
 
 
 def get_paper_futures_orders(user_id: int, limit: int = 50) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT product, side, action, qty, price, fee, tax, net_amount, realized_pl, created_at "
+            "SELECT product, side, action, qty, price, open_price, fee, tax, net_amount, realized_pl, created_at "
             "FROM paper_futures_orders WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
             (user_id, limit)
         ).fetchall()
