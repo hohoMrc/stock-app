@@ -1436,7 +1436,31 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   flex-direction: column;
 }
 
-.terminal-mobile-switcher { display: none; }
+.terminal-mobile-switcher {
+  display: none;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+}
+.terminal-mobile-switcher button {
+  flex: 1;
+  padding: 10px 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.terminal-mobile-switcher button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.terminal-mobile-switcher button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .terminal-wrap {
   display: flex;
