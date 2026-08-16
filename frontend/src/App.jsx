@@ -146,6 +146,11 @@ export default function App() {
   const [screenerSearched, setScreenerSearched] = useState(false);
   const [screenerAutoScan, setScreenerAutoScan] = useState(null);
 
+  // 選股篩選點格子快速查看個股：右側滑出面板，不跳轉頁面、不影響篩選結果
+  const [quickView, setQuickView] = useState(null); // { ticker, context } | null
+  const openQuickView  = (ticker, context = null) => setQuickView({ ticker, context });
+  const closeQuickView = () => setQuickView(null);
+
   // 帳號狀態
   const [username, setUsername] = useState(() => localStorage.getItem("username") || null);
   const [showAuth, setShowAuth] = useState(false);
@@ -583,12 +588,34 @@ export default function App() {
             setResults={setScreenerResults}
             searched={screenerSearched}
             setSearched={setScreenerSearched}
-            onSelect={handleSelectStock}
+            onSelect={openQuickView}
             autoScan={screenerAutoScan}
             onAutoScanHandled={() => setScreenerAutoScan(null)}
           />
         </div>
       </main>
+
+      {quickView && (
+        <div className="quickview-overlay" onClick={closeQuickView}>
+          <div className="quickview-drawer" onClick={(e) => e.stopPropagation()}>
+            <button className="quickview-close" onClick={closeQuickView} title="關閉">✕</button>
+            <StockDetail
+              ticker={quickView.ticker}
+              scanContext={quickView.context}
+              onBack={closeQuickView}
+              onIndustry={(industry, fromTicker, useParent) => {
+                closeQuickView();
+                handleSelectIndustry(industry, fromTicker, useParent);
+              }}
+              watchlist={watchlist}
+              onToggleWatch={toggleWatch}
+              onPaperTrade={(t) => { closeQuickView(); goToPaperTrading(t); }}
+              username={username}
+              onRequireLogin={() => setShowAuth(true)}
+            />
+          </div>
+        </div>
+      )}
 
       {showAuth && (
         <AuthModal

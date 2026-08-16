@@ -1316,6 +1316,43 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .logout-btn { border-color: rgba(248,113,113,0.3); color: #f87171; background: transparent; }
 .logout-btn:hover { background: rgba(248,113,113,0.08); }
 
+/* ── 選股篩選：點格子快速查看個股，右側滑出面板 ── */
+@keyframes quickview-slide-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.quickview-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 500;
+  display: flex; justify-content: flex-end;
+}
+.quickview-drawer {
+  position: relative;
+  width: min(720px, 100vw);
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  box-shadow: -12px 0 40px rgba(0,0,0,0.4);
+  animation: quickview-slide-in 0.22s ease-out;
+}
+.quickview-close {
+  position: sticky;
+  top: 12px;
+  float: right;
+  margin-right: 12px;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 15px;
+  z-index: 1;
+}
+.quickview-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+
 /* ── Auth Modal ── */
 .modal-overlay {
   position: fixed; inset: 0;

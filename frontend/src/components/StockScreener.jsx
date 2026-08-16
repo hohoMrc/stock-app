@@ -576,12 +576,15 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                   {hasMA && <th>{MA_OPTIONS.find(o => o.value === filters.near_ma)?.label}</th>}
                   {hasMA && <th>偏離</th>}
                   {hasPattern && <th>型態</th>}
-                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
                 {results.map((s) => (
-                  <tr key={s.ticker} className={(() => { const v = s.change_pct ?? s.weekly_change_pct; return v > 0 ? "row-up" : v < 0 ? "row-down" : ""; })()}>
+                  <tr
+                    key={s.ticker}
+                    className={`industry-row-clickable ${(() => { const v = s.change_pct ?? s.weekly_change_pct; return v > 0 ? "row-up" : v < 0 ? "row-down" : ""; })()}`}
+                    onClick={() => onSelect(s.ticker, resultMode)}
+                  >
                     <td className="col-ticker">{s.ticker}</td>
                     <td className="col-name">{s.name}</td>
                     <td>{s.close ?? s.price ?? "—"}</td>
@@ -657,11 +660,6 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                         {PATTERN_LABEL[s.pattern] ?? "—"}
                       </td>
                     )}
-                    <td>
-                      <button className="view-btn" onClick={() => onSelect(s.ticker, resultMode)}>
-                        查看
-                      </button>
-                    </td>
                   </tr>
                 ))}
               </tbody>
