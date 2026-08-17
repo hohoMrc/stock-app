@@ -5,6 +5,7 @@ from app.db import (
     save_scan_signals, get_signals_pending_evaluation, update_signal_returns,
     get_scan_signal_stats, get_recent_scan_signals, get_candles,
     upsert_ema60_watch, get_ema60_watchlist, remove_ema60_watch, prune_stale_ema60_watch,
+    log_ema60_watch_events, get_ema60_watch_events,
 )
 
 SCAN_LABELS = {
@@ -90,12 +91,21 @@ EMA60_WATCH_EXPIRY_DAYS = 21  # 太久沒再貼近EMA60、也一直沒噴出的�
 
 
 def update_ema60_watchlist(hits: list):
-    """把今天 EMA60近線 掃到的股票加進觀察名單；已經在名單裡的只刷新 last_seen（不重複計入）。"""
+    """把今天 EMA60近線 掃到的股票加進觀察名單；已經在名單裡的只刷新 last_seen（不重複計入）。
+    真正新加入的記一筆 added 事件，供週報統計「本週新加入」用。
+    """
     today = date.today().strftime("%Y-%m-%d")
+    added_events = []
     for h in hits:
         if not h.get("ticker"):
             continue
-        upsert_ema60_watch(h["ticker"], h.get("name", ""), today, h.get("close"))
+        is_new = upsert_ema60_watch(h["ticker"], h.get("name", ""), today, h.get("close"))
+        if is_new:
+            added_events.append({
+                "ticker": h["ticker"], "name": h.get("name", ""),
+                "event_type": "added", "reason": None, "event_date": today,
+            })
+    log_ema60_watch_events(added_events)
 
 
 EMA60_BREAKOUT_TRACKING_DAYS = 30  # 噴出追蹤清單只看最近30天內觸發的，太久之前的不繼續佔畫面
@@ -129,12 +139,21 @@ def check_ema60_breakouts() -> list[dict]:
     from_date  = (date.today() - timedelta(days=120)).strftime("%Y-%m-%d")  # 120天確保有足夠K棒算EMA60
     cooldown_since = (date.today() - timedelta(days=EMA60_BREAKOUT_COOLDOWN_DAYS)).strftime("%Y-%m-%d")
     recent_breakout_tickers = {r["ticker"] for r in get_recent_scan_signals("ema60_breakout", cooldown_since)}
+    name_map = {w["ticker"]: w.get("name", "") for w in watchlist}
+
+    def _log_removed(tickers: list[str], reason: str):
+        log_ema60_watch_events([
+            {"ticker": t, "name": name_map.get(t, ""), "event_type": "removed",
+             "reason": reason, "event_date": today_str}
+            for t in tickers
+        ])
 
     triggered = []
     invalidated = []
     cooling_down = [w["ticker"] for w in watchlist if w["ticker"] in recent_breakout_tickers]
     if cooling_down:
         remove_ema60_watch(cooling_down)
+        _log_removed(cooling_down, "cooldown")
 
     for w in watchlist:
         ticker = w["ticker"]
@@ -190,13 +209,21 @@ def check_ema60_breakouts() -> list[dict]:
     if invalidated:
         print(f"[EMA60貼線] EMA10跌破EMA60，型態失效移除觀察名單: {invalidated}")
         remove_ema60_watch(invalidated)
+        _log_removed(invalidated, "death_cross")
 
     if triggered:
         record_signals("ema60_breakout", triggered)
         remove_ema60_watch([t["ticker"] for t in triggered])
+        _log_removed([t["ticker"] for t in triggered], "breakout")
 
     cutoff = (date.today() - timedelta(days=EMA60_WATCH_EXPIRY_DAYS)).strftime("%Y-%m-%d")
-    prune_stale_ema60_watch(cutoff)
+    stale_removed = prune_stale_ema60_watch(cutoff)
+    if stale_removed:
+        log_ema60_watch_events([
+            {"ticker": r["ticker"], "name": r.get("name", ""), "event_type": "removed",
+             "reason": "stale", "event_date": today_str}
+            for r in stale_removed
+        ])
 
     return triggered
 
@@ -260,6 +287,30 @@ def get_ema60_breakout_tracking() -> list[dict]:
             "return_20d":        r.get("return_20d"),
         })
     return result
+
+
+EMA60_REMOVE_REASON_LABEL = {
+    "breakout":    "噴出",
+    "death_cross": "EMA10跌破EMA60",
+    "cooldown":    "噴出冷卻期內",
+    "stale":       "太久沒動靜",
+}
+
+
+def get_ema60_weekly_report(days: int = 7) -> dict:
+    """EMA60貼線觀察名單週報：目前還在觀察的、近N天新加入的、近N天被移除的（含原因）。
+    供排程發 Telegram 週報用。
+    """
+    since = (date.today() - timedelta(days=days)).strftime("%Y-%m-%d")
+    events = get_ema60_watch_events(since)
+    added = [e for e in events if e["event_type"] == "added"]
+    removed = [
+        {**e, "reason_label": EMA60_REMOVE_REASON_LABEL.get(e["reason"], e["reason"] or "—")}
+        for e in events if e["event_type"] == "removed"
+    ]
+    watching = get_ema60_watchlist()
+    watching.sort(key=lambda w: w["first_seen_date"], reverse=True)
+    return {"still_watching": watching, "added": added, "removed": removed}
 
 
 def _avg(vals: list) -> float | None:

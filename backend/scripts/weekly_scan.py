@@ -95,3 +95,33 @@ if __name__ == "__main__":
         _tg_notify(msg)
     except Exception as e:
         print(f"[篩選成效週報] 失敗: {e}")
+
+    print("[EMA60貼線觀察名單週報] 彙整近7天異動...")
+    try:
+        from app.services.signal_tracking import get_ema60_weekly_report
+        report = get_ema60_weekly_report(7)
+        watching, added, removed = report["still_watching"], report["added"], report["removed"]
+
+        lines = [f"🟢 目前觀察中（{len(watching)} 檔）"]
+        lines += [
+            _stock_link(w["ticker"], w.get("name", ""), f"　加入於 {w['first_seen_date']}")
+            for w in watching
+        ] if watching else ["（無）"]
+
+        lines.append(f"\n➕ 本週新加入（{len(added)} 檔）")
+        lines += [
+            _stock_link(e["ticker"], e.get("name", ""), f"　{e['event_date']}")
+            for e in added
+        ] if added else ["（無）"]
+
+        lines.append(f"\n➖ 本週移除（{len(removed)} 檔）")
+        lines += [
+            _stock_link(e["ticker"], e.get("name", ""), f"　{e['event_date']}　原因：{e['reason_label']}")
+            for e in removed
+        ] if removed else ["（無）"]
+
+        msg = "[EMA60貼線觀察名單週報]\n" + "\n".join(lines)
+        print(msg)
+        _tg_notify(msg, html=True)
+    except Exception as e:
+        print(f"[EMA60貼線觀察名單週報] 失敗: {e}")
