@@ -99,6 +99,7 @@ def update_ema60_watchlist(hits: list):
 
 
 EMA60_BREAKOUT_TRACKING_DAYS = 30  # 噴出追蹤清單只看最近30天內觸發的，太久之前的不繼續佔畫面
+EMA60_BREAKOUT_COOLDOWN_DAYS = 20  # 噴出後這麼多天內不重複記錄，避免同一次型態被算成好幾次噴出
 
 
 def check_ema60_breakouts() -> list[dict]:
@@ -107,6 +108,12 @@ def check_ema60_breakouts() -> list[dict]:
     (b) 站回EMA10：昨天收盤 < 昨天EMA10，今天收盤 ≥ 今天EMA10（由下往上穿越，不是單純「現在站上」）
     任一條件觸發就算噴出：記錄一筆訊號快照（供噴出後繼續追蹤表現、以及5/10/20日報酬率評估用）、
     從觀察名單移除（已經噴出，不用再等下一次噴出通知）。同時清掉太久沒動靜的股票。
+
+    冷卻期：噴出後股價常常還黏在EMA60附近，隔幾天又被「EMA60近線」掃描抓回觀察名單，這時候
+    如果又被爆量或EMA10微幅交叉這種雜訊等級的訊號觸發，不該算成一次新的噴出——所以
+    EMA60_BREAKOUT_COOLDOWN_DAYS 天內已經噴出過的股票，就算又跑回觀察名單也先跳過、
+    順便把它從觀察名單移除（冷卻期內不用一直重複判斷同一支）。
+
     回傳觸發清單，供排程發 Telegram 通知用。
     """
     watchlist = get_ema60_watchlist()
@@ -115,10 +122,18 @@ def check_ema60_breakouts() -> list[dict]:
 
     today_str  = date.today().strftime("%Y-%m-%d")
     from_date  = (date.today() - timedelta(days=90)).strftime("%Y-%m-%d")
+    cooldown_since = (date.today() - timedelta(days=EMA60_BREAKOUT_COOLDOWN_DAYS)).strftime("%Y-%m-%d")
+    recent_breakout_tickers = {r["ticker"] for r in get_recent_scan_signals("ema60_breakout", cooldown_since)}
 
     triggered = []
+    cooling_down = [w["ticker"] for w in watchlist if w["ticker"] in recent_breakout_tickers]
+    if cooling_down:
+        remove_ema60_watch(cooling_down)
+
     for w in watchlist:
         ticker = w["ticker"]
+        if ticker in recent_breakout_tickers:
+            continue
         records = get_candles(ticker, from_date, today_str)
         if not records or len(records) < 12:
             continue
