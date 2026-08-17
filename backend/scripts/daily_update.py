@@ -242,6 +242,10 @@ if __name__ == "__main__":
                 )
             if breakout_lines:
                 _tg_notify_lines(f"[EMA60貼線噴出] 今日觸發 {len(breakout_hits)} 支", breakout_lines, "")
+
+            # 貼線噴出追蹤：已經噴出的股票如果 EMA10 又跌破 EMA60（動能失效），從追蹤清單移除
+            from app.services.signal_tracking import check_ema60_breakout_invalidations
+            check_ema60_breakout_invalidations()
         except Exception as e:
             print(f"[EMA60近線] 掃描失敗: {e}")
 

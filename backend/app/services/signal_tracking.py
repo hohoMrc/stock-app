@@ -6,6 +6,7 @@ from app.db import (
     get_scan_signal_stats, get_recent_scan_signals, get_candles,
     upsert_ema60_watch, get_ema60_watchlist, remove_ema60_watch, prune_stale_ema60_watch,
     log_ema60_watch_events, get_ema60_watch_events,
+    mark_ema60_breakout_invalidated, get_ema60_breakout_invalidated,
 )
 
 SCAN_LABELS = {
@@ -228,6 +229,56 @@ def check_ema60_breakouts() -> list[dict]:
     return triggered
 
 
+def check_ema60_breakout_invalidations() -> list[dict]:
+    """檢查「貼線噴出追蹤」清單裡的股票，EMA10 是否已經跌破 EMA60（噴出後動能失效、
+    走勢又轉弱了）。失效的標記起來，之後 get_ema60_breakout_tracking() 不會再顯示它，
+    同時記一筆 removed 事件（source=breakout_tracking）供週報使用。
+
+    注意：只標記，不動 scan_signals 本身——5/10/20日報酬率統計要用全部訊號（含失效的）
+    才不會有存活者偏誤，讓「EMA60貼線噴出」這個訊號來源的勝率看起來比實際更好。
+
+    回傳新失效的清單，供排程發 Telegram 通知用。
+    """
+    today_str = date.today().strftime("%Y-%m-%d")
+    since = (date.today() - timedelta(days=EMA60_BREAKOUT_TRACKING_DAYS)).strftime("%Y-%m-%d")
+    from_date = (date.today() - timedelta(days=120)).strftime("%Y-%m-%d")
+
+    rows = get_recent_scan_signals("ema60_breakout", since)
+    if not rows:
+        return []
+    already_invalidated = get_ema60_breakout_invalidated(since)
+
+    newly_invalidated = []
+    for r in rows:
+        key = (r["ticker"], r["signal_date"])
+        if key in already_invalidated:
+            continue
+        records = get_candles(r["ticker"], from_date, today_str)
+        closes = [c["close"] for c in records if c.get("close") is not None]
+        if len(closes) < 62:
+            continue
+
+        k10, ema10 = 2 / 11, None
+        k60, ema60 = 2 / 61, None
+        for c in closes:
+            ema10 = c if ema10 is None else c * k10 + ema10 * (1 - k10)
+            ema60 = c if ema60 is None else c * k60 + ema60 * (1 - k60)
+
+        if ema10 < ema60:
+            newly_invalidated.append({"ticker": r["ticker"], "name": r.get("name", ""), "signal_date": r["signal_date"]})
+
+    if newly_invalidated:
+        print(f"[EMA60噴出追蹤] EMA10跌破EMA60，動能失效: {[x['ticker'] for x in newly_invalidated]}")
+        mark_ema60_breakout_invalidated([(x["ticker"], x["signal_date"]) for x in newly_invalidated])
+        log_ema60_watch_events([
+            {"ticker": x["ticker"], "name": x["name"], "event_type": "removed", "reason": "death_cross",
+             "source": "breakout_tracking", "event_date": today_str}
+            for x in newly_invalidated
+        ])
+
+    return newly_invalidated
+
+
 def get_ema60_watchlist_view() -> list[dict]:
     """觀察名單 + 即時報價，供前端「EMA60貼線觀察名單」頁面顯示用。
     依加入觀察名單的日期新到舊排序（最新盯上的排最前面）。
@@ -260,11 +311,16 @@ def get_ema60_watchlist_view() -> list[dict]:
 def get_ema60_breakout_tracking() -> list[dict]:
     """最近觸發「EMA60貼線噴出」的股票 + 即時報價，噴出後不會消失，繼續放這裡讓你觀察後續表現
     （5/10/20 個交易日報酬率會隨時間自動補上）。只看最近 EMA60_BREAKOUT_TRACKING_DAYS 天內觸發的，
-    依觸發日期新到舊排序。
+    依觸發日期新到舊排序。EMA10已經跌破EMA60（噴出動能失效）的會被 check_ema60_breakout_invalidations()
+    標記起來，這裡過濾掉不顯示——但底層 scan_signals 資料還在，5/10/20日報酬率統計不受影響。
     """
     from app.services.stock_data import get_watchlist_quotes
     since = (date.today() - timedelta(days=EMA60_BREAKOUT_TRACKING_DAYS)).strftime("%Y-%m-%d")
     rows = get_recent_scan_signals("ema60_breakout", since)
+    if not rows:
+        return []
+    invalidated = get_ema60_breakout_invalidated(since)
+    rows = [r for r in rows if (r["ticker"], r["signal_date"]) not in invalidated]
     if not rows:
         return []
     quote_map = {q["ticker"]: q for q in get_watchlist_quotes([r["ticker"] for r in rows])}
@@ -298,19 +354,26 @@ EMA60_REMOVE_REASON_LABEL = {
 
 
 def get_ema60_weekly_report(days: int = 7) -> dict:
-    """EMA60貼線觀察名單週報：目前還在觀察的、近N天新加入的、近N天被移除的（含原因）。
-    供排程發 Telegram 週報用。
+    """EMA60貼線觀察名單週報：目前還在觀察的、近N天新加入的、近N天被移除的（含原因），
+    以及「貼線噴出追蹤」清單近N天因EMA10跌破EMA60而被標記失效的。供排程發 Telegram 週報用。
     """
     since = (date.today() - timedelta(days=days)).strftime("%Y-%m-%d")
     events = get_ema60_watch_events(since)
     added = [e for e in events if e["event_type"] == "added"]
     removed = [
         {**e, "reason_label": EMA60_REMOVE_REASON_LABEL.get(e["reason"], e["reason"] or "—")}
-        for e in events if e["event_type"] == "removed"
+        for e in events if e["event_type"] == "removed" and e.get("source", "watchlist") == "watchlist"
+    ]
+    tracking_removed = [
+        {**e, "reason_label": EMA60_REMOVE_REASON_LABEL.get(e["reason"], e["reason"] or "—")}
+        for e in events if e["event_type"] == "removed" and e.get("source") == "breakout_tracking"
     ]
     watching = get_ema60_watchlist()
     watching.sort(key=lambda w: w["first_seen_date"], reverse=True)
-    return {"still_watching": watching, "added": added, "removed": removed}
+    return {
+        "still_watching": watching, "added": added, "removed": removed,
+        "tracking_removed": tracking_removed,
+    }
 
 
 def _avg(vals: list) -> float | None:

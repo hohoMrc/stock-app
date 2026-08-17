@@ -132,8 +132,15 @@ def init_db():
             name        TEXT,
             event_type  TEXT NOT NULL,
             reason      TEXT,
+            source      TEXT NOT NULL DEFAULT 'watchlist',
             event_date  TEXT NOT NULL,
             created_at  REAL NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS ema60_breakout_invalidated (
+            ticker      TEXT NOT NULL,
+            signal_date TEXT NOT NULL,
+            PRIMARY KEY (ticker, signal_date)
         );
 
         CREATE INDEX IF NOT EXISTS idx_ema60_watch_events_date
@@ -360,6 +367,12 @@ def init_db():
         # 不然只看得到平倉價跟已實現損益，看不出這趟交易的成本是多少）
         try:
             conn.execute("ALTER TABLE paper_futures_orders ADD COLUMN open_price REAL")
+        except Exception:
+            pass
+        # Migration: 觀察名單異動事件加「來源」欄位（區分是「貼線觀察名單」還是
+        # 「貼線噴出追蹤」的異動，週報才能分開兩個段落顯示）
+        try:
+            conn.execute("ALTER TABLE ema60_watch_events ADD COLUMN source TEXT NOT NULL DEFAULT 'watchlist'")
         except Exception:
             pass
 
@@ -762,16 +775,18 @@ def prune_stale_ema60_watch(cutoff_date: str) -> list[dict]:
 
 
 def log_ema60_watch_events(events: list[dict]):
-    """記錄觀察名單的加入/移除事件，供週報彙整用。
-    events: [{"ticker","name","event_type":"added"/"removed","reason":str|None,"event_date"}]
+    """記錄觀察名單／噴出追蹤清單的加入/移除事件，供週報彙整用。
+    events: [{"ticker","name","event_type":"added"/"removed","reason":str|None,
+              "source":"watchlist"/"breakout_tracking"（預設watchlist）,"event_date"}]
     """
     if not events:
         return
     with _conn() as conn:
         conn.executemany(
-            "INSERT INTO ema60_watch_events(ticker, name, event_type, reason, event_date, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            [(e["ticker"], e.get("name", ""), e["event_type"], e.get("reason"), e["event_date"], time.time())
+            "INSERT INTO ema60_watch_events(ticker, name, event_type, reason, source, event_date, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [(e["ticker"], e.get("name", ""), e["event_type"], e.get("reason"),
+              e.get("source", "watchlist"), e["event_date"], time.time())
              for e in events]
         )
 
@@ -779,11 +794,34 @@ def log_ema60_watch_events(events: list[dict]):
 def get_ema60_watch_events(since_date: str) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT ticker, name, event_type, reason, event_date FROM ema60_watch_events "
+            "SELECT ticker, name, event_type, reason, source, event_date FROM ema60_watch_events "
             "WHERE event_date>=? ORDER BY event_date, ticker",
             (since_date,)
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def mark_ema60_breakout_invalidated(pairs: list[tuple[str, str]]):
+    """標記「貼線噴出追蹤」清單裡某筆訊號已失效（EMA10跌破EMA60），
+    之後追蹤清單不再顯示它，但不動 scan_signals 本身——5/10/20日報酬率統計要用
+    全部訊號（含失效的）才不會有存活者偏誤，讓勝率看起來比實際更好。
+    """
+    if not pairs:
+        return
+    with _conn() as conn:
+        conn.executemany(
+            "INSERT OR IGNORE INTO ema60_breakout_invalidated(ticker, signal_date) VALUES (?, ?)",
+            pairs
+        )
+
+
+def get_ema60_breakout_invalidated(since_date: str) -> set:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker, signal_date FROM ema60_breakout_invalidated WHERE signal_date>=?",
+            (since_date,)
+        ).fetchall()
+    return {(r["ticker"], r["signal_date"]) for r in rows}
 
 
 # ── warrants（權證→標的股對照表，每日排程批次更新）──────────

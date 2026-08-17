@@ -100,7 +100,9 @@ if __name__ == "__main__":
     try:
         from app.services.signal_tracking import get_ema60_weekly_report
         report = get_ema60_weekly_report(7)
-        watching, added, removed = report["still_watching"], report["added"], report["removed"]
+        watching, added, removed, tracking_removed = (
+            report["still_watching"], report["added"], report["removed"], report["tracking_removed"]
+        )
 
         lines = [f"🟢 目前觀察中（{len(watching)} 檔）"]
         lines += [
@@ -119,6 +121,12 @@ if __name__ == "__main__":
             _stock_link(e["ticker"], e.get("name", ""), f"　{e['event_date']}　原因：{e['reason_label']}")
             for e in removed
         ] if removed else ["（無）"]
+
+        lines.append(f"\n🔻 噴出追蹤本週移除（{len(tracking_removed)} 檔，EMA10跌破EMA60動能失效）")
+        lines += [
+            _stock_link(e["ticker"], e.get("name", ""), f"　{e['event_date']}")
+            for e in tracking_removed
+        ] if tracking_removed else ["（無）"]
 
         msg = "[EMA60貼線觀察名單週報]\n" + "\n".join(lines)
         print(msg)
