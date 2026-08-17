@@ -114,6 +114,11 @@ def check_ema60_breakouts() -> list[dict]:
     EMA60_BREAKOUT_COOLDOWN_DAYS 天內已經噴出過的股票，就算又跑回觀察名單也先跳過、
     順便把它從觀察名單移除（冷卻期內不用一直重複判斷同一支）。
 
+    型態失效：EMA10 已經跌到 EMA60 之下（不限於今天剛跌破，只要現在還處於這個狀態就算），
+    代表原本貼線緩漲的型態已經走弱、不會再噴出了，直接從觀察名單移除，不算噴出也不記錄訊號
+    （單純退出觀察，不是要追蹤的結果）。用「現在的狀態」而非「今天剛好跨越」判斷，這樣才能
+    抓到「幾天前就已經跌破、但那天剛好還沒有這個規則」的既有觀察名單成員。
+
     回傳觸發清單，供排程發 Telegram 通知用。
     """
     watchlist = get_ema60_watchlist()
@@ -121,11 +126,12 @@ def check_ema60_breakouts() -> list[dict]:
         return []
 
     today_str  = date.today().strftime("%Y-%m-%d")
-    from_date  = (date.today() - timedelta(days=90)).strftime("%Y-%m-%d")
+    from_date  = (date.today() - timedelta(days=120)).strftime("%Y-%m-%d")  # 120天確保有足夠K棒算EMA60
     cooldown_since = (date.today() - timedelta(days=EMA60_BREAKOUT_COOLDOWN_DAYS)).strftime("%Y-%m-%d")
     recent_breakout_tickers = {r["ticker"] for r in get_recent_scan_signals("ema60_breakout", cooldown_since)}
 
     triggered = []
+    invalidated = []
     cooling_down = [w["ticker"] for w in watchlist if w["ticker"] in recent_breakout_tickers]
     if cooling_down:
         remove_ema60_watch(cooling_down)
@@ -135,7 +141,27 @@ def check_ema60_breakouts() -> list[dict]:
         if ticker in recent_breakout_tickers:
             continue
         records = get_candles(ticker, from_date, today_str)
-        if not records or len(records) < 12:
+        if not records or len(records) < 62:
+            continue
+
+        closes = [r["close"] for r in records if r["close"] is not None]
+        if len(closes) < 62:
+            continue
+
+        k10, ema10 = 2 / 11, None
+        k60, ema60 = 2 / 61, None
+        ema10_series, ema60_series = [], []
+        for c in closes:
+            ema10 = c if ema10 is None else c * k10 + ema10 * (1 - k10)
+            ema60 = c if ema60 is None else c * k60 + ema60 * (1 - k60)
+            ema10_series.append(ema10)
+            ema60_series.append(ema60)
+
+        today_close, today_ema10, today_ema60 = closes[-1], ema10_series[-1], ema60_series[-1]
+        prev_close,  prev_ema10  = closes[-2], ema10_series[-2]
+
+        if today_ema10 < today_ema60:
+            invalidated.append(ticker)
             continue
 
         today_vol = records[-1].get("volume") or 0
@@ -145,16 +171,6 @@ def check_ema60_breakouts() -> list[dict]:
         vol_ratio  = today_vol / avg_vol_5d if avg_vol_5d > 0 else 0
         volume_trigger = vol_ratio >= 3.0
 
-        closes = [r["close"] for r in records if r["close"] is not None]
-        if len(closes) < 2:
-            continue
-        k, ema = 2 / 11, None
-        ema_series = []
-        for c in closes:
-            ema = c if ema is None else c * k + ema * (1 - k)
-            ema_series.append(ema)
-        today_close, today_ema10 = closes[-1], ema_series[-1]
-        prev_close,  prev_ema10  = closes[-2], ema_series[-2]
         ema10_cross_trigger = prev_close < prev_ema10 and today_close >= today_ema10
 
         if not (volume_trigger or ema10_cross_trigger):
@@ -170,6 +186,10 @@ def check_ema60_breakouts() -> list[dict]:
             "close": today_close, "entry_price": w.get("entry_price"),
             "reasons": reasons,
         })
+
+    if invalidated:
+        print(f"[EMA60貼線] EMA10跌破EMA60，型態失效移除觀察名單: {invalidated}")
+        remove_ema60_watch(invalidated)
 
     if triggered:
         record_signals("ema60_breakout", triggered)
