@@ -84,31 +84,38 @@ try:
     from app.services.news_data import get_hot_news
     news = get_hot_news(30)
 
-    # AI 整理今日重點 + 從新聞自帶的關聯個股直接產生台股觀察，失敗不影響新聞列表通知照常發送
+    # 台股觀察（從新聞自帶的關聯個股直接產生，不用AI）跟AI摘要分開處理，
+    # 這樣即使Groq那邊出問題（額度、模型下架等），台股觀察還是能正常更新，
+    # 不會因為AI那段失敗就整個台股觀察也一起卡住不更新。
     if news:
+        from datetime import date
+        from app.services.news_summary import build_stock_watch
+        from app.db import init_db, save_news_summary
+
+        init_db()
+        stock_watch = build_stock_watch(news)
+        today_str = date.today().strftime("%Y-%m-%d")
+
+        summary_text = None
         try:
-            from datetime import date
-            from app.services.news_summary import summarize_news, build_stock_watch
-            from app.db import init_db, save_news_summary
-
-            init_db()
+            from app.services.news_summary import summarize_news
             summary_text = summarize_news(news)
-            stock_watch  = build_stock_watch(news)
-            today_str = date.today().strftime("%Y-%m-%d")
-            save_news_summary(today_str, summary_text, stock_watch)
-
-            watch_lines = [
-                f'{"🔥" if s["tag"] == "熱門股" else ""}<b>{html.escape(s["name"])}({s["code"]})</b>：{html.escape(s["headline"])}'
-                for s in stock_watch
-            ]
-            msg = (
-                f"📰 <b>今日新聞重點</b>\n\n{_md_bold_to_html(summary_text[:2500])}"
-                f"\n\n📈 <b>台股觀察</b>\n" + "\n".join(watch_lines[:15])
-            )
-            print(msg)
-            _tg_notify(msg[:3900], html=True)
         except Exception as e:
             print(f"[熱門新聞] AI摘要失敗: {e}")
+            summary_text = "（AI摘要暫時無法產生，以下為台股觀察個股清單）"
+
+        save_news_summary(today_str, summary_text, stock_watch)
+
+        watch_lines = [
+            f'{"🔥" if s["tag"] == "熱門股" else ""}<b>{html.escape(s["name"])}({s["code"]})</b>：{html.escape(s["headline"])}'
+            for s in stock_watch
+        ]
+        msg = (
+            f"📰 <b>今日新聞重點</b>\n\n{_md_bold_to_html(summary_text[:2500])}"
+            f"\n\n📈 <b>台股觀察</b>\n" + "\n".join(watch_lines[:15])
+        )
+        print(msg)
+        _tg_notify(msg[:3900], html=True)
 
     lines = [f'<a href="{n["link"]}">{n["title"]}</a>' for n in news[:15]]
     _tg_notify_lines(

@@ -25,7 +25,7 @@ def build_stock_watch(news_items: list[dict], limit: int = 15) -> list[dict]:
 
 
 def summarize_news(news_items: list[dict]) -> str:
-    """用 Groq (llama) 整理今日財經新聞重點（純文字摘要）。
+    """用 Groq (gpt-oss) 整理今日財經新聞重點（純文字摘要）。
     個股清單改用 build_stock_watch() 直接從新聞自帶的關聯個股欄位產生，不用AI猜，
     這裡只需要負責把當天的新聞脈絡整理成幾點重點。
     """
@@ -45,12 +45,16 @@ def summarize_news(news_items: list[dict]) -> str:
 只抓真正重要的3-6點，個股層級的細節（例如個別公司營收）不用在這裡重複列，
 那些已經有另外的個股清單呈現。
 
+格式要求：純文字條列，每點一行、不超過50字，不要用表格、不要有子項目或總結段落，
+這是要塞進Telegram訊息的，越精簡越好。
+
 注意：這只是新聞整理參考，不構成投資建議。"""
 
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        max_tokens=512,
+        model="openai/gpt-oss-120b",
+        max_tokens=1024,
         temperature=0.3,
+        reasoning_effort="low",
         messages=[{"role": "user", "content": prompt}],
     )
 
