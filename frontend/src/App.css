@@ -1100,6 +1100,39 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .reason-cell { max-width: 320px; white-space: normal; font-size: 13px; color: var(--text-secondary); }
 .col-ticker, .col-name { color: var(--text-primary) !important; }
 
+/* 選股篩選結果：代號/名稱鎖定在左邊，橫向捲動看右側欄位時還認得出是哪支股票。
+   position:sticky 在 border-collapse:collapse 的表格裡，td/th 無法正確固定
+   （已知的瀏覽器限制），這張表要單獨改回 separate 才會生效。
+   桌機版的捲動容器是 .ranking-table-wrap，但 .result-table 本身設了
+   overflow:hidden（給圓角用），會變成離 td 更近的捲動容器，蓋掉真正想固定
+   參照的 wrap，所以桌機版把圓角改移到 wrap 上、table 本身 overflow 開回
+   visible。手機版捲動容器本來就是 table 自己（.result-table 有 overflow-x:auto），
+   sticky 天生就對，不能套用桌機版這段，不然反而會讓 table 失去自己的
+   overflow-x:auto、手機版橫向捲動整個壞掉。 */
+.screen-results .result-table { border-collapse: separate; border-spacing: 0; }
+@media (min-width: 641px) {
+  .screen-results .result-table { overflow: visible; box-shadow: none; border: none; }
+  .screen-results .ranking-table-wrap {
+    border-radius: 12px; overflow: hidden; overflow-x: auto;
+    border: 1px solid var(--border); box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+  }
+}
+.screen-results .result-table th.col-ticker,
+.screen-results .result-table td.col-ticker {
+  position: sticky; left: 0; z-index: 2;
+  width: 70px; background: var(--bg-card);
+}
+.screen-results .result-table th.col-name,
+.screen-results .result-table td.col-name {
+  position: sticky; left: 70px; z-index: 2;
+  width: 110px; background: var(--bg-card);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.screen-results .result-table thead th.col-ticker,
+.screen-results .result-table thead th.col-name {
+  z-index: 3; background: var(--bg-elevated);
+}
+
 /* ── Misc ── */
 .error {
   color: #f87171;

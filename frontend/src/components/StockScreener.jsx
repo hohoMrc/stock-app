@@ -550,11 +550,12 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
           {results.length === 0 ? (
             <p className="no-data">沒有符合條件的股票</p>
           ) : (
+            <div className="ranking-table-wrap">
             <table className="result-table">
               <thead>
                 <tr>
-                  <th>代號</th>
-                  <th>名稱</th>
+                  <th className="col-ticker">代號</th>
+                  <th className="col-name">名稱</th>
                   <th>股價</th>
                   <th>漲跌幅</th>
                   {resultMode === "weekly_surge" && <th>週漲幅</th>}
@@ -664,6 +665,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}
