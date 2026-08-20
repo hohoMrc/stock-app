@@ -994,6 +994,9 @@
 /* ── Deviation ── */
 .deviation-up  { color: var(--up);   font-weight: 600; }
 .deviation-down { color: var(--down); font-weight: 600; }
+/* .result-table td 的 color 規則優先權比單一class高，要用同樣specificity蓋過去 */
+.result-table td.deviation-up   { color: var(--up); }
+.result-table td.deviation-down { color: var(--down); }
 
 .pattern-tag { font-weight: 600; color: #a5b4fc; }
 
