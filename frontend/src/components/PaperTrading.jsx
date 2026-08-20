@@ -589,7 +589,9 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
                     <td>{new Date(o.created_at * 1000).toLocaleString("zh-TW", { hour12: false })}</td>
                     <td className="col-ticker">{isDeposit ? "—" : o.ticker}</td>
                     <td className="col-name">{isDeposit ? "入金" : (o.name ?? "—")}</td>
-                    <td>{isDeposit ? "入金" : o.side === "buy" ? "買進" : "賣出"}</td>
+                    <td className={isDeposit ? "" : o.side === "buy" ? "deviation-up" : "deviation-down"}>
+                      {isDeposit ? "入金" : o.side === "buy" ? "買進" : "賣出"}
+                    </td>
                     <td>{isDeposit ? "—" : o.qty.toLocaleString()}</td>
                     <td>{isDeposit ? "—" : o.price}</td>
                     <td>{isDeposit ? "—" : o.fee}</td>
