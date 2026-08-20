@@ -1125,12 +1125,20 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .screen-results .result-table th.col-name,
 .screen-results .result-table td.col-name {
   position: sticky; left: 70px; z-index: 2;
-  width: 110px; background: var(--bg-card);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: var(--bg-card); white-space: nowrap;
 }
 .screen-results .result-table thead th.col-ticker,
 .screen-results .result-table thead th.col-name {
   z-index: 3; background: var(--bg-elevated);
+}
+
+/* 股票名稱：桌機版顯示全名，手機版螢幕太窄，超過4個字就截斷加「...」
+   （字數固定用JS切好、CSS只負責切換顯示哪個版本，避免text-overflow:ellipsis
+   這種用寬度猜要顯示幾個字的方式不精準）*/
+.col-name-short { display: none; }
+@media (max-width: 640px) {
+  .col-name-full  { display: none; }
+  .col-name-short { display: inline; }
 }
 
 /* ── Misc ── */

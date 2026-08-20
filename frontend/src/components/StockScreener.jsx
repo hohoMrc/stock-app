@@ -587,7 +587,12 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                     onClick={() => onSelect(s.ticker, resultMode)}
                   >
                     <td className="col-ticker">{s.ticker}</td>
-                    <td className="col-name">{s.name}</td>
+                    <td className="col-name">
+                      <span className="col-name-full">{s.name}</span>
+                      <span className="col-name-short">
+                        {s.name && s.name.length > 4 ? `${s.name.slice(0, 4)}...` : s.name}
+                      </span>
+                    </td>
                     <td>{s.close ?? s.price ?? "—"}</td>
                     <td className={s.change_pct > 0 ? "deviation-up" : s.change_pct < 0 ? "deviation-down" : ""}>
                       {s.change_pct != null ? `${s.change_pct > 0 ? "+" : ""}${s.change_pct}%` : "—"}
