@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { getStock } from "../api";
 import { isTradingHours } from "../marketHours";
 
+// 後端不同來源回傳的交易所欄位有的是原始代碼（TW/TWO），有的已經是中文，統一轉成手機版卡片用的縮寫
+const EXCHANGE_TAG = { TW: "市", TWO: "櫃", "上市": "市", "上櫃": "櫃" };
+
 export default function WatchList({
   watchlist, watchNotes = {}, watchAddedAt = {}, watchGroups = [], watchGroupByTicker = {},
   onRemove, onSelect, onUpdateNote, onRenameGroup, onMoveGroup,
@@ -130,11 +133,13 @@ export default function WatchList({
           {filteredStocks.length === 0 ? (
             <p className="no-data">這個分組還沒有股票</p>
           ) : (
+          <div className="sticky-name-table">
+          <div className="ranking-table-wrap">
           <table className="result-table">
             <thead>
               <tr>
-                <th>代號</th>
-                <th>名稱</th>
+                <th className="col-ticker">代號</th>
+                <th className="col-name">名稱</th>
                 <th>股價</th>
                 <th>漲跌</th>
                 <th>漲跌幅</th>
@@ -152,8 +157,19 @@ export default function WatchList({
                 const dir  = up ? "up" : down ? "down" : "";
                 return (
                 <tr key={s.ticker} className={up ? "row-up" : down ? "row-down" : ""}>
-                  <td>{s.ticker}</td>
-                  <td>{s.name}</td>
+                  <td className="col-ticker">{s.ticker}</td>
+                  <td className="col-name">
+                    <span className="col-name-full">{s.name}</span>
+                    <span className="col-name-short">
+                      {s.name && s.name.length > 4 ? `${s.name.slice(0, 4)}...` : s.name}
+                    </span>
+                    <span className="col-name-sub">
+                      {s.exchange && (
+                        <span className="mrc-exchange-tag">{EXCHANGE_TAG[s.exchange] ?? s.exchange}</span>
+                      )}
+                      <span className="mrc-ticker">{s.ticker}</span>
+                    </span>
+                  </td>
                   <td>{s.price ?? "—"}</td>
                   <td className={dir}>{s.change != null ? `${sign}${s.change}` : "—"}</td>
                   <td className={dir}>{s.change_pct != null ? `${sign}${s.change_pct}%` : "—"}</td>
@@ -205,6 +221,8 @@ export default function WatchList({
               })}
             </tbody>
           </table>
+          </div>
+          </div>
           )}
         </>
       )}

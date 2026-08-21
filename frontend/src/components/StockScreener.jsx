@@ -548,7 +548,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
       )}
 
       {searched && !loading && !error && (
-        <div className="screen-results">
+        <div className="screen-results sticky-name-table">
           <h3>篩選結果（{results.length} 筆）</h3>
           {results.length === 0 ? (
             <p className="no-data">沒有符合條件的股票</p>
