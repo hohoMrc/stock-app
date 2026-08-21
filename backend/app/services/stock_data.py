@@ -758,6 +758,7 @@ def get_stock_info(ticker: str) -> dict:
     result = {
         "ticker":         ticker,
         "name":           display_name,
+        "exchange":       exchange,
         "price":          price,
         "change":         fugle_q.get("change") if fugle_q.get("change") is not None else twse.get("change"),
         "change_pct":     fugle_q.get("change_pct") if fugle_q.get("change_pct") is not None else twse.get("change_pct"),
