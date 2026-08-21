@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { screenStocks, scanWeeklySurge, scanMaSqueeze, scanNearEma60, scanVolumeBreakout, scanInstitutionalBuying, getEma60Watchlist, getEma60Breakouts } from "../api";
 import { hasTodayCloseData } from "../marketHours";
 
+// 後端不同掃描來源回傳的交易所欄位有的是原始代碼（TW/TWO），有的已經是中文，統一轉成手機版卡片用的縮寫
+const EXCHANGE_TAG = { TW: "市", TWO: "櫃", "上市": "市", "上櫃": "櫃" };
+
 const DEFAULT_TICKERS = [
   // 半導體
   "2330", "2303", "2454", "3711", "2379", "2344", "2408",
@@ -591,6 +594,14 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                       <span className="col-name-full">{s.name}</span>
                       <span className="col-name-short">
                         {s.name && s.name.length > 4 ? `${s.name.slice(0, 4)}...` : s.name}
+                      </span>
+                      <span className="col-name-sub">
+                        {s.exchange && (
+                          <span className="mrc-exchange-tag">
+                            {EXCHANGE_TAG[s.exchange] ?? s.exchange}
+                          </span>
+                        )}
+                        <span className="mrc-ticker">{s.ticker}</span>
                       </span>
                     </td>
                     <td>{s.close ?? s.price ?? "—"}</td>

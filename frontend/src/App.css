@@ -1136,9 +1136,18 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
    （字數固定用JS切好、CSS只負責切換顯示哪個版本，避免text-overflow:ellipsis
    這種用寬度猜要顯示幾個字的方式不精準）*/
 .col-name-short { display: none; }
+.col-name-sub   { display: none; }
 @media (max-width: 640px) {
   .col-name-full  { display: none; }
-  .col-name-short { display: inline; }
+  .col-name-short { display: block; font-size: 15px; font-weight: 700; }
+  .col-name-sub   { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 12px; color: var(--text-muted); }
+
+  /* 手機版：代號欄整個藏起來，改用名稱欄下面那行（跟產業個股的卡片版一樣），
+     名稱欄變成唯一一個固定欄，left 從 70px（原本讓給代號欄的寬度）改回 0 */
+  .screen-results .result-table th.col-ticker,
+  .screen-results .result-table td.col-ticker { display: none; }
+  .screen-results .result-table th.col-name,
+  .screen-results .result-table td.col-name { left: 0; }
 }
 
 /* ── Misc ── */
