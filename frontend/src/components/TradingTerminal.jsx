@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import CandlestickChart from "./CandlestickChart";
-import { getTradeValueRanking, getTurnoverRanking, getHistory, getOrderbook, getTrades, getPaperPositions, getWatchlistQuotes, getIntradayChart } from "../api";
+import { getTradeValueRanking, getTurnoverRanking, getHistory, getOrderbook, getTrades, getPaperPositions, getWatchlistQuotes, getIntradayChart, getStock, getIntradayCandles } from "../api";
 import { isTradingHours } from "../marketHours";
+import { mergeLiveBar, mergeIntradayBars } from "../chartUtils";
 
 const WS_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000")
   .replace(/^http/, "ws");
@@ -74,6 +75,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
   const [chartInterval, setChartInterval] = useState("1d");
   const [chartPeriod, setChartPeriod]   = useState("3mo");
   const [chartLoading, setChartLoading] = useState(false);
+  const chartPollRef                    = useRef(null);
   const [orderbook, setOrderbook]       = useState({ best_bids: [], best_asks: [] });
   const [trades, setTrades]             = useState([]);
   const [obLoading, setObLoading]       = useState(false);
@@ -272,17 +274,59 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
     return () => { alive = false; };
   }, [activeTab, watchTickers]);
 
-  // ── K 線資料 ──────────────────────────────────────────────────────────
+  // ── K 線資料：日K/15分K/60分K 用即時報價／分鐘K棒校正最後幾根，
+  // 邏輯跟「個股查詢」共用（chartUtils.js），兩邊看到的K線才會一致，不會看盤這邊
+  // 選了股票之後圖表就凍結在剛打開那一刻、不會跟著即時報價更新。──────────────
   useEffect(() => {
     if (!selected) return;
     const cfg = INTERVAL_CONFIG[chartInterval];
     setChartPeriod(cfg.defaultPeriod);
+    const intradayTimeframe = chartInterval === "15m" ? "15" : chartInterval === "60m" ? "60" : null;
     setChartLoading(true);
     setChartData([]);
-    getHistory(selected.ticker, cfg.fetchPeriod, chartInterval)
-      .then((res) => setChartData(res.data.data))
-      .catch(() => {})
-      .finally(() => setChartLoading(false));
+
+    let alive = true;
+    const load = async () => {
+      try {
+        const histRes = await getHistory(selected.ticker, cfg.fetchPeriod, chartInterval);
+        if (!alive) return;
+        let hist = histRes.data.data;
+        if (chartInterval === "1d") {
+          const infoRes = await getStock(selected.ticker);
+          if (!alive) return;
+          hist = mergeLiveBar(hist, infoRes.data, chartInterval);
+        } else if (intradayTimeframe) {
+          try {
+            const candleRes = await getIntradayCandles(selected.ticker, intradayTimeframe);
+            if (!alive) return;
+            hist = mergeIntradayBars(hist, candleRes.data.candles);
+          } catch (_) {}
+        }
+        setChartData(hist);
+      } catch (_) {
+      } finally {
+        if (alive) setChartLoading(false);
+      }
+    };
+    load();
+
+    // 每 10 秒自動刷新（交易時段才會真的打 API），日K/15分K/60分K 同時校正圖表最後幾根棒，
+    // 跟「個股查詢」頁用同一個刷新頻率，兩邊隔幾秒看都會是一致的資料。
+    clearInterval(chartPollRef.current);
+    chartPollRef.current = setInterval(async () => {
+      if (!isTradingHours()) return;
+      try {
+        if (chartInterval === "1d") {
+          const res = await getStock(selected.ticker);
+          setChartData((prev) => mergeLiveBar(prev, res.data, chartInterval));
+        } else if (intradayTimeframe) {
+          const candleRes = await getIntradayCandles(selected.ticker, intradayTimeframe);
+          setChartData((prev) => mergeIntradayBars(prev, candleRes.data.candles));
+        }
+      } catch (_) {}
+    }, 10_000);
+
+    return () => { alive = false; clearInterval(chartPollRef.current); };
   }, [selected?.ticker, chartInterval]);
 
   // ── 委買委賣 + 成交明細（10 秒自動刷新）────────────────────────────

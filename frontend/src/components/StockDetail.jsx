@@ -5,6 +5,7 @@ import AlertModal from "./AlertModal";
 import WarrantTable from "./WarrantTable";
 import { getStock, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart, getIntradayCandles, getStockWarrants } from "../api";
 import { isTradingHours } from "../marketHours";
+import { mergeLiveBar, mergeIntradayBars } from "../chartUtils";
 
 const INTERVAL_CONFIG = {
   "15m": { fetchPeriod: "1mo", defaultPeriod: "5d",  periods: ["5d","1mo"] },
@@ -18,22 +19,6 @@ const SCAN_DEFAULT_MA = {
   bird_beak: { ma5: true,  ma10: false, ma20: true,  ma30: false, ma60: false, ema10: false, ema60: false },
   near_ema60: { ma5: false, ma10: false, ma20: false, ma30: false, ma60: false, ema10: true,  ema60: true  },
 };
-
-// 日K圖的歷史資料在後端有快取，可能比報價舊；用最新報價把最後一根 K 棒校正成即時值，
-// 開頁當下就套用一次，不用等第一次輪詢才校正，避免畫面先顯示舊資料又突然跳成新的。
-function mergeLiveBar(historyArr, info, interval) {
-  if (interval !== "1d" || !info?.quote_date || !info.open || !info.price) return historyArr;
-  if (!historyArr || historyArr.length === 0) return historyArr;
-  const newBar = {
-    date: info.quote_date, open: info.open,
-    high: info.high ?? info.price, low: info.low ?? info.price,
-    close: info.price, volume: info.volume ?? 0,
-  };
-  const last = historyArr[historyArr.length - 1];
-  if (last.date === newBar.date) return [...historyArr.slice(0, -1), newBar];
-  if (newBar.date > last.date) return [...historyArr, newBar];
-  return historyArr;
-}
 
 // 分時圖的時間軸要一開始就固定畫到收盤（09:00~13:30），不要隨著資料進來越畫越長，
 // 所以把還沒到的時間點也補成空值放進資料陣列，recharts 遇到 null 就自然不畫、留白，
@@ -59,15 +44,6 @@ function padIntradayToFullDay(intradayData) {
     }
   }
   return result;
-}
-
-// 15分K/60分K：今天的棒直接整批換成 Fugle 即時分鐘K棒（比 yfinance 準且沒有快取延遲），
-// 較早之前幾天的棒維持原本 yfinance 資料，用時間戳比對切開，不用管兩邊分桶邊界是否對齊。
-function mergeIntradayBars(historyArr, todayCandles) {
-  if (!todayCandles || todayCandles.length === 0) return historyArr;
-  const cutoff = todayCandles[0].date;
-  const past = (historyArr || []).filter((r) => r.date < cutoff);
-  return [...past, ...todayCandles];
 }
 
 export default function StockDetail({ ticker, scanContext = null, onBack, onIndustry, watchlist = [], onToggleWatch, onPaperTrade, username, onRequireLogin }) {
