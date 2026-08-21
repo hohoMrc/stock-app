@@ -1339,6 +1339,29 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   outline: none;
 }
 
+/* ── 自選清單分組 ── */
+.watchlist-group-tabs { margin-bottom: 14px; }
+.group-rename-input {
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 12px;
+  outline: none;
+  width: 100px;
+}
+.group-select {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
 /* ── Header 右側帳號區 ── */
 .header { justify-content: space-between; }
 .header-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }

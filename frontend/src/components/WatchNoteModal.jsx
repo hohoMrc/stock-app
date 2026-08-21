@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 
-export default function WatchNoteModal({ ticker, onConfirm, onCancel }) {
+export default function WatchNoteModal({ ticker, groups = [], onConfirm, onCancel }) {
   const [note, setNote] = useState("");
+  const [groupId, setGroupId] = useState(1);
   const inputRef = useRef(null);
+  const effectiveGroups = groups.length ? groups : [{ group_id: 1, name: "分組1" }];
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -10,7 +12,7 @@ export default function WatchNoteModal({ ticker, onConfirm, onCancel }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onConfirm(ticker, note.trim());
+    onConfirm(ticker, note.trim(), groupId);
   };
 
   return (
@@ -26,6 +28,11 @@ export default function WatchNoteModal({ ticker, onConfirm, onCancel }) {
             onChange={(e) => setNote(e.target.value)}
             onKeyDown={(e) => e.key === "Escape" && onCancel()}
           />
+          <select value={groupId} onChange={(e) => setGroupId(parseInt(e.target.value, 10))}>
+            {effectiveGroups.map((g) => (
+              <option key={g.group_id} value={g.group_id}>{g.name}</option>
+            ))}
+          </select>
           <div className="watch-note-actions">
             <button type="button" className="logout-btn" onClick={onCancel}>取消</button>
             <button type="submit" className="auth-submit">加入自選</button>

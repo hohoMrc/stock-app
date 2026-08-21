@@ -67,9 +67,12 @@ export const adminDeleteUser       = (userId)                  => api.delete(`/a
 
 // Watchlist（後端版）
 export const fetchWatchlist   = ()                => api.get("/api/watchlist");
-export const addWatch         = (ticker)          => api.post(`/api/watchlist/${ticker}`);
+export const addWatch         = (ticker, groupId = 1) => api.post(`/api/watchlist/${ticker}`, null, { params: { group_id: groupId } });
 export const removeWatch      = (ticker)          => api.delete(`/api/watchlist/${ticker}`);
 export const updateWatchNote  = (ticker, note)    => api.patch(`/api/watchlist/${ticker}/note`, { note });
+export const getWatchlistGroups    = ()                       => api.get("/api/watchlist/groups");
+export const renameWatchlistGroup  = (groupId, name)          => api.patch(`/api/watchlist/groups/${groupId}`, { name });
+export const updateWatchlistGroup  = (ticker, groupId)        => api.patch(`/api/watchlist/${ticker}/group`, { group_id: groupId });
 
 // 模擬下單
 export const getPaperAccount   = ()                          => api.get("/api/paper/account");

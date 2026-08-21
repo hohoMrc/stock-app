@@ -18,7 +18,10 @@ import WarrantLookup from "./components/WarrantLookup";
 import ClaudeTrader from "./components/ClaudeTrader";
 import SignalOverview from "./components/SignalOverview";
 import MarketOverview from "./components/MarketOverview";
-import { fetchWatchlist, addWatch, removeWatch, updateWatchNote } from "./api";
+import {
+  fetchWatchlist, addWatch, removeWatch, updateWatchNote,
+  getWatchlistGroups, renameWatchlistGroup, updateWatchlistGroup,
+} from "./api";
 
 const ADMIN_USERNAME = "hoholin";
 import "./App.css";
@@ -187,6 +190,8 @@ export default function App() {
   });
   const [watchNotes, setWatchNotes] = useState({});
   const [watchAddedAt, setWatchAddedAt] = useState({});
+  const [watchGroups, setWatchGroups] = useState([]);           // [{group_id, name}]，固定10組
+  const [watchGroupByTicker, setWatchGroupByTicker] = useState({});
 
   useEffect(() => {
     if (username) {
@@ -195,7 +200,11 @@ export default function App() {
           setWatchlist(res.data.tickers);
           setWatchNotes(res.data.notes || {});
           setWatchAddedAt(res.data.added_at || {});
+          setWatchGroupByTicker(res.data.groups_by_ticker || {});
         })
+        .catch(() => {});
+      getWatchlistGroups()
+        .then((res) => setWatchGroups(res.data.groups || []))
         .catch(() => {});
     } else {
       localStorage.setItem("watchlist", JSON.stringify(watchlist));
@@ -231,22 +240,37 @@ export default function App() {
     }
   };
 
-  const confirmAddWatch = async (ticker, note) => {
+  const confirmAddWatch = async (ticker, note, groupId = 1) => {
     setPendingWatch(null);
     setWatchlist((prev) => [...prev, ticker]);
     setWatchAddedAt((prev) => ({ ...prev, [ticker]: Date.now() / 1000 }));
+    setWatchGroupByTicker((prev) => ({ ...prev, [ticker]: groupId }));
     if (note) setWatchNotes((prev) => ({ ...prev, [ticker]: note }));
     try {
-      await addWatch(ticker);
+      await addWatch(ticker, groupId);
     } catch {
       // addWatch 失敗才 rollback
       setWatchlist((prev) => prev.filter((t) => t !== ticker));
       setWatchNotes((prev) => { const n = { ...prev }; delete n[ticker]; return n; });
+      setWatchGroupByTicker((prev) => { const n = { ...prev }; delete n[ticker]; return n; });
       return;
     }
     // 備注儲存失敗不影響加入
     if (note) {
       try { await updateWatchNote(ticker, note); } catch { /* ignore */ }
+    }
+  };
+
+  const renameWatchGroup = async (groupId, name) => {
+    setWatchGroups((prev) => prev.map((g) => g.group_id === groupId ? { ...g, name } : g));
+    try { await renameWatchlistGroup(groupId, name); } catch { /* ignore */ }
+  };
+
+  const moveWatchGroup = async (ticker, groupId) => {
+    const prevGroupId = watchGroupByTicker[ticker];
+    setWatchGroupByTicker((prev) => ({ ...prev, [ticker]: groupId }));
+    try { await updateWatchlistGroup(ticker, groupId); } catch {
+      setWatchGroupByTicker((prev) => ({ ...prev, [ticker]: prevGroupId }));
     }
   };
 
@@ -530,9 +554,13 @@ export default function App() {
             watchlist={watchlist}
             watchNotes={watchNotes}
             watchAddedAt={watchAddedAt}
+            watchGroups={watchGroups}
+            watchGroupByTicker={watchGroupByTicker}
             onRemove={toggleWatch}
             onSelect={(t) => handleSelectStock(t)}
             onUpdateNote={handleUpdateNote}
+            onRenameGroup={renameWatchGroup}
+            onMoveGroup={moveWatchGroup}
           />
         )}
         {activePage === "ranking" && (
@@ -628,6 +656,7 @@ export default function App() {
       {pendingWatch && (
         <WatchNoteModal
           ticker={pendingWatch}
+          groups={watchGroups}
           onConfirm={confirmAddWatch}
           onCancel={() => setPendingWatch(null)}
         />
