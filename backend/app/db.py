@@ -35,7 +35,16 @@ def init_db():
             ticker      TEXT NOT NULL,
             note        TEXT DEFAULT '',
             added_at    REAL,
+            group_id    INTEGER NOT NULL DEFAULT 1,
             PRIMARY KEY (user_id, ticker),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS watchlist_groups (
+            user_id     INTEGER NOT NULL,
+            group_id    INTEGER NOT NULL,
+            name        TEXT NOT NULL,
+            PRIMARY KEY (user_id, group_id),
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
@@ -327,6 +336,11 @@ def init_db():
         # Migration: 舊版 watchlists 沒有 note 欄位
         try:
             conn.execute("ALTER TABLE watchlists ADD COLUMN note TEXT DEFAULT ''")
+        except Exception:
+            pass
+        # Migration: 自選清單加分組欄位（固定10組，預設分組1）
+        try:
+            conn.execute("ALTER TABLE watchlists ADD COLUMN group_id INTEGER NOT NULL DEFAULT 1")
         except Exception:
             pass
         # Migration: 智慧單新增訂單類型（stop=觸價後市價成交／原本的行為，limit=用設定價格成交）
@@ -950,10 +964,13 @@ def delete_user(user_id: int):
 def get_watchlist(user_id: int) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT ticker, note, added_at FROM watchlists WHERE user_id=? ORDER BY added_at DESC",
+            "SELECT ticker, note, added_at, group_id FROM watchlists WHERE user_id=? ORDER BY added_at DESC",
             (user_id,)
         ).fetchall()
-    return [{"ticker": r["ticker"], "note": r["note"] or "", "added_at": r["added_at"]} for r in rows]
+    return [
+        {"ticker": r["ticker"], "note": r["note"] or "", "added_at": r["added_at"], "group_id": r["group_id"] or 1}
+        for r in rows
+    ]
 
 
 def update_watchlist_note(user_id: int, ticker: str, note: str):
@@ -964,11 +981,11 @@ def update_watchlist_note(user_id: int, ticker: str, note: str):
         )
 
 
-def add_to_watchlist(user_id: int, ticker: str):
+def add_to_watchlist(user_id: int, ticker: str, group_id: int = 1):
     with _conn() as conn:
         conn.execute(
-            "INSERT OR IGNORE INTO watchlists(user_id, ticker, added_at) VALUES (?, ?, ?)",
-            (user_id, ticker, time.time())
+            "INSERT OR IGNORE INTO watchlists(user_id, ticker, added_at, group_id) VALUES (?, ?, ?, ?)",
+            (user_id, ticker, time.time(), group_id)
         )
 
 
@@ -976,6 +993,54 @@ def remove_from_watchlist(user_id: int, ticker: str):
     with _conn() as conn:
         conn.execute(
             "DELETE FROM watchlists WHERE user_id=? AND ticker=?", (user_id, ticker)
+        )
+
+
+def update_watchlist_group(user_id: int, ticker: str, group_id: int):
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE watchlists SET group_id=? WHERE user_id=? AND ticker=?",
+            (group_id, user_id, ticker)
+        )
+
+
+# ── watchlist_groups（固定10組，名稱可自訂，第一次使用時用預設名稱建立）──
+
+WATCHLIST_GROUP_COUNT = 10
+
+
+def ensure_watchlist_groups(user_id: int):
+    with _conn() as conn:
+        existing = {
+            r["group_id"] for r in
+            conn.execute("SELECT group_id FROM watchlist_groups WHERE user_id=?", (user_id,)).fetchall()
+        }
+        missing = [
+            (user_id, i, f"分組{i}")
+            for i in range(1, WATCHLIST_GROUP_COUNT + 1) if i not in existing
+        ]
+        if missing:
+            conn.executemany(
+                "INSERT INTO watchlist_groups(user_id, group_id, name) VALUES (?, ?, ?)", missing
+            )
+
+
+def get_watchlist_groups(user_id: int) -> list[dict]:
+    ensure_watchlist_groups(user_id)
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT group_id, name FROM watchlist_groups WHERE user_id=? ORDER BY group_id",
+            (user_id,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def rename_watchlist_group(user_id: int, group_id: int, name: str):
+    ensure_watchlist_groups(user_id)
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE watchlist_groups SET name=? WHERE user_id=? AND group_id=?",
+            (name, user_id, group_id)
         )
 
 
