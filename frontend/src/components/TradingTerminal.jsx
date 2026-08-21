@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import CandlestickChart from "./CandlestickChart";
-import { getTradeValueRanking, getTurnoverRanking, getHistory, getOrderbook, getTrades, getPaperPositions, getWatchlistQuotes, getIntradayChart, getStock, getIntradayCandles } from "../api";
+import { getTradeValueRanking, getTurnoverRanking, getHistory, getOrderbook, getTrades, getPaperPositions, getWatchlistQuotes, getIntradayChart, getStockLiveQuote, getIntradayCandles } from "../api";
 import { isTradingHours } from "../marketHours";
 import { mergeLiveBar, mergeIntradayBars } from "../chartUtils";
 
@@ -292,9 +292,9 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
         if (!alive) return;
         let hist = histRes.data.data;
         if (chartInterval === "1d") {
-          const infoRes = await getStock(selected.ticker);
+          const quoteRes = await getStockLiveQuote(selected.ticker);
           if (!alive) return;
-          hist = mergeLiveBar(hist, infoRes.data, chartInterval);
+          hist = mergeLiveBar(hist, quoteRes.data, chartInterval);
         } else if (intradayTimeframe) {
           try {
             const candleRes = await getIntradayCandles(selected.ticker, intradayTimeframe);
@@ -317,7 +317,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
       if (!isTradingHours()) return;
       try {
         if (chartInterval === "1d") {
-          const res = await getStock(selected.ticker);
+          const res = await getStockLiveQuote(selected.ticker);
           setChartData((prev) => mergeLiveBar(prev, res.data, chartInterval));
         } else if (intradayTimeframe) {
           const candleRes = await getIntradayCandles(selected.ticker, intradayTimeframe);

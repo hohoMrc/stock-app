@@ -3,7 +3,7 @@ import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, Responsive
 import CandlestickChart from "./CandlestickChart";
 import AlertModal from "./AlertModal";
 import WarrantTable from "./WarrantTable";
-import { getStock, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart, getIntradayCandles, getStockWarrants } from "../api";
+import { getStock, getStockLiveQuote, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart, getIntradayCandles, getStockWarrants } from "../api";
 import { isTradingHours } from "../marketHours";
 import { mergeLiveBar, mergeIntradayBars } from "../chartUtils";
 
@@ -123,8 +123,11 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
       if (!isTradingHours()) { setLive(false); return; }
       setLive(true);
       try {
-        const res = await getStock(ticker);
-        setInfo(res.data);
+        // 輪詢用輕量版報價（不像 getStock 整包快取5分鐘，會導致每10秒打的API
+        // 大部分時間只拿到舊快取、K線看起來像沒在更新），用合併的方式更新
+        // info，PE/殖利率/注意處置旗標這些輕量版沒有的欄位維持原本的值不會被蓋掉。
+        const res = await getStockLiveQuote(ticker);
+        setInfo((prev) => ({ ...prev, ...res.data }));
         if (interval === "1d") {
           setHistory((prev) => mergeLiveBar(prev, res.data, interval));
         } else if (intradayTimeframe) {
