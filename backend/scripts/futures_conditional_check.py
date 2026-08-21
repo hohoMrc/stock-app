@@ -75,3 +75,11 @@ try:
         print(f"[期貨智慧單] 這一輪處理 {len(results)} 筆")
 except Exception as e:
     print(f"[期貨智慧單] 失敗: {e}")
+
+# 這支腳本每2分鐘跑一次，只要查過一次期貨報價就會透過 _get_client() 啟動SDK的
+# 背景即時連線元件，不主動收尾的話行程會一直不結束（曾經卡了快4小時才被發現）
+try:
+    from app.services.futures_data import shutdown_sdk
+    shutdown_sdk()
+except Exception as e:
+    print(f"[期貨智慧單] shutdown_sdk 失敗: {e}")

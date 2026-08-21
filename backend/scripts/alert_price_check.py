@@ -91,3 +91,11 @@ try:
         print(f"[到價提醒] 檢查 {len(active_alerts)} 筆，觸發 {triggered} 筆")
 except Exception as e:
     print(f"[到價提醒] 失敗: {e}")
+
+# 這支腳本每2分鐘跑一次，只要查過一次股價就會透過 _get_fugle() 啟動SDK的
+# 背景即時連線元件，不主動收尾的話行程會一直不結束
+try:
+    from app.services.stock_data import shutdown_fugle
+    shutdown_fugle()
+except Exception as e:
+    print(f"[到價提醒] shutdown_fugle 失敗: {e}")

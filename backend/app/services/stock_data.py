@@ -100,6 +100,25 @@ def _call_fugle(fn):
         raise
 
 
+def shutdown_fugle():
+    """短命 cron 腳本（stock_conditional_check.py、alert_price_check.py 等）用完
+    Fugle 後要主動收尾，不然 init_realtime() 啟動的背景連線元件會讓行程一直不結束
+    （曾經因為漏呼叫這個，讓 stock_conditional_check.py 卡了快4小時沒退出，
+    吃掉記憶體/CPU拖慢主服務）。常駐的 FastAPI 服務不需要呼叫這個函式。
+    """
+    global _fugle_sdk, _fugle_client, _fugle_available
+    if _fugle_sdk is None:
+        return
+    try:
+        _fugle_sdk.logout()
+    except Exception as e:
+        print(f"[Fubon] Fugle logout 失敗（不影響已完成的工作）: {e}")
+    finally:
+        _fugle_sdk = None
+        _fugle_client = None
+        _fugle_available = None
+
+
 def _fugle_quote(ticker: str) -> dict:
     """從 Fugle intraday quote 取得即時報價。"""
     if not _get_fugle():
