@@ -2,7 +2,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
-from app.services.stock_data import get_stock_info, get_stock_history, screen_stocks, get_stocks_by_industry, scan_all_weekly_surge, scan_ma_squeeze, scan_near_ema60, scan_volume_breakout, scan_institutional_buying, search_stocks, get_trade_value_ranking, get_turnover_ranking, get_movers_ranking, get_industry_performance, get_upcoming_dividends, get_stock_orderbook, get_stock_trades, get_watchlist_quotes, get_institutional_trades_history, get_intraday_chart, get_stock_signals, get_intraday_candles
+from app.services.stock_data import get_stock_info, get_stock_history, screen_stocks, get_stocks_by_industry, scan_all_weekly_surge, scan_ma_squeeze, scan_near_ema60, scan_volume_breakout, scan_institutional_buying, search_stocks, get_trade_value_ranking, get_turnover_ranking, get_movers_ranking, get_industry_performance, get_upcoming_dividends, get_stock_orderbook, get_stock_trades, get_watchlist_quotes, get_institutional_trades_history, get_intraday_chart, get_stock_signals, get_intraday_candles, get_stock_live_quote
 from app.services.ai_analysis import analyze_stock
 
 router = APIRouter(prefix="/api/stocks", tags=["stocks"])
@@ -298,5 +298,15 @@ async def get_stock(ticker: str):
         return info
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{ticker}/live-quote")
+async def get_live_quote(ticker: str):
+    """輕量版即時報價（不像 /api/stocks/{ticker} 快取5分鐘），
+    供看盤/個股查詢頁K線每10秒輪詢校正用。"""
+    try:
+        return await run_in_threadpool(get_stock_live_quote, ticker)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

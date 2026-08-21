@@ -157,6 +157,19 @@ def _fugle_quote(ticker: str) -> dict:
         return {}
 
 
+def get_stock_live_quote(ticker: str) -> dict:
+    """輕量版即時報價，只回傳K線校正需要的欄位（開高低收量+報價日期）。
+    get_stock_info() 整包快取5分鐘（那個TTL是為了PE/殖利率/融資融券這些
+    不常變、且查詢成本高的資料），如果K線的10秒輪詢校正也打那支API，
+    大部分時間只是拿到5分鐘前的舊快取，圖表看起來就像沒在更新。
+    這支永遠即時查（不快取），專門給看盤/個股查詢頁的K線輪詢用。
+    """
+    fugle_q = _fugle_quote(ticker)
+    if fugle_q.get("price"):
+        return fugle_q
+    return _get_twse_realtime(ticker)
+
+
 def _fugle_ticker(ticker: str) -> dict:
     """從 Fugle intraday ticker 取得股票基本資訊（股名、市場別、產業別、注意/處置股）。"""
     if not _get_fugle():
