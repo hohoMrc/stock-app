@@ -156,7 +156,11 @@ export default function WatchList({
                 const sign = up ? "+" : "";
                 const dir  = up ? "up" : down ? "down" : "";
                 return (
-                <tr key={s.ticker} className={up ? "row-up" : down ? "row-down" : ""}>
+                <tr
+                  key={s.ticker}
+                  className={`industry-row-clickable ${up ? "row-up" : down ? "row-down" : ""}`}
+                  onClick={() => onSelect(s.ticker)}
+                >
                   <td className="col-ticker">{s.ticker}</td>
                   <td className="col-name">
                     <span className="col-name-full">{s.name}</span>
@@ -178,7 +182,7 @@ export default function WatchList({
                       ? new Date(watchAddedAt[s.ticker] * 1000).toLocaleDateString("zh-TW")
                       : "—"}
                   </td>
-                  <td>
+                  <td onClick={(e) => e.stopPropagation()}>
                     <select
                       className="group-select"
                       value={watchGroupByTicker[s.ticker] || 1}
@@ -189,7 +193,7 @@ export default function WatchList({
                       ))}
                     </select>
                   </td>
-                  <td className="note-cell">
+                  <td className="note-cell" onClick={(e) => e.stopPropagation()}>
                     {editingTicker === s.ticker ? (
                       <input
                         className="note-input"
@@ -212,8 +216,7 @@ export default function WatchList({
                       </span>
                     )}
                   </td>
-                  <td className="watchlist-actions">
-                    <button className="view-btn" onClick={() => onSelect(s.ticker)}>查看</button>
+                  <td className="watchlist-actions" onClick={(e) => e.stopPropagation()}>
                     <button className="remove-btn" onClick={() => onRemove(s.ticker)}>移除</button>
                   </td>
                 </tr>
