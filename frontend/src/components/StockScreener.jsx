@@ -328,7 +328,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
           className="preset-btn preset-btn--pattern"
           onClick={handleEma60Breakouts}
           disabled={loading}
-          title="最近30天內從貼線觀察名單噴出的股票，噴出後不會消失，繼續放這裡讓你追蹤後續表現（5/10/20個交易日報酬率會隨時間自動補上）"
+          title="最近30天內從貼線觀察名單噴出的股票，噴出後不會消失，繼續放這裡讓你追蹤後續表現。累計漲幅＝(目前股價－觸發價)÷觸發價，即時計算、每次打開頁面都會用最新報價更新；5日/10日/20日報酬＝觸發日之後第5/10/20個交易日的收盤價相對觸發價的漲跌幅，是固定值，交易日數一累積夠就自動算好存起來，之後不會再變動"
         >
           🚀 貼線噴出追蹤
         </button>
