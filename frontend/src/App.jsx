@@ -593,7 +593,7 @@ export default function App() {
         {activePage === "warrant-lookup" && (
           <WarrantLookup onSelect={(t) => handleSelectStock(t)} />
         )}
-        {activePage === "claude-trader" && <ClaudeTrader />}
+        {activePage === "claude-trader" && <ClaudeTrader onSelect={(t) => handleSelectStock(t)} />}
         {activePage === "signal-overview" && <SignalOverview />}
         {activePage === "paper" && (
           <PaperTrading

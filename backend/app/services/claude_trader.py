@@ -380,11 +380,14 @@ def get_claude_portfolio(strategy: str) -> dict:
     orders = get_order_history(user_id, limit=200)
 
     latest_buy_reason = {}
-    for o in orders:  # 新到舊，第一次遇到某ticker的買進單就是目前持股的理由
+    latest_buy_date = {}
+    for o in orders:  # 新到舊，第一次遇到某ticker的買進單就是目前持股的理由/買入日期
         if o["side"] == "buy" and o["ticker"] not in latest_buy_reason:
             latest_buy_reason[o["ticker"]] = o.get("reason")
+            latest_buy_date[o["ticker"]] = o.get("created_at")
     for p in positions:
         p["reason"] = latest_buy_reason.get(p["ticker"])
+        p["buy_date"] = latest_buy_date.get(p["ticker"])
 
     return {"account": account, "positions": positions, "orders": orders[:50]}
 

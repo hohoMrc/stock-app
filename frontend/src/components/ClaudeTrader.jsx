@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { getClaudePortfolio, getClaudeStrategyConfig } from "../api";
 import Pagination, { PAGE_SIZE } from "./Pagination";
 
-export default function ClaudeTrader() {
+export default function ClaudeTrader({ onSelect }) {
   const [strategy, setStrategy] = useState("longterm");
   const [portfolio, setPortfolio] = useState(null);
   const [config, setConfig] = useState(null);
@@ -94,15 +94,20 @@ export default function ClaudeTrader() {
               <table className="result-table">
                 <thead>
                   <tr>
-                    <th>代號</th><th>名稱</th><th>張數</th><th>均價</th><th>現價</th>
+                    <th>代號</th><th>名稱</th><th>買入日期</th><th>張數</th><th>均價</th><th>現價</th>
                     <th>市值</th><th>未實現損益</th><th>報酬率</th><th>買進理由</th>
                   </tr>
                 </thead>
                 <tbody>
                   {positions.map((p) => (
-                    <tr key={p.ticker} className={p.unrealized_pl > 0 ? "row-up" : p.unrealized_pl < 0 ? "row-down" : ""}>
+                    <tr
+                      key={p.ticker}
+                      className={`industry-row-clickable ${p.unrealized_pl > 0 ? "row-up" : p.unrealized_pl < 0 ? "row-down" : ""}`}
+                      onClick={() => onSelect(p.ticker)}
+                    >
                       <td className="col-ticker">{p.ticker}</td>
                       <td>{p.name}</td>
+                      <td>{p.buy_date ? new Date(p.buy_date * 1000).toLocaleDateString("zh-TW") : "—"}</td>
                       <td>{p.lots}</td>
                       <td>{p.avg_cost}</td>
                       <td>{p.price ?? "—"}</td>
@@ -131,7 +136,7 @@ export default function ClaudeTrader() {
                 </thead>
                 <tbody>
                   {pagedOrders.map((o, i) => (
-                    <tr key={i}>
+                    <tr key={i} className="industry-row-clickable" onClick={() => onSelect(o.ticker)}>
                       <td>{new Date(o.created_at * 1000).toLocaleString("zh-TW", { hour12: false })}</td>
                       <td className="col-ticker">{o.ticker}</td>
                       <td>{o.name}</td>
