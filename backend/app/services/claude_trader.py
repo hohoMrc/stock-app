@@ -34,6 +34,7 @@ DEFAULT_CONFIG = {
     "lt_max_pe":          15.0,
     "lt_min_div_yield":   4.0,
     "lt_target_holdings": 10,
+    "lt_stop_loss_pct":   -20.0,  # 保底停損：不管條件是否還符合，單筆虧損超過這個幅度就立刻出場，不用等到月度審視
     "st_position_pct":    0.07,
     "st_stop_loss_pct":   -6.0,
     "st_take_profit_trigger_pct": 10.0,  # 曾經漲到這個報酬率以上，才開始追蹤移動停利
@@ -283,6 +284,31 @@ def _screen_longterm_candidates(cfg: dict) -> list[dict]:
         })
     candidates.sort(key=lambda c: c["score"], reverse=True)
     return candidates
+
+
+def run_longterm_stop_loss() -> list[dict]:
+    """每天排程呼叫（跟月度換股不同，不用等到月初）：單筆虧損跌破保底停損就立刻出場。
+    月度換股只在乎「本益比/殖利率/EMA60這三個條件是否還符合」，符合就算大跌也不會賣，
+    這支專門補這個空隙——避免財報/消息面突發利空在月中重挫，卻要等到下個月審視才出場。
+    """
+    cfg = _get_config()
+    user_id = ensure_claude_accounts()[0]
+    positions = get_positions_with_price(user_id)
+    if not positions:
+        return []
+
+    exits = []
+    for p in positions:
+        if p.get("return_pct") is None or p["return_pct"] > cfg["lt_stop_loss_pct"]:
+            continue
+        reason = f"觸發保底停損（報酬率 {p['return_pct']}%，跌破 {cfg['lt_stop_loss_pct']}%）"
+        try:
+            order = place_market_order(user_id, p["ticker"], "sell", p["lots"], reason=reason)
+            exits.append({"ticker": p["ticker"], "name": p.get("name"), "lots": p["lots"],
+                          "price": order["price"], "reason": reason, "realized_pl": order.get("realized_pl")})
+        except Exception as e:
+            print(f"[Claude長期] 停損賣出 {p['ticker']} 失敗: {e}")
+    return exits
 
 
 def run_longterm_rebalance() -> dict | None:

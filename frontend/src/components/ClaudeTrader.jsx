@@ -34,7 +34,8 @@ export default function ClaudeTrader({ onSelect }) {
       <h2>Claude 自動選股交易</h2>
       <p className="ranking-hint">
         規則全自動執行、公開透明的模擬交易，不是即時人工判斷——用來當學習/驗證選股邏輯的參考，
-        不是投資建議。長期投資：本益比／殖利率／站上EMA60三個條件選股，每月審視換股一次。
+        不是投資建議。長期投資：本益比／殖利率／站上EMA60三個條件選股，每月審視換股一次；另外每天
+        都會檢查保底停損，單筆虧損跌破門檻不用等到月度審視就會立刻出場。
         短期交易：直接用「量價突破」「法人連買」「EMA60貼線噴出」的訊號進場，固定停損或持有滿
         20個交易日出場。兩邊的訊號來源權重／門檻都會依實際績效每月/每季自動調整，不是一套規則用到底。
       </p>
@@ -80,7 +81,7 @@ export default function ClaudeTrader({ onSelect }) {
           {config && (
             <p className="ranking-hint">
               {strategy === "longterm"
-                ? `目前門檻：本益比 < ${config.lt_max_pe}、殖利率 > ${config.lt_min_div_yield}%、目標持股 ${config.lt_target_holdings} 檔`
+                ? `目前門檻：本益比 < ${config.lt_max_pe}、殖利率 > ${config.lt_min_div_yield}%、目標持股 ${config.lt_target_holdings} 檔、保底停損 ${config.lt_stop_loss_pct}%`
                 : `目前設定：單筆倉位約 ${(config.st_position_pct * 100).toFixed(0)}%、停損 ${config.st_stop_loss_pct}%、最長持有 ${config.st_max_hold_days} 個交易日、上限 ${config.st_max_positions} 檔　`
                   + `訊號權重：${Object.entries(config.st_scan_weights || {}).map(([k, v]) => `${k}=${v}`).join("、")}`}
             </p>

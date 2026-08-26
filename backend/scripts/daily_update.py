@@ -343,6 +343,17 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[Claude短期交易] 失敗: {e}")
 
+        print("[Claude長期投資] 檢查保底停損...")
+        try:
+            from app.services.claude_trader import run_longterm_stop_loss
+            lt_stop_exits = run_longterm_stop_loss()
+            for x in lt_stop_exits:
+                pl_note = f'　已實現損益 {x["realized_pl"]:,.0f}' if x.get("realized_pl") is not None else ""
+                _tg_notify(f'🤖 [Claude長期停損] {x["ticker"]} {x.get("name","")}　{x["reason"]}{pl_note}')
+            print(f"[Claude長期投資] 保底停損出場 {len(lt_stop_exits)} 筆")
+        except Exception as e:
+            print(f"[Claude長期投資] 保底停損檢查失敗: {e}")
+
         print("[Claude長期投資] 檢查是否需要月度換股...")
         try:
             from app.services.claude_trader import run_longterm_rebalance
