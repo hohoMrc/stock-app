@@ -96,7 +96,7 @@ export default function ClaudeTrader({ onSelect }) {
                 <thead>
                   <tr>
                     <th>代號</th><th>名稱</th><th>買入日期</th><th>張數</th><th>均價</th><th>現價</th>
-                    <th>市值</th><th>未實現損益</th><th>報酬率</th><th>買進理由</th>
+                    <th>未實現損益</th><th>報酬率</th><th>買進理由</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -112,7 +112,6 @@ export default function ClaudeTrader({ onSelect }) {
                       <td>{p.lots}</td>
                       <td>{p.avg_cost}</td>
                       <td>{p.price ?? "—"}</td>
-                      <td>{p.market_value?.toLocaleString() ?? "—"}</td>
                       <td>{p.unrealized_pl?.toLocaleString() ?? "—"}</td>
                       <td>{p.return_pct != null ? `${p.return_pct}%` : "—"}</td>
                       <td className="reason-cell">{p.reason ?? "—"}</td>
