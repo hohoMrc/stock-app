@@ -153,6 +153,16 @@ export default function App() {
   const [quickView, setQuickView] = useState(null); // { ticker, context } | null
   const openQuickView  = (ticker, context = null) => setQuickView({ ticker, context });
   const closeQuickView = () => setQuickView(null);
+  // 手機版面板內上一檔/下一檔：在目前的篩選結果清單裡移動，不用關掉面板再點下一格
+  const quickViewIndex = quickView ? screenerResults.findIndex((r) => r.ticker === quickView.ticker) : -1;
+  const quickViewPrev = () => {
+    if (quickViewIndex > 0) setQuickView({ ticker: screenerResults[quickViewIndex - 1].ticker, context: quickView.context });
+  };
+  const quickViewNext = () => {
+    if (quickViewIndex >= 0 && quickViewIndex < screenerResults.length - 1) {
+      setQuickView({ ticker: screenerResults[quickViewIndex + 1].ticker, context: quickView.context });
+    }
+  };
 
   // 帳號狀態
   const [username, setUsername] = useState(() => localStorage.getItem("username") || null);
@@ -626,7 +636,19 @@ export default function App() {
       {quickView && (
         <div className="quickview-overlay" onClick={closeQuickView}>
           <div className="quickview-drawer" onClick={(e) => e.stopPropagation()}>
-            <button className="quickview-close" onClick={closeQuickView} title="關閉">✕</button>
+            <div className="quickview-topbar">
+              <button
+                className="quickview-nav-btn"
+                onClick={quickViewPrev}
+                disabled={quickViewIndex <= 0}
+              >‹ 上一檔</button>
+              <button className="quickview-close" onClick={closeQuickView} title="關閉">✕</button>
+              <button
+                className="quickview-nav-btn"
+                onClick={quickViewNext}
+                disabled={quickViewIndex < 0 || quickViewIndex >= screenerResults.length - 1}
+              >下一檔 ›</button>
+            </div>
             <StockDetail
               ticker={quickView.ticker}
               scanContext={quickView.context}

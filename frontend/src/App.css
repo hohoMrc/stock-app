@@ -1413,11 +1413,17 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   box-shadow: -12px 0 40px rgba(0,0,0,0.4);
   animation: quickview-slide-in 0.22s ease-out;
 }
-.quickview-close {
+.quickview-topbar {
   position: sticky;
-  top: 12px;
-  float: right;
-  margin-right: 12px;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 12px 0;
+}
+.quickview-close {
   width: 32px; height: 32px;
   border-radius: 50%;
   border: 1px solid var(--border);
@@ -1425,9 +1431,34 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 15px;
-  z-index: 1;
+  flex-shrink: 0;
 }
 .quickview-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+/* 上一檔/下一檔只在手機版顯示：桌機版側滑面板不遮住篩選結果清單，直接點清單換股更快 */
+.quickview-nav-btn { display: none; }
+@media (max-width: 640px) {
+  .quickview-topbar {
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+  }
+  .quickview-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    max-width: 130px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .quickview-nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+}
 
 /* ── Auth Modal ── */
 .modal-overlay {
