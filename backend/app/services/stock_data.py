@@ -1136,7 +1136,12 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
                     if _new:
                         db_records.extend(_new)
                         db_records.sort(key=lambda x: x["date"])
-                        save_candles(ticker, _new)
+                        # 只存已經收盤的日期：Fugle historical candles 盤中查詢時，補到的
+                        # 資料範圍有時會含「今天」這根還沒收完的K棒，存進DB會把即時價誤當
+                        # 收盤價，害後面直接讀DB的掃描（例如法人連買）誤判成已收盤資料
+                        _to_save = [r for r in _new if r["date"] < today_str]
+                        if _to_save:
+                            save_candles(ticker, _to_save)
                 # 盤中即時 K 棒（quote_date 必須等於今天，避免颱風假日補假棒）
                 if date.today().weekday() < 5 and db_records[-1]["date"] != today_str:
                     q = _fugle_quote(ticker)
@@ -1210,10 +1215,14 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
 
     all_records = _resample_candles(all_records, interval)
 
-    # 寫入 SQLite K 線快取（僅日K，不含今日未收盤資料）
+    # 寫入 SQLite K 線快取（僅日K，不含今日未收盤資料——Fugle historical candles 盤中查詢
+    # 範圍含到「今天」時，回傳的可能是還沒收完的當日即時K棒，要濾掉才不會誤存成收盤價）
     if interval == "1d" and all_records:
         try:
-            save_candles(ticker, all_records)
+            today_str = date.today().strftime("%Y-%m-%d")
+            _to_save = [r for r in all_records if r["date"] < today_str]
+            if _to_save:
+                save_candles(ticker, _to_save)
         except Exception:
             pass
 
