@@ -34,9 +34,11 @@ def _today_start_ts() -> float:
 
 
 def place_market_order(user_id: int, ticker: str, side: str, lots: int, price: float | None = None,
-                        reason: str | None = None) -> dict:
+                        reason: str | None = None, allow_day_trade: bool = False) -> dict:
     """price 未提供時用即時市價成交；有提供時直接以該價格成交（不掛單等待，送出當下立即記帳）。
     reason：記錄這筆單是為什麼下的（目前給 Claude 自動交易用，一般使用者手動下單不會傳）。
+    allow_day_trade：跳過「今日買進不可當日賣出」的現股限制，只給當沖模擬帳戶用——
+    一般使用者手動下單、長期/短期 Claude 帳戶都要保留這個限制，模擬真實現股規則。
     """
     qty = lots * 1000
     info  = get_stock_info(ticker)
@@ -74,10 +76,11 @@ def place_market_order(user_id: int, ticker: str, side: str, lots: int, price: f
         if qty > held:
             raise PaperTradingError("持股不足")
 
-        bought_today = get_paper_bought_qty_since(user_id, ticker, _today_start_ts())
-        sellable = max(0, held - bought_today)
-        if qty > sellable:
-            raise PaperTradingError("現股不可當沖：今日買進的部位不可當日賣出")
+        if not allow_day_trade:
+            bought_today = get_paper_bought_qty_since(user_id, ticker, _today_start_ts())
+            sellable = max(0, held - bought_today)
+            if qty > sellable:
+                raise PaperTradingError("現股不可當沖：今日買進的部位不可當日賣出")
 
         fee = _fee(gross)
         tax = _tax(gross)

@@ -37,12 +37,14 @@ export default function ClaudeTrader({ onSelect }) {
         不是投資建議。長期投資：本益比／殖利率／站上EMA60三個條件選股，每月審視換股一次；另外每天
         都會檢查保底停損，單筆虧損跌破門檻不用等到月度審視就會立刻出場。
         短期交易：直接用「量價突破」「法人連買」「EMA60貼線噴出」的訊號進場，固定停損或持有滿
-        20個交易日出場。兩邊的訊號來源權重／門檻都會依實際績效每月/每季自動調整，不是一套規則用到底。
+        20個交易日出場。當沖：盤中每2分鐘從成交值排行前段挑動能延續的標的進場，收盤前一定強制平倉、
+        不留倉過夜。訊號來源權重／門檻都會依實際績效定期調整，不是一套規則用到底。
       </p>
 
       <div className="paper-side-tabs">
         <button className={strategy === "longterm" ? "active" : ""} onClick={() => setStrategy("longterm")}>長期投資</button>
         <button className={strategy === "shortterm" ? "active" : ""} onClick={() => setStrategy("shortterm")}>短期交易</button>
+        <button className={strategy === "daytrade" ? "active" : ""} onClick={() => setStrategy("daytrade")}>當沖交易</button>
       </div>
 
       {loading ? (
@@ -82,8 +84,12 @@ export default function ClaudeTrader({ onSelect }) {
             <p className="ranking-hint">
               {strategy === "longterm"
                 ? `目前門檻：本益比 < ${config.lt_max_pe}、殖利率 > ${config.lt_min_div_yield}%、目標持股 ${config.lt_target_holdings} 檔、保底停損 ${config.lt_stop_loss_pct}%`
-                : `目前設定：單筆倉位約 ${(config.st_position_pct * 100).toFixed(0)}%、停損 ${config.st_stop_loss_pct}%、最長持有 ${config.st_max_hold_days} 個交易日、上限 ${config.st_max_positions} 檔　`
-                  + `訊號權重：${Object.entries(config.st_scan_weights || {}).map(([k, v]) => `${k}=${v}`).join("、")}`}
+                : strategy === "shortterm"
+                ? `目前設定：單筆倉位約 ${(config.st_position_pct * 100).toFixed(0)}%、停損 ${config.st_stop_loss_pct}%、最長持有 ${config.st_max_hold_days} 個交易日、上限 ${config.st_max_positions} 檔　`
+                  + `訊號權重：${Object.entries(config.st_scan_weights || {}).map(([k, v]) => `${k}=${v}`).join("、")}`
+                : `目前設定：成交值排行前 ${config.dt_candidate_pool} 名中挑漲幅 ${config.dt_min_change_pct}%~${config.dt_max_change_pct}% 的標的、`
+                  + `單筆倉位約 ${(config.dt_position_pct * 100).toFixed(0)}%、上限 ${config.dt_max_positions} 檔、停損 ${config.dt_stop_loss_pct}%、`
+                  + `${config.dt_entry_cutoff_time} 後不再進場、${config.dt_force_close_time} 強制平倉`}
             </p>
           )}
 
@@ -95,7 +101,7 @@ export default function ClaudeTrader({ onSelect }) {
               <table className="result-table">
                 <thead>
                   <tr>
-                    <th>代號</th><th>名稱</th><th>買入日期</th><th>張數</th><th>均價</th><th>現價</th>
+                    <th>代號</th><th>名稱</th><th>{strategy === "daytrade" ? "進場時間" : "買入日期"}</th><th>張數</th><th>均價</th><th>現價</th>
                     <th>未實現損益</th><th>報酬率</th><th>買進理由</th>
                   </tr>
                 </thead>
@@ -108,7 +114,13 @@ export default function ClaudeTrader({ onSelect }) {
                     >
                       <td className="col-ticker">{p.ticker}</td>
                       <td>{p.name}</td>
-                      <td>{p.buy_date ? new Date(p.buy_date * 1000).toLocaleDateString("zh-TW") : "—"}</td>
+                      <td>
+                        {p.buy_date
+                          ? (strategy === "daytrade"
+                              ? new Date(p.buy_date * 1000).toLocaleTimeString("zh-TW", { hour12: false })
+                              : new Date(p.buy_date * 1000).toLocaleDateString("zh-TW"))
+                          : "—"}
+                      </td>
                       <td>{p.lots}</td>
                       <td>{p.avg_cost}</td>
                       <td>{p.price ?? "—"}</td>

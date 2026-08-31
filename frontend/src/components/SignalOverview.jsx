@@ -8,6 +8,7 @@ export default function SignalOverview() {
   const [signals, setSignals] = useState([]);
   const [ltPerf, setLtPerf] = useState(null);
   const [stPerf, setStPerf] = useState(null);
+  const [dtPerf, setDtPerf] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -16,11 +17,13 @@ export default function SignalOverview() {
       getSignalOverview(180),
       getClaudePerformance("longterm"),
       getClaudePerformance("shortterm"),
+      getClaudePerformance("daytrade"),
     ])
-      .then(([sRes, ltRes, stRes]) => {
+      .then(([sRes, ltRes, stRes, dtRes]) => {
         setSignals(sRes.data.data || []);
         setLtPerf(ltRes.data);
         setStPerf(stRes.data);
+        setDtPerf(dtRes.data);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -29,6 +32,7 @@ export default function SignalOverview() {
   const perfRows = [
     { label: "Claude 長期投資", perf: ltPerf },
     { label: "Claude 短期交易", perf: stPerf },
+    { label: "Claude 當沖交易", perf: dtPerf },
   ];
 
   return (

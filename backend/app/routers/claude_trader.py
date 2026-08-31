@@ -4,13 +4,13 @@ from app.services.claude_trader import get_claude_portfolio, get_claude_strategy
 
 router = APIRouter(prefix="/api/claude-trader", tags=["claude-trader"])
 
-VALID_STRATEGIES = {"longterm", "shortterm"}
+VALID_STRATEGIES = {"longterm", "shortterm", "daytrade"}
 
 
 @router.get("/portfolio/{strategy}")
 async def portfolio(strategy: str):
     if strategy not in VALID_STRATEGIES:
-        raise HTTPException(status_code=400, detail="strategy 需為 longterm 或 shortterm")
+        raise HTTPException(status_code=400, detail="strategy 需為 longterm、shortterm 或 daytrade")
     try:
         return await run_in_threadpool(get_claude_portfolio, strategy)
     except Exception as e:
@@ -20,7 +20,7 @@ async def portfolio(strategy: str):
 @router.get("/performance/{strategy}")
 async def performance(strategy: str):
     if strategy not in VALID_STRATEGIES:
-        raise HTTPException(status_code=400, detail="strategy 需為 longterm 或 shortterm")
+        raise HTTPException(status_code=400, detail="strategy 需為 longterm、shortterm 或 daytrade")
     try:
         return await run_in_threadpool(get_claude_performance, strategy)
     except Exception as e:

@@ -1,10 +1,10 @@
-"""Claude 自動選股交易：長期投資／短期交易兩個獨立模擬帳戶，規則全自動、公開透明，
+"""Claude 自動選股交易：長期投資／短期交易／當沖三個獨立模擬帳戶，規則全自動、公開透明，
 每筆單都記錄「為什麼」，讓使用者可以直接觀察學習。規則會依實際績效定期調整（短期訊號
 來源勝率調整下單權重、長期門檻季度回顧），但不會有即時 LLM 判斷成本——全部是排程跑
 固定規則，只是規則的參數會隨時間根據追蹤到的真實績效自我調整。
 """
 import secrets
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from app.db import (
     get_user_by_username, create_user, get_or_create_paper_account, update_paper_cash,
@@ -19,6 +19,7 @@ from app.services.signal_tracking import get_scan_signal_stats
 
 LONGTERM_USERNAME  = "claude_longterm"
 SHORTTERM_USERNAME = "claude_shortterm"
+DAYTRADE_USERNAME  = "claude_daytrade"
 INITIAL_CASH = 1_000_000
 
 LT_MIN_VOLUME_ZHANG = 500   # 長期投資流動性門檻：最近一天成交量至少500張
@@ -45,6 +46,16 @@ DEFAULT_CONFIG = {
         "volume_breakout_loose": 1.0, "institutional_buying": 1.0,
         "ema60_breakout": 1.0, "rs_momentum": 1.0,
     },
+    "dt_candidate_pool":          30,     # 從成交值排行前N檔挑候選
+    "dt_min_change_pct":          3.0,    # 進場門檻下限：今日累計漲幅至少要有這麼多，確認有動能
+    "dt_max_change_pct":          9.0,    # 進場門檻上限：太接近漲停風險是買不到/隨時鎖死，避免追在最頂
+    "dt_position_pct":            0.15,
+    "dt_max_positions":           5,
+    "dt_stop_loss_pct":          -3.0,
+    "dt_take_profit_trigger_pct": 3.0,
+    "dt_trailing_stop_pct":       1.5,
+    "dt_entry_cutoff_time":       "12:30",  # 這之後不再新進場，留時間讓部位在收盤前能正常出場
+    "dt_force_close_time":       "13:25",   # 收盤前強制平倉，當沖不留倉過夜
     "last_shortterm_review_month":    None,
     "last_longterm_rebalance_month":  None,
     "last_longterm_quarterly_review": None,
@@ -74,17 +85,21 @@ def _ensure_user(username: str) -> tuple[int, bool]:
     return user_id, True
 
 
-def ensure_claude_accounts() -> tuple[int, int]:
-    """確保長期/短期兩個帳戶都存在，剛建立的話給預設本金。回傳 (長期user_id, 短期user_id)。"""
+def ensure_claude_accounts() -> tuple[int, int, int]:
+    """確保長期/短期/當沖三個帳戶都存在，剛建立的話給預設本金。回傳 (長期user_id, 短期user_id, 當沖user_id)。"""
     lt_id, lt_new = _ensure_user(LONGTERM_USERNAME)
     st_id, st_new = _ensure_user(SHORTTERM_USERNAME)
+    dt_id, dt_new = _ensure_user(DAYTRADE_USERNAME)
     get_or_create_paper_account(lt_id)
     get_or_create_paper_account(st_id)
+    get_or_create_paper_account(dt_id)
     if lt_new:
         update_paper_cash(lt_id, INITIAL_CASH)
     if st_new:
         update_paper_cash(st_id, INITIAL_CASH)
-    return lt_id, st_id
+    if dt_new:
+        update_paper_cash(dt_id, INITIAL_CASH)
+    return lt_id, st_id, dt_id
 
 
 # ── 短期交易：每日進場／出場 ──────────────────────────────────
@@ -391,11 +406,131 @@ def run_longterm_quarterly_review() -> dict | None:
     }
 
 
+# ── 當沖：盤中每2分鐘檢查出場/進場 ──────────────────────────────
+
+def run_day_trading_check() -> dict:
+    """盤中排程每 2 分鐘呼叫一次：先檢查目前持倉要不要出場（含收盤前強制平倉），
+    再篩選新進場標的。跟長期/短期不同，這裡當天買的一定要當天賣掉（place_market_order
+    傳 allow_day_trade=True 跳過現股不可當沖的限制），不留倉過夜。
+
+    價格來源特別注意：get_positions_with_price() 背後的 get_stock_info() 有5分鐘快取
+    （這個快取之前害看盤K線卡住過），當沖判斷停損/停利需要盤中即時價，所以這裡改用
+    不快取的 get_watchlist_quotes() 自己抓即時價、算報酬率，get_positions_with_price()
+    只拿來取張數/成本這些不會變的靜態欄位。
+    """
+    from app.services.stock_data import (
+        get_watchlist_quotes, get_trade_value_ranking, _enrich_with_intraday,
+        get_stock_info, get_intraday_candles,
+    )
+
+    cfg = _get_config()
+    user_id = ensure_claude_accounts()[2]
+    now_str = datetime.now().strftime("%H:%M")
+    today_str = date.today().strftime("%Y-%m-%d")
+    force_close = now_str >= cfg["dt_force_close_time"]
+
+    # 今天已經交易過的股票（買或賣都算）：同一檔當天只做一次進出，避免2分鐘一次的雜訊反覆進出
+    orders = get_order_history(user_id, limit=200)
+    todays_traded: set[str] = set()
+    todays_buy_ts: dict[str, float] = {}
+    for o in reversed(orders):  # 新到舊反過來變舊到新，取第一次買進時間＝進場時間
+        if datetime.fromtimestamp(o["created_at"]).strftime("%Y-%m-%d") != today_str:
+            continue
+        todays_traded.add(o["ticker"])
+        if o["side"] == "buy" and o["ticker"] not in todays_buy_ts:
+            todays_buy_ts[o["ticker"]] = o["created_at"]
+
+    positions = get_positions_with_price(user_id)
+    fresh_quotes = {q["ticker"]: q for q in get_watchlist_quotes([p["ticker"] for p in positions])} if positions else {}
+
+    exits = []
+    held_tickers = {p["ticker"] for p in positions}
+    for p in positions:
+        ticker = p["ticker"]
+        fresh_price = fresh_quotes.get(ticker, {}).get("close")
+        return_pct = (round((fresh_price - p["avg_cost"]) / p["avg_cost"] * 100, 2)
+                      if fresh_price and p.get("avg_cost") else None)
+
+        reason = None
+        if force_close:
+            reason = "當沖強制收盤平倉"
+        elif return_pct is not None and return_pct <= cfg["dt_stop_loss_pct"]:
+            reason = f"當沖停損（報酬率 {return_pct}%）"
+        else:
+            entry_ts = todays_buy_ts.get(ticker)
+            if entry_ts and p.get("avg_cost"):
+                candles = get_intraday_candles(ticker, "5")
+                since_entry = [c for c in candles if c.get("date") and c["date"] >= entry_ts and c.get("high")]
+                if since_entry:
+                    peak_return_pct = (max(c["high"] for c in since_entry) - p["avg_cost"]) / p["avg_cost"] * 100
+                    if peak_return_pct >= cfg["dt_take_profit_trigger_pct"]:
+                        current_return = return_pct if return_pct is not None else peak_return_pct
+                        if peak_return_pct - current_return >= cfg["dt_trailing_stop_pct"]:
+                            reason = f"當沖移動停利（最高報酬 {round(peak_return_pct, 2)}%，回落到 {current_return}% 出場）"
+        if not reason:
+            continue
+        try:
+            order = place_market_order(user_id, ticker, "sell", p["lots"], price=fresh_price,
+                                        reason=reason, allow_day_trade=True)
+            exits.append({"ticker": ticker, "name": p.get("name"), "lots": p["lots"],
+                          "price": order["price"], "reason": reason, "realized_pl": order.get("realized_pl")})
+            held_tickers.discard(ticker)
+            todays_traded.add(ticker)
+        except Exception as e:
+            print(f"[Claude當沖] 賣出 {ticker} 失敗: {e}")
+
+    entries = []
+    if not force_close and now_str < cfg["dt_entry_cutoff_time"] and len(held_tickers) < cfg["dt_max_positions"]:
+        candidates = get_trade_value_ranking(limit=cfg["dt_candidate_pool"], force=True)
+        candidates = _enrich_with_intraday(candidates)
+        account = get_account_summary(user_id)
+        budget = account["equity"] * cfg["dt_position_pct"]
+
+        for c in candidates:
+            if len(held_tickers) >= cfg["dt_max_positions"]:
+                break
+            ticker = c["ticker"]
+            if ticker in held_tickers or ticker in todays_traded:
+                continue
+            chg = c.get("change_pct")
+            if chg is None or not (cfg["dt_min_change_pct"] <= chg <= cfg["dt_max_change_pct"]):
+                continue
+            if c.get("is_limit_up") or c.get("is_limit_down"):
+                continue
+            price = c.get("close")
+            if not price:
+                continue
+            info = get_stock_info(ticker)
+            if info.get("is_attention") or info.get("is_disposition"):
+                continue
+            lots = int(budget // (price * 1000))
+            if lots <= 0:
+                continue
+            try:
+                reason = f"當沖動能：成交值排行前{cfg['dt_candidate_pool']}名，今日漲幅 {chg}%"
+                order = place_market_order(user_id, ticker, "buy", lots, price=price, reason=reason)
+                held_tickers.add(ticker)
+                todays_traded.add(ticker)
+                entries.append({"ticker": ticker, "name": c.get("name"), "lots": lots,
+                                "price": order["price"], "reason": reason})
+            except Exception as e:
+                print(f"[Claude當沖] 買進 {ticker} 失敗: {e}")
+
+    return {"exits": exits, "entries": entries}
+
+
 # ── 顯示用 ──────────────────────────────────────────────────
 
+USERNAME_BY_STRATEGY = {
+    "longterm":  LONGTERM_USERNAME,
+    "shortterm": SHORTTERM_USERNAME,
+    "daytrade":  DAYTRADE_USERNAME,
+}
+
+
 def get_claude_portfolio(strategy: str) -> dict:
-    """strategy: "longterm" 或 "shortterm"。回傳帳戶摘要、持股(含最近一次買進理由)、成交紀錄。"""
-    username = LONGTERM_USERNAME if strategy == "longterm" else SHORTTERM_USERNAME
+    """strategy: "longterm"／"shortterm"／"daytrade"。回傳帳戶摘要、持股(含最近一次買進理由)、成交紀錄。"""
+    username = USERNAME_BY_STRATEGY.get(strategy, SHORTTERM_USERNAME)
     user = get_user_by_username(username)
     if not user:
         return {"account": None, "positions": [], "orders": []}
@@ -424,9 +559,9 @@ def get_claude_strategy_summary() -> dict:
 
 
 def get_claude_performance(strategy: str) -> dict:
-    """strategy: "longterm" 或 "shortterm"。回傳該帳戶已平倉交易的勝率/損益比等統計，
-    供「訊號績效總覽」頁比較兩個帳戶實際交易成效用。"""
-    username = LONGTERM_USERNAME if strategy == "longterm" else SHORTTERM_USERNAME
+    """strategy: "longterm"／"shortterm"／"daytrade"。回傳該帳戶已平倉交易的勝率/損益比等統計，
+    供「訊號績效總覽」頁比較各帳戶實際交易成效用。"""
+    username = USERNAME_BY_STRATEGY.get(strategy, SHORTTERM_USERNAME)
     user = get_user_by_username(username)
     if not user:
         return {"total_trades": 0}
