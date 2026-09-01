@@ -9,9 +9,8 @@ export default function ClaudeTrader({ onSelect }) {
   const [loading, setLoading] = useState(true);
   const [ordersPage, setOrdersPage] = useState(1);
 
-  useEffect(() => {
+  const load = () => {
     setLoading(true);
-    setOrdersPage(1);
     Promise.all([getClaudePortfolio(strategy), getClaudeStrategyConfig()])
       .then(([pRes, cRes]) => {
         setPortfolio(pRes.data);
@@ -19,6 +18,11 @@ export default function ClaudeTrader({ onSelect }) {
       })
       .catch(() => { setPortfolio(null); setConfig(null); })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    setOrdersPage(1);
+    load();
   }, [strategy]);
 
   const account   = portfolio?.account;
@@ -31,7 +35,12 @@ export default function ClaudeTrader({ onSelect }) {
 
   return (
     <div className="page">
-      <h2>Claude 自動選股交易</h2>
+      <div className="ranking-header">
+        <h2>Claude 自動選股交易</h2>
+        <button className="refresh-btn" onClick={load} disabled={loading}>
+          {loading ? "更新中..." : "↻ 重新整理"}
+        </button>
+      </div>
       <p className="ranking-hint">
         規則全自動執行、公開透明的模擬交易，不是即時人工判斷——用來當學習/驗證選股邏輯的參考，
         不是投資建議。長期投資：本益比／殖利率／站上EMA60三個條件選股，每月審視換股一次；另外每天
