@@ -11,10 +11,11 @@ from app.db import (
 )
 from app.services.stock_data import get_stock_info, _enrich_with_intraday
 
-COMMISSION_RATE = 0.001425
-COMMISSION_MIN  = 20
-TAX_RATE        = 0.003  # 現股賣出證交稅
-DEPOSIT_AMOUNT  = 100_000  # 入金金額
+COMMISSION_RATE     = 0.001425
+COMMISSION_MIN      = 20
+TAX_RATE            = 0.003    # 現股賣出證交稅
+DAY_TRADE_TAX_RATE  = 0.0015   # 現股當沖賣出證交稅減半（政府為鼓勵當沖的優惠稅率）
+DEPOSIT_AMOUNT      = 100_000  # 入金金額
 
 
 class PaperTradingError(Exception):
@@ -25,8 +26,8 @@ def _fee(amount: float) -> float:
     return max(round(amount * COMMISSION_RATE), COMMISSION_MIN)
 
 
-def _tax(amount: float) -> float:
-    return round(amount * TAX_RATE)
+def _tax(amount: float, rate: float = TAX_RATE) -> float:
+    return round(amount * rate)
 
 
 def _today_start_ts() -> float:
@@ -83,7 +84,7 @@ def place_market_order(user_id: int, ticker: str, side: str, lots: int, price: f
                 raise PaperTradingError("現股不可當沖：今日買進的部位不可當日賣出")
 
         fee = _fee(gross)
-        tax = _tax(gross)
+        tax = _tax(gross, DAY_TRADE_TAX_RATE if allow_day_trade else TAX_RATE)
         net = gross - fee - tax
         realized_pl = net - position["avg_cost"] * qty
 
