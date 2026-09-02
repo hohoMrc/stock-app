@@ -111,6 +111,8 @@ export default function App() {
   const [selectedTicker, setSelectedTicker] = useState(initialNavState.selectedTicker);
   const [selectedTickerContext, setSelectedTickerContext] = useState(initialNavState.selectedTickerContext);
   const [selectedIndustry, setSelectedIndustry] = useState(initialNavState.selectedIndustry);
+  // 個股查詢頁：搜尋框跟查詢結果放同一頁，不用跳到「detail」頁再按返回才能查下一檔
+  const [searchPageTicker, setSearchPageTicker] = useState(null);
   const [pageHistory, setPageHistory] = useState([]);
   const [paperPrefillTicker, setPaperPrefillTicker] = useState(initialNavState.paperPrefillTicker);
 
@@ -535,7 +537,22 @@ export default function App() {
           />
         )}
         {activePage === "search" && (
-          <StockSearch onSelect={(t) => handleSelectStock(t)} />
+          <>
+            <StockSearch onSelect={(t) => setSearchPageTicker(t)} />
+            {searchPageTicker && (
+              <StockDetail
+                ticker={searchPageTicker}
+                scanContext={null}
+                onBack={() => setSearchPageTicker(null)}
+                onIndustry={handleSelectIndustry}
+                watchlist={watchlist}
+                onToggleWatch={toggleWatch}
+                onPaperTrade={goToPaperTrading}
+                username={username}
+                onRequireLogin={() => setShowAuth(true)}
+              />
+            )}
+          </>
         )}
         {activePage === "detail" && selectedTicker && (
           <StockDetail
