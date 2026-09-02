@@ -138,11 +138,15 @@ def fetch_warrants_today() -> list[dict]:
     except Exception as e:
         print(f"[權證] TWSE 抓取失敗: {e}")
 
-    try:
-        resp = _tpex_get(_TPEX_WARRANT_URL, timeout=60)  # 這份資料約15MB，預設10秒常常來不及下載完就被切斷
-        _ingest(resp.json())
-    except Exception as e:
-        print(f"[權證] TPEx 抓取失敗: {e}")
+    # 這份資料約15MB，實測常常還沒下載完就被切斷（不是單純timeout太短，重試通常就會過），
+    # 失敗就重試最多3次，不然上櫃股票（例如信驊）的權證會整批不見，要等下次排程才會補回來
+    for attempt in range(3):
+        try:
+            resp = _tpex_get(_TPEX_WARRANT_URL, timeout=60)
+            _ingest(resp.json())
+            break
+        except Exception as e:
+            print(f"[權證] TPEx 抓取失敗（第{attempt + 1}次）: {e}")
 
     return list(latest.values())
 
