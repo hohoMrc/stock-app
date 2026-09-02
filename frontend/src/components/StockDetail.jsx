@@ -240,7 +240,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
 
   return (
     <div className="page">
-      <button className="back-btn" onClick={onBack}>← 返回</button>
+      {onBack && <button className="back-btn" onClick={onBack}>← 返回</button>}
 
       <div className="stock-header">
         <div>

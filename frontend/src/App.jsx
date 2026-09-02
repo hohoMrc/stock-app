@@ -543,7 +543,7 @@ export default function App() {
               <StockDetail
                 ticker={searchPageTicker}
                 scanContext={null}
-                onBack={() => setSearchPageTicker(null)}
+                onBack={null}
                 onIndustry={handleSelectIndustry}
                 watchlist={watchlist}
                 onToggleWatch={toggleWatch}
