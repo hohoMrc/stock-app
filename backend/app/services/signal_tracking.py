@@ -189,7 +189,8 @@ def check_ema60_breakouts() -> list[dict]:
         vols5     = [r.get("volume") or 0 for r in recent5]
         avg_vol_5d = sum(vols5) / len(vols5) if len(vols5) == 5 else 0
         vol_ratio  = today_vol / avg_vol_5d if avg_vol_5d > 0 else 0
-        volume_trigger = vol_ratio >= 3.0
+        # 爆量本身不分方向，一定要收盤上漲才算噴出，不然爆量重挫也會被誤判成貼線緩漲後噴出
+        volume_trigger = vol_ratio >= 3.0 and today_close > prev_close
 
         ema10_cross_trigger = prev_close < prev_ema10 and today_close >= today_ema10
 
