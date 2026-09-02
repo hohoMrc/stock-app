@@ -162,11 +162,12 @@ def init_db():
             underlying_name   TEXT,
             issuer_name       TEXT,
             issue_date        TEXT,
+            expiry_date       TEXT,
             updated_at        REAL
         );
 
         CREATE INDEX IF NOT EXISTS idx_warrants_underlying
-            ON warrants(underlying_ticker, issue_date DESC);
+            ON warrants(underlying_ticker, expiry_date ASC);
 
         CREATE TABLE IF NOT EXISTS futures_candles (
             symbol    TEXT NOT NULL,
@@ -387,6 +388,13 @@ def init_db():
         # 「貼線噴出追蹤」的異動，週報才能分開兩個段落顯示）
         try:
             conn.execute("ALTER TABLE ema60_watch_events ADD COLUMN source TEXT NOT NULL DEFAULT 'watchlist'")
+        except Exception:
+            pass
+        # Migration: 權證表加到期日欄位，候選權證改用「還沒到期」篩選，不然權證檔數
+        # 很多的股票（例如一次上百檔）會被「只抓最近發行的前N檔」的舊邏輯排擠掉還沒
+        # 到期但發行較早的權證
+        try:
+            conn.execute("ALTER TABLE warrants ADD COLUMN expiry_date TEXT")
         except Exception:
             pass
 
@@ -847,24 +855,29 @@ def save_warrants(records: list[dict]):
     with _conn() as conn:
         conn.executemany(
             "INSERT OR REPLACE INTO warrants"
-            "(ticker, name, underlying_ticker, underlying_name, issuer_name, issue_date, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "(ticker, name, underlying_ticker, underlying_name, issuer_name, issue_date, expiry_date, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             [
                 (r["ticker"], r.get("name", ""), r.get("underlying_ticker", ""),
                  r.get("underlying_name", ""), r.get("issuer_name", ""), r.get("issue_date", ""),
-                 time.time())
+                 r.get("expiry_date", ""), time.time())
                 for r in records if r.get("ticker") and r.get("underlying_ticker")
             ]
         )
 
 
-def get_warrants_by_underlying(ticker: str, limit: int = 80) -> list[dict]:
-    """撈某標的股的權證候選（依發行日期新到舊），供個股頁「權證」分頁即時查詢即時資料用。"""
+def get_warrants_by_underlying(ticker: str, limit: int = 150) -> list[dict]:
+    """撈某標的股「尚未到期」的權證候選（依到期日近到遠），供個股頁「權證」分頁即時查詢
+    即時資料用。改用到期日篩選，不是用發行日期新到舊抓前N檔——不然發行量大的股票
+    （一次上百檔權證）會被舊邏輯排擠掉一些還沒到期、只是發行較早的權證。
+    """
+    today_str = datetime.now().strftime("%Y-%m-%d")
     with _conn() as conn:
         rows = conn.execute(
             "SELECT ticker, name, issuer_name, issue_date FROM warrants "
-            "WHERE underlying_ticker=? ORDER BY issue_date DESC LIMIT ?",
-            (ticker, limit)
+            "WHERE underlying_ticker=? AND (expiry_date='' OR expiry_date IS NULL OR expiry_date>=?) "
+            "ORDER BY expiry_date ASC LIMIT ?",
+            (ticker, today_str, limit)
         ).fetchall()
     return [dict(r) for r in rows]
 

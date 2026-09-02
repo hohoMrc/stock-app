@@ -130,6 +130,7 @@ def fetch_warrants_today() -> list[dict]:
                 "underlying_name": under_name,
                 "issuer_name": issuer_name,
                 "issue_date": _roc_to_ad(row.get("履約開始日", "")),
+                "expiry_date": _roc_to_ad(row.get("履約截止日", "")),
             }
 
     try:
