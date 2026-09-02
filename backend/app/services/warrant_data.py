@@ -13,8 +13,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.services.stock_data import _get_fugle, _fugle_quote, _tpex_get, _parse_num, get_stock_info
 from app.db import get_candles
 
-_TWSE_WARRANT_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap36_L"
-_TPEX_WARRANT_URL = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap36_O"
+_TWSE_WARRANT_URL = "https://openapi.twse.com.tw/v1/opendata/t187ap37_L"
+_TPEX_WARRANT_URL = "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap37_O"
 
 _RISK_FREE_RATE = 0.015  # 台灣短期利率概略值，僅供參考用途，不即時抓取
 _MIN_DAYS_FOR_IV = 10    # 剩餘天數低於這個門檻，IV 反解本身就不穩定（BS模型在接近到期時的已知邊界情況），不顯示
@@ -87,38 +87,60 @@ def _roc_to_ad(s: str) -> str:
 
 
 def fetch_warrants_today() -> list[dict]:
-    """抓 TWSE+TPEx 權證發行清單，依權證代號去重（同代號因增額發行會有多筆，取發行日期最新一筆）。"""
+    """抓 TWSE+TPEx 目前有效權證的「基本資料彙總表」，依權證代號去重。
+
+    原本用的 t187ap36（年度發行量概況統計表）其實是每個年度才會定案一次的回顧報表，
+    查證過發現2026年都還沒更新，代表今年新發行的權證整批查不到——不是排程沒跑，是
+    這份報表設計上本來就只反映「已結束的完整年度」。改用 t187ap37（基本資料彙總表），
+    這份是即時現況的權證清單，但沒有標的的股票代號欄位（只有標的中文名稱），所以要用
+    本地已經有的股票代號-名稱對照表（_tw_stock_names）反查代號；查不到代號的（ETF、
+    反1/正2槓桿型商品、大盤指數等）直接跳過，這些本來就不是「輸入股票代號查權證」這個
+    功能該涵蓋的範圍。也沒有發行人名稱欄位，用權證簡稱扣掉標的名稱前綴後，取開頭到第一個
+    數字前的部分粗略還原（例：「信驊元大5C購01」扣掉「信驊」剩「元大5C購01」，取到"5"
+    之前＝「元大」），純粹補齊畫面上的發行人顯示用，不是精確比對用途。
+    """
+    import re
     import requests
+    from app.services.stock_data import _load_tw_stock_names, _tw_stock_names
+
+    _load_tw_stock_names()
+    name_to_ticker: dict[str, str] = {}
+    for code, name in _tw_stock_names.items():
+        name_to_ticker.setdefault(name, code)
+
     latest: dict[str, dict] = {}
 
-    def _ingest(rows, code_key, name_key, under_code_key, under_name_key, issuer_key, date_key):
+    def _ingest(rows):
         for row in rows:
-            code = str(row.get(code_key, "")).strip()
-            under_code = str(row.get(under_code_key, "")).strip()
+            code = str(row.get("權證代號", "")).strip()
+            under_name = str(row.get("標的證券/指數", "")).strip()
+            under_code = name_to_ticker.get(under_name)
             if not code or not under_code:
                 continue
-            issue_date = _roc_to_ad(row.get(date_key, ""))
-            existing = latest.get(code)
-            if existing and existing["issue_date"] >= issue_date:
-                continue
+            name = str(row.get("權證簡稱", "")).strip()
+            issuer_name = ""
+            if name.startswith(under_name):
+                m = re.match(r"^([^\d]+)", name[len(under_name):])
+                if m:
+                    issuer_name = m.group(1)
             latest[code] = {
                 "ticker": code,
-                "name": str(row.get(name_key, "")).strip(),
+                "name": name,
                 "underlying_ticker": under_code,
-                "underlying_name": str(row.get(under_name_key, "")).strip(),
-                "issuer_name": str(row.get(issuer_key, "")).strip(),
-                "issue_date": issue_date,
+                "underlying_name": under_name,
+                "issuer_name": issuer_name,
+                "issue_date": _roc_to_ad(row.get("履約開始日", "")),
             }
 
     try:
         resp = requests.get(_TWSE_WARRANT_URL, timeout=30)
-        _ingest(resp.json(), "權證代號", "名稱", "標的代號", "標的名稱", "發行人名稱", "申請發行日期")
+        _ingest(resp.json())
     except Exception as e:
         print(f"[權證] TWSE 抓取失敗: {e}")
 
     try:
-        resp = _tpex_get(_TPEX_WARRANT_URL)
-        _ingest(resp.json(), "權證代號", "名稱", "標的代號", "標的名稱", "發行人名稱", "申請發行日期")
+        resp = _tpex_get(_TPEX_WARRANT_URL, timeout=60)  # 這份資料約15MB，預設10秒常常來不及下載完就被切斷
+        _ingest(resp.json())
     except Exception as e:
         print(f"[權證] TPEx 抓取失敗: {e}")
 
