@@ -88,6 +88,13 @@ export const getStockSmartOrders  = ()          => api.get("/api/paper/smart-ord
 export const cancelStockSmartOrder = (orderId)  => api.delete(`/api/paper/smart-orders/${orderId}`);
 export const updateStockSmartOrderNote = (orderId, note) => api.patch(`/api/paper/smart-orders/${orderId}/note`, { note });
 
+export const getDaytradePaperAccount   = ()                          => api.get("/api/paper-daytrade/account");
+export const getDaytradePaperPositions = ()                          => api.get("/api/paper-daytrade/positions");
+export const getDaytradePaperOrders    = (limit = 50)                => api.get("/api/paper-daytrade/orders", { params: { limit } });
+export const placeDaytradePaperOrder   = (ticker, side, lots, price)  => api.post("/api/paper-daytrade/order", { ticker, side, lots, ...(price != null ? { price } : {}) });
+export const depositDaytradePaperCash  = ()                          => api.post("/api/paper-daytrade/deposit");
+export const getDaytradePaperPerformance = ()                        => api.get("/api/paper-daytrade/performance");
+
 export const getFuturesPaperAccount   = ()                    => api.get("/api/paper-futures/account");
 export const getFuturesPaperPositions = ()                    => api.get("/api/paper-futures/positions");
 export const getFuturesPaperOrders    = (limit = 50)          => api.get("/api/paper-futures/orders", { params: { limit } });

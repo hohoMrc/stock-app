@@ -1,54 +1,35 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { searchStocks, getStock, getPaperAccount, getPaperPositions, getPaperOrders, placePaperOrder, depositPaperCash, getPaperPerformance, createStockSmartOrder, getStockSmartOrders, cancelStockSmartOrder, updateStockSmartOrderNote } from "../api";
-import { calcFee, calcTax } from "../feeCalc";
+import {
+  searchStocks, getStock, getDaytradePaperAccount, getDaytradePaperPositions, getDaytradePaperOrders,
+  placeDaytradePaperOrder, depositDaytradePaperCash, getDaytradePaperPerformance,
+} from "../api";
+import { calcFee, calcTax, DAY_TRADE_TAX_RATE } from "../feeCalc";
 import PaperOrderModal from "./PaperOrderModal";
-import PaperPageActions from "./PaperPageActions";
 import Pagination, { PAGE_SIZE } from "./Pagination";
-import FuturesPaperTrading from "./FuturesPaperTrading";
-import DaytradePaperTrading from "./DaytradePaperTrading";
 
-export default function PaperTrading({ username, onRequireLogin, prefillTicker = null, onSelectStock }) {
-  const [assetTab, setAssetTab]   = useState("stock"); // "stock" | "futures" | "daytrade"
-  const futuresRef = useRef(null);
-  const [futuresLoading, setFuturesLoading]     = useState(false);
-  const [futuresDepositing, setFuturesDepositing] = useState(false);
-  const daytradeRef = useRef(null);
-  const [daytradeLoading, setDaytradeLoading]     = useState(false);
-  const [daytradeDepositing, setDaytradeDepositing] = useState(false);
+// 重新整理/入金按鈕跟「模擬下單」標題放同一列（在 PaperTrading.jsx 的頁首），
+// 比照 FuturesPaperTrading.jsx 用 ref 把 refresh/deposit 動作往上暴露。
+const DaytradePaperTrading = forwardRef(function DaytradePaperTrading(
+  { username, onRequireLogin, loading, setLoading, setDepositing, onSelectStock },
+  ref
+) {
   const [account, setAccount]     = useState(null);
   const [positions, setPositions] = useState([]);
   const [orders, setOrders]       = useState([]);
   const [performance, setPerformance] = useState(null);
-  const [loading, setLoading]     = useState(false);
 
-  // 下單表單
   const [tickerInput, setTickerInput] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selected, setSelected]       = useState(null); // { ticker, name, price }
+  const [selected, setSelected]       = useState(null);
   const [side, setSide]               = useState("buy");
   const [lots, setLots]               = useState(1);
   const [submitting, setSubmitting]   = useState(false);
   const [formError, setFormError]     = useState("");
   const [formMsg, setFormMsg]         = useState("");
-  const [depositing, setDepositing]   = useState(false);
-  const [orderModal, setOrderModal]   = useState(null); // { ticker, name } | null
-
-  // 智慧單表單
-  const [smartOrders, setSmartOrders]   = useState([]);
-  const [smartTicker, setSmartTicker]   = useState("");
-  const [smartSide, setSmartSide]       = useState("buy");
-  const [smartLots, setSmartLots]       = useState(1);
-  const [smartTrigger, setSmartTrigger] = useState("");
-  const [smartOrderType, setSmartOrderType] = useState("stop"); // "stop" | "limit"
-  const [smartSubmitting, setSmartSubmitting] = useState(false);
-  const [smartError, setSmartError]     = useState("");
-  const [smartMsg, setSmartMsg]         = useState("");
-  const [smartOrdersPage, setSmartOrdersPage] = useState(1);
-  const [ordersPage, setOrdersPage]     = useState(1);
-  const [editingNoteId, setEditingNoteId] = useState(null);
-  const [editingNoteText, setEditingNoteText] = useState("");
+  const [orderModal, setOrderModal]   = useState(null);
+  const [ordersPage, setOrdersPage]   = useState(1);
 
   const debounceRef = useRef(null);
   const wrapperRef  = useRef(null);
@@ -56,16 +37,15 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [accRes, posRes, ordRes, perfRes, smartRes] = await Promise.all([
-        getPaperAccount(), getPaperPositions(), getPaperOrders(50), getPaperPerformance(), getStockSmartOrders(),
+      const [accRes, posRes, ordRes, perfRes] = await Promise.all([
+        getDaytradePaperAccount(), getDaytradePaperPositions(), getDaytradePaperOrders(50), getDaytradePaperPerformance(),
       ]);
       setAccount(accRes.data);
       setPositions(posRes.data.positions);
       setOrders(ordRes.data.orders);
       setPerformance(perfRes.data);
-      setSmartOrders(smartRes.data.orders);
     } catch {
-      // 未登入或載入失敗時保持空白，不额外報錯打擾使用者
+      // 未登入或載入失敗時保持空白，不額外報錯打擾使用者
     } finally {
       setLoading(false);
     }
@@ -113,12 +93,6 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
     }
   };
 
-  // 從股價走勢頁按「模擬下單」帶過來的股票代號，進頁面時自動帶入下單表單
-  useEffect(() => {
-    if (prefillTicker) pickTicker(prefillTicker);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefillTicker]);
-
   const handleSubmit = async () => {
     if (!username) { onRequireLogin(); return; }
     if (!selected) { setFormError("請先選擇股票"); return; }
@@ -127,7 +101,7 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
     setFormError("");
     setFormMsg("");
     try {
-      const res = await placePaperOrder(selected.ticker, side, Number(lots));
+      const res = await placeDaytradePaperOrder(selected.ticker, side, Number(lots));
       const d = res.data;
       setFormMsg(
         `${d.side === "buy" ? "買進" : "賣出"} ${d.ticker} ${d.qty / 1000} 張成交，成交價 ${d.price} 元`
@@ -146,7 +120,7 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
   const handleDeposit = async () => {
     setDepositing(true);
     try {
-      const res = await depositPaperCash();
+      const res = await depositDaytradePaperCash();
       setFormMsg(`已入金 ${res.data.deposit_amount.toLocaleString()} 元`);
       setFormError("");
       loadAll();
@@ -157,66 +131,16 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
     }
   };
 
-  const handleSmartSubmit = async () => {
-    if (!smartTicker.trim()) { setSmartError("請輸入股票代號"); return; }
-    if (!smartLots || smartLots <= 0) { setSmartError("張數需大於 0"); return; }
-    if (!smartTrigger || smartTrigger <= 0) { setSmartError("觸發價格需大於 0"); return; }
-    setSmartSubmitting(true);
-    setSmartError("");
-    setSmartMsg("");
-    try {
-      const res = await createStockSmartOrder(smartTicker.trim(), smartSide, Number(smartLots), Number(smartTrigger), smartOrderType);
-      const d = res.data;
-      const fillNote = d.order_type === "limit" ? `以 ${d.trigger_price} 成交` : "用當下市價成交";
-      setSmartMsg(`已設定：${d.ticker} 股價${d.direction === "above" ? "漲到" : "跌到"} ${d.trigger_price} 時自動${d.side === "buy" ? "買進" : "賣出"}，${fillNote}`);
-      setSmartTicker("");
-      setSmartTrigger("");
-      setSmartOrderType("stop");
-      loadAll();
-    } catch (e) {
-      setSmartError(e.response?.data?.detail || "設定失敗");
-    } finally {
-      setSmartSubmitting(false);
-    }
-  };
-
-  const handleSmartCancel = async (orderId) => {
-    try {
-      await cancelStockSmartOrder(orderId);
-      loadAll();
-    } catch (e) {
-      setSmartError(e.response?.data?.detail || "取消失敗");
-    }
-  };
-
-  const startNoteEdit = (order) => {
-    setEditingNoteId(order.id);
-    setEditingNoteText(order.user_note || "");
-  };
-
-  const commitNoteEdit = async (orderId) => {
-    setEditingNoteId(null);
-    try {
-      await updateStockSmartOrderNote(orderId, editingNoteText);
-      loadAll();
-    } catch (e) {
-      setSmartError(e.response?.data?.detail || "備註更新失敗");
-    }
-  };
+  useImperativeHandle(ref, () => ({ refresh: loadAll, deposit: handleDeposit }));
 
   if (!username) {
     return (
-      <div className="page">
-        <h2>模擬下單</h2>
-        <p className="no-data">請先登入才能使用模擬下單功能</p>
+      <div>
+        <p className="no-data">請先登入才能使用當沖練習功能</p>
         <button className="login-btn" onClick={onRequireLogin}>登入 / 註冊</button>
       </div>
     );
   }
-
-  const smartOrdersTotalPages = Math.max(1, Math.ceil(smartOrders.length / PAGE_SIZE));
-  const smartOrdersCurPage    = Math.min(smartOrdersPage, smartOrdersTotalPages);
-  const pagedSmartOrders      = smartOrders.slice((smartOrdersCurPage - 1) * PAGE_SIZE, smartOrdersCurPage * PAGE_SIZE);
 
   const ordersTotalPages = Math.max(1, Math.ceil(orders.length / PAGE_SIZE));
   const ordersCurPage    = Math.min(ordersPage, ordersTotalPages);
@@ -224,85 +148,22 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
 
   const gross = selected ? selected.price * lots * 1000 : 0;
   const fee   = gross ? calcFee(gross) : 0;
-  const tax   = side === "sell" && gross ? calcTax(gross) : 0;
+  const tax   = side === "sell" && gross ? calcTax(gross, DAY_TRADE_TAX_RATE) : 0;
   const estNet = side === "buy" ? gross + fee : gross - fee - tax;
 
   return (
-    <div className="page paper-page">
-      <div className="paper-page-header">
-        <h2>模擬下單</h2>
-        {assetTab === "stock" && (
-          <PaperPageActions
-            onRefresh={() => loadAll()}
-            onDeposit={handleDeposit}
-            loading={loading}
-            depositing={depositing}
-            depositLabel="入金 10 萬"
-          />
-        )}
-        {assetTab === "futures" && (
-          <PaperPageActions
-            onRefresh={() => futuresRef.current?.refresh()}
-            onDeposit={() => futuresRef.current?.deposit()}
-            loading={futuresLoading}
-            depositing={futuresDepositing}
-            depositLabel="入金 100 萬"
-          />
-        )}
-        {assetTab === "daytrade" && (
-          <PaperPageActions
-            onRefresh={() => daytradeRef.current?.refresh()}
-            onDeposit={() => daytradeRef.current?.deposit()}
-            loading={daytradeLoading}
-            depositing={daytradeDepositing}
-            depositLabel="入金 10 萬"
-          />
-        )}
-      </div>
-
-      <div className="ranking-tabs">
-        <button className={`ranking-tab ${assetTab === "stock" ? "active" : ""}`} onClick={() => setAssetTab("stock")}>
-          股票
-        </button>
-        <button className={`ranking-tab ${assetTab === "futures" ? "active" : ""}`} onClick={() => setAssetTab("futures")}>
-          期貨
-        </button>
-        <button className={`ranking-tab ${assetTab === "daytrade" ? "active" : ""}`} onClick={() => setAssetTab("daytrade")}>
-          當沖
-        </button>
-      </div>
-
-      {assetTab === "daytrade" && (
-        <DaytradePaperTrading
-          ref={daytradeRef}
-          username={username}
-          onRequireLogin={onRequireLogin}
-          loading={daytradeLoading}
-          setLoading={setDaytradeLoading}
-          setDepositing={setDaytradeDepositing}
-          onSelectStock={onSelectStock}
-        />
-      )}
-
-      {assetTab === "futures" && (
-        <FuturesPaperTrading
-          ref={futuresRef}
-          username={username}
-          onRequireLogin={onRequireLogin}
-          loading={futuresLoading}
-          setLoading={setFuturesLoading}
-          setDepositing={setFuturesDepositing}
-        />
-      )}
-
-      {assetTab === "stock" && (
-      <>
+    <div>
+      <p className="ranking-hint">
+        當沖練習帳戶跟股票模擬下單分開計算，刻意不檢查本金是否足夠——真實現股當沖本來就
+        不需要準備全額本金，只要求收盤前把部位沖銷掉，這裡把出場紀律留給你自己練習。
+        賣出證交稅固定用當沖減半稅率 0.15%。不支援先賣後補，也不會自動幫你平倉。
+      </p>
 
       {account && (
         <div className="info-grid paper-summary">
           <div className="info-item">
             <span className="info-label">現金</span>
-            <span className="info-value">{account.cash.toLocaleString()}</span>
+            <span className={`info-value ${account.cash < 0 ? "down" : ""}`}>{account.cash.toLocaleString()}</span>
           </div>
           <div className="info-item">
             <span className="info-label">持股市值</span>
@@ -419,7 +280,7 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
             <div className="paper-order-preview">
               <span>金額 {gross.toLocaleString()} 元</span>
               <span>手續費 {fee.toLocaleString()} 元</span>
-              {side === "sell" && <span>證交稅 {tax.toLocaleString()} 元</span>}
+              {side === "sell" && <span>證交稅（當沖減半） {tax.toLocaleString()} 元</span>}
               <span>{side === "buy" ? "預估扣款" : "預估入帳"} {Math.round(estNet).toLocaleString()} 元</span>
             </div>
 
@@ -432,108 +293,6 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
         {formError && <p className="error">{formError}</p>}
         {formMsg && <p className="paper-form-msg">{formMsg}</p>}
       </div>
-
-      <h3 className="paper-section-title">智慧單（到價自動買賣）</h3>
-      <p className="ranking-hint">
-        設定股價到多少自動成交，不用一直盯盤。系統每 2 分鐘檢查一次（盤中 09:00-13:50），
-        觸價後用當下市價成交（不保證剛好成交在設定的價位）。買進當天不能設定同一天觸發的
-        賣出智慧單成交，會受現股不可當沖限制。
-      </p>
-      <div className="paper-order-panel">
-        <input
-          type="text"
-          placeholder="股票代號（例：2330）"
-          value={smartTicker}
-          onChange={(e) => setSmartTicker(e.target.value)}
-        />
-        <div className="paper-side-tabs">
-          <button className={smartSide === "buy" ? "active" : ""} onClick={() => setSmartSide("buy")}>買進</button>
-          <button className={smartSide === "sell" ? "active" : ""} onClick={() => setSmartSide("sell")}>賣出</button>
-        </div>
-        <label className="paper-lots-label">
-          張數（1 張 = 1000 股）
-          <input type="number" min="1" step="1" value={smartLots} onChange={(e) => setSmartLots(e.target.value)} />
-        </label>
-        <label className="paper-lots-label">
-          觸發股價
-          <input type="number" step="0.01" value={smartTrigger} onChange={(e) => setSmartTrigger(e.target.value)} />
-        </label>
-        <div className="paper-side-tabs">
-          <button
-            className={smartOrderType === "stop" ? "active" : ""}
-            onClick={() => setSmartOrderType("stop")}
-            title="觸價後用當下市價成交，可能有滑價，跟真實停損/停利單一樣"
-          >
-            觸價後市價成交
-          </button>
-          <button
-            className={smartOrderType === "limit" ? "active" : ""}
-            onClick={() => setSmartOrderType("limit")}
-            title="觸價後直接用你設定的觸發股價成交，價格不會跑掉；但條件比較嚴格，要漲/跌到那個價位或更好才會觸發"
-          >
-            限價成交
-          </button>
-        </div>
-        <button className="detail-btn" onClick={handleSmartSubmit} disabled={smartSubmitting}>
-          {smartSubmitting ? "送出中..." : "設定智慧單"}
-        </button>
-        {smartError && <p className="error">{smartError}</p>}
-        {smartMsg && <p className="paper-form-msg">{smartMsg}</p>}
-      </div>
-
-      {smartOrders.length === 0 ? (
-        <p className="no-data">{loading ? "載入中..." : "尚無智慧單"}</p>
-      ) : (
-        <div className="ranking-table-wrap">
-          <table className="result-table">
-            <thead>
-              <tr>
-                <th>代號</th><th>買賣</th><th>張數</th><th>觸發價</th>
-                <th>設定時間</th><th>成交時間</th><th>狀態</th><th>系統備註</th><th>備註</th><th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pagedSmartOrders.map((o) => (
-                <tr key={o.id}>
-                  <td className="col-ticker">{o.ticker}</td>
-                  <td>{o.side === "buy" ? "買進" : "賣出"}</td>
-                  <td>{o.lots}</td>
-                  <td>{o.trigger_price}（{o.direction === "above" ? "漲到" : "跌到"}）</td>
-                  <td>{o.created_at ? new Date(o.created_at * 1000).toLocaleString("zh-TW", { hour12: false }) : "—"}</td>
-                  <td>{o.triggered_at ? new Date(o.triggered_at * 1000).toLocaleString("zh-TW", { hour12: false }) : "—"}</td>
-                  <td>{{ pending: "待觸發", triggered: "已成交", failed: "失敗", cancelled: "已取消" }[o.status]}</td>
-                  <td>{o.status === "failed" ? o.fail_reason : "—"}</td>
-                  <td className="note-cell">
-                    {editingNoteId === o.id ? (
-                      <input
-                        className="note-input"
-                        autoFocus
-                        value={editingNoteText}
-                        onChange={(e) => setEditingNoteText(e.target.value)}
-                        onBlur={() => commitNoteEdit(o.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") commitNoteEdit(o.id);
-                          if (e.key === "Escape") setEditingNoteId(null);
-                        }}
-                      />
-                    ) : (
-                      <span className="note-text" onClick={() => startNoteEdit(o)} title="點擊編輯備註">
-                        {o.user_note || <span className="note-placeholder">點擊新增</span>}
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    {o.status === "pending" && (
-                      <button className="view-btn" onClick={() => handleSmartCancel(o.id)}>取消</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <Pagination page={smartOrdersCurPage} totalPages={smartOrdersTotalPages} onChange={setSmartOrdersPage} />
-        </div>
-      )}
 
       <h3 className="paper-section-title">交易績效</h3>
       {!performance || performance.total_trades === 0 ? (
@@ -640,6 +399,8 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
           ticker={orderModal.ticker}
           name={orderModal.name}
           initialSide="sell"
+          placeOrder={placeDaytradePaperOrder}
+          taxRate={DAY_TRADE_TAX_RATE}
           onClose={() => setOrderModal(null)}
           onSuccess={(d) => {
             setFormMsg(`${d.side === "buy" ? "買進" : "賣出"} ${d.ticker} ${d.qty / 1000} 張成交，成交價 ${d.price} 元`);
@@ -648,8 +409,8 @@ export default function PaperTrading({ username, onRequireLogin, prefillTicker =
           }}
         />
       )}
-      </>
-      )}
     </div>
   );
-}
+});
+
+export default DaytradePaperTrading;

@@ -219,6 +219,42 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_paper_orders_user
             ON paper_orders(user_id, created_at DESC);
 
+        CREATE TABLE IF NOT EXISTS paper_daytrade_accounts (
+            user_id    INTEGER PRIMARY KEY,
+            cash       REAL NOT NULL,
+            created_at REAL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS paper_daytrade_positions (
+            user_id  INTEGER NOT NULL,
+            ticker   TEXT NOT NULL,
+            qty      INTEGER NOT NULL,
+            avg_cost REAL NOT NULL,
+            PRIMARY KEY (user_id, ticker),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS paper_daytrade_orders (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            ticker      TEXT NOT NULL,
+            name        TEXT,
+            side        TEXT NOT NULL,
+            qty         INTEGER NOT NULL,
+            price       REAL NOT NULL,
+            fee         REAL NOT NULL,
+            tax         REAL NOT NULL,
+            net_amount  REAL NOT NULL,
+            realized_pl REAL,
+            created_at  REAL,
+            reason      TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_paper_daytrade_orders_user
+            ON paper_daytrade_orders(user_id, created_at DESC);
+
         CREATE TABLE IF NOT EXISTS paper_futures_accounts (
             user_id    INTEGER PRIMARY KEY,
             cash       REAL NOT NULL,
@@ -1187,6 +1223,107 @@ def get_paper_bought_qty_since(user_id: int, ticker: str, since_ts: float) -> in
             (user_id, ticker, since_ts)
         ).fetchone()
     return row["total"]
+
+
+# ── paper daytrade trading（當沖練習模擬下單，跟一般模擬下單分開一個帳戶，
+#    不受本金限制，practice用）─────────────────────────────
+
+PAPER_DAYTRADE_INITIAL_CASH = 100_000
+
+
+def get_or_create_paper_daytrade_account(user_id: int) -> dict:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT user_id, cash FROM paper_daytrade_accounts WHERE user_id=?", (user_id,)
+        ).fetchone()
+        if row:
+            return dict(row)
+        conn.execute(
+            "INSERT INTO paper_daytrade_accounts(user_id, cash, created_at) VALUES (?, ?, ?)",
+            (user_id, PAPER_DAYTRADE_INITIAL_CASH, time.time())
+        )
+        return {"user_id": user_id, "cash": PAPER_DAYTRADE_INITIAL_CASH}
+
+
+def update_paper_daytrade_cash(user_id: int, cash: float):
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE paper_daytrade_accounts SET cash=? WHERE user_id=?", (cash, user_id)
+        )
+
+
+def get_paper_daytrade_position(user_id: int, ticker: str) -> dict | None:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT ticker, qty, avg_cost FROM paper_daytrade_positions WHERE user_id=? AND ticker=?",
+            (user_id, ticker)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def upsert_paper_daytrade_position(user_id: int, ticker: str, qty: int, avg_cost: float):
+    with _conn() as conn:
+        if qty <= 0:
+            conn.execute(
+                "DELETE FROM paper_daytrade_positions WHERE user_id=? AND ticker=?", (user_id, ticker)
+            )
+        else:
+            conn.execute(
+                "INSERT INTO paper_daytrade_positions(user_id, ticker, qty, avg_cost) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(user_id, ticker) DO UPDATE SET qty=excluded.qty, avg_cost=excluded.avg_cost",
+                (user_id, ticker, qty, avg_cost)
+            )
+
+
+def get_paper_daytrade_positions(user_id: int) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker, qty, avg_cost FROM paper_daytrade_positions WHERE user_id=? ORDER BY ticker",
+            (user_id,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def insert_paper_daytrade_order(user_id: int, ticker: str, name: str | None, side: str, qty: int,
+                                 price: float, fee: float, tax: float, net_amount: float,
+                                 realized_pl: float | None, reason: str | None = None):
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO paper_daytrade_orders"
+            "(user_id, ticker, name, side, qty, price, fee, tax, net_amount, realized_pl, created_at, reason) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (user_id, ticker, name, side, qty, price, fee, tax, net_amount, realized_pl, time.time(), reason)
+        )
+
+
+def get_paper_daytrade_orders(user_id: int, limit: int = 50) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker, name, side, qty, price, fee, tax, net_amount, realized_pl, created_at, reason "
+            "FROM paper_daytrade_orders WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
+            (user_id, limit)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_paper_daytrade_realized_pl_total(user_id: int) -> float:
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(realized_pl), 0) AS total FROM paper_daytrade_orders WHERE user_id=?",
+            (user_id,)
+        ).fetchone()
+    return row["total"]
+
+
+def get_paper_daytrade_closed_trades(user_id: int) -> list[dict]:
+    """取全部已平倉交易（賣出且有 realized_pl 的紀錄），依時間由舊到新，供績效分析用。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ticker, name, qty, price, realized_pl, created_at FROM paper_daytrade_orders "
+            "WHERE user_id=? AND side='sell' AND realized_pl IS NOT NULL ORDER BY created_at ASC",
+            (user_id,)
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 # ── paper futures trading（期貨模擬下單，跟股票模擬下單分開一個本金）───

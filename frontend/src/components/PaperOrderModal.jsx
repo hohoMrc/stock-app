@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { getOrderbook, placePaperOrder } from "../api";
-import { calcFee, calcTax } from "../feeCalc";
+import { calcFee, calcTax, TAX_RATE } from "../feeCalc";
 
-export default function PaperOrderModal({ ticker, name, initialSide = "sell", onClose, onSuccess }) {
+export default function PaperOrderModal({
+  ticker, name, initialSide = "sell", onClose, onSuccess,
+  placeOrder = placePaperOrder, taxRate = TAX_RATE,
+}) {
   const [side, setSide]           = useState(initialSide);
   const [orderbook, setOrderbook] = useState({ best_bids: [], best_asks: [] });
   const [marketPrice, setMarketPrice] = useState(null);
@@ -40,7 +43,7 @@ export default function PaperOrderModal({ ticker, name, initialSide = "sell", on
   const effectivePrice = priceMode === "market" ? marketPrice : Number(price);
   const gross  = effectivePrice ? effectivePrice * Number(lots || 0) * 1000 : 0;
   const fee    = gross ? calcFee(gross) : 0;
-  const tax    = side === "sell" && gross ? calcTax(gross) : 0;
+  const tax    = side === "sell" && gross ? calcTax(gross, taxRate) : 0;
   const estNet = side === "buy" ? gross + fee : gross - fee - tax;
 
   const handleSubmit = async () => {
@@ -50,7 +53,7 @@ export default function PaperOrderModal({ ticker, name, initialSide = "sell", on
     setSubmitting(true);
     try {
       const sendPrice = priceMode === "limit" ? Number(price) : undefined;
-      const res = await placePaperOrder(ticker, side, Number(lots), sendPrice);
+      const res = await placeOrder(ticker, side, Number(lots), sendPrice);
       onSuccess(res.data);
       onClose();
     } catch (e) {
