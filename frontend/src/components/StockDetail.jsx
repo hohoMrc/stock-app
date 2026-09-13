@@ -2,8 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, ReferenceDot } from "recharts";
 import CandlestickChart from "./CandlestickChart";
 import AlertModal from "./AlertModal";
-import WarrantTable from "./WarrantTable";
-import { getStock, getStockLiveQuote, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart, getIntradayCandles, getStockWarrants } from "../api";
+import { getStock, getStockLiveQuote, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart, getIntradayCandles } from "../api";
 import { isTradingHours } from "../marketHours";
 import { mergeLiveBar, mergeIntradayBars } from "../chartUtils";
 
@@ -49,7 +48,7 @@ function padIntradayToFullDay(intradayData) {
 export default function StockDetail({ ticker, scanContext = null, onBack, onIndustry, watchlist = [], onToggleWatch, onPaperTrade, username, onRequireLogin }) {
   const [info, setInfo] = useState(null);
   const [showAlertModal, setShowAlertModal] = useState(false);
-  const [mobileTab, setMobileTab] = useState("quote"); // 手機版分頁："quote"|"kline"|"inst"|"warrant"|"ai"，桌面版不生效
+  const [mobileTab, setMobileTab] = useState("quote"); // 手機版分頁："quote"|"kline"|"inst"|"ai"，桌面版不生效
   const [chartOptionsExpanded, setChartOptionsExpanded] = useState(false); // 手機版K線週期「更多」收合，桌面版不生效
   const [history, setHistory] = useState([]);
   const [analysis, setAnalysis] = useState("");
@@ -64,9 +63,6 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   const lastTickerRef = useRef(null);
   const [instTrades, setInstTrades] = useState([]);
   const [instLoading, setInstLoading] = useState(false);
-  const [warrants, setWarrants] = useState([]);
-  const [warrantsLoading, setWarrantsLoading] = useState(false);
-  const [histVolPct, setHistVolPct] = useState(null);
   const [intradayData, setIntradayData] = useState([]);
   const [intradayLoading, setIntradayLoading] = useState(false);
   const intradayPollRef = useRef(null);
@@ -150,20 +146,6 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
     return () => { alive = false; };
   }, [ticker]);
 
-  // 相關權證，只需在切換股票時抓一次（後端即時查 Fugle，不用跟報價一樣輪詢）
-  useEffect(() => {
-    let alive = true;
-    setWarrantsLoading(true);
-    getStockWarrants(ticker)
-      .then((res) => {
-        if (!alive) return;
-        setWarrants(res.data.warrants);
-        setHistVolPct(res.data.hist_vol_pct);
-      })
-      .catch(() => { if (alive) { setWarrants([]); setHistVolPct(null); } })
-      .finally(() => { if (alive) setWarrantsLoading(false); });
-    return () => { alive = false; };
-  }, [ticker]);
 
   // 當日分時走勢圖，切換股票時抓一次，交易時段內每15秒刷新
   useEffect(() => {
@@ -303,7 +285,6 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
           { key: "quote",   label: "行情" },
           { key: "kline",   label: "K線" },
           { key: "inst",    label: "法人" },
-          { key: "warrant", label: "權證" },
           { key: "ai",      label: "AI分析" },
         ].map(({ key, label }) => (
           <button key={key} className={mobileTab === key ? "active" : ""} onClick={() => setMobileTab(key)}>
@@ -566,11 +547,6 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
           </table>
         </div>
       )}
-
-      <div className={`warrant-section tab-warrant ${mobileTab === "warrant" ? "mobile-active" : ""}`}>
-        <h3>相關權證</h3>
-        <WarrantTable key={ticker} warrants={warrants} histVolPct={histVolPct} loading={warrantsLoading} />
-      </div>
 
       <div className={`analysis-section tab-ai ${mobileTab === "ai" ? "mobile-active" : ""}`}>
         <div className="analysis-header">

@@ -14,7 +14,6 @@ import PaperTrading from "./components/PaperTrading";
 import NewsPage from "./components/NewsPage";
 import AlertsPage from "./components/AlertsPage";
 import DividendCalendar from "./components/DividendCalendar";
-import WarrantLookup from "./components/WarrantLookup";
 import ClaudeTrader from "./components/ClaudeTrader";
 import SignalOverview from "./components/SignalOverview";
 import MarketOverview from "./components/MarketOverview";
@@ -384,7 +383,7 @@ export default function App() {
           </button>
           <div className="nav-more-wrap" ref={moreMenuRef}>
             <button
-              className={`nav-more-btn ${["alerts", "dividends", "news", "warrant-lookup", "claude-trader", "signal-overview"].includes(activePage) ? "active" : ""}`}
+              className={`nav-more-btn ${["alerts", "dividends", "news", "claude-trader", "signal-overview"].includes(activePage) ? "active" : ""}`}
               onClick={() => setMoreMenuOpen((v) => !v)}
             >
               更多 ▾
@@ -408,12 +407,6 @@ export default function App() {
                   onClick={() => { setActivePage("news"); setMoreMenuOpen(false); }}
                 >
                   新聞
-                </button>
-                <button
-                  className={activePage === "warrant-lookup" ? "active" : ""}
-                  onClick={() => { setActivePage("warrant-lookup"); setMoreMenuOpen(false); }}
-                >
-                  權證查詢
                 </button>
                 <button
                   className={activePage === "claude-trader" ? "active" : ""}
@@ -494,10 +487,6 @@ export default function App() {
               className={activePage === "dividends" ? "active" : ""}
               onClick={() => setActivePage("dividends")}
             >除權息</button>
-            <button
-              className={activePage === "warrant-lookup" ? "active" : ""}
-              onClick={() => setActivePage("warrant-lookup")}
-            >權證查詢</button>
             <button
               className={activePage === "claude-trader" ? "active" : ""}
               onClick={() => setActivePage("claude-trader")}
@@ -616,9 +605,6 @@ export default function App() {
         )}
         {activePage === "dividends" && (
           <DividendCalendar onSelect={(t) => handleSelectStock(t)} />
-        )}
-        {activePage === "warrant-lookup" && (
-          <WarrantLookup onSelect={(t) => handleSelectStock(t)} />
         )}
         {activePage === "claude-trader" && <ClaudeTrader onSelect={(t) => handleSelectStock(t)} />}
         {activePage === "signal-overview" && <SignalOverview />}

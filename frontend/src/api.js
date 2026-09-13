@@ -46,8 +46,6 @@ export const getOrderbook         = (ticker)     => api.get(`/api/stocks/${ticke
 export const getInstitutionalTrades = (ticker, days = 30) => api.get(`/api/stocks/${ticker}/institutional-trades`, { params: { days } });
 export const getIntradayChart = (ticker) => api.get(`/api/stocks/${ticker}/intraday-chart`);
 export const getIntradayCandles = (ticker, timeframe = "15") => api.get(`/api/stocks/${ticker}/intraday-candles`, { params: { timeframe } });
-export const getStockWarrants = (ticker) => api.get(`/api/stocks/${ticker}/warrants`);
-export const getWarrantLookup = (q) => api.get("/api/warrants/lookup", { params: { q } });
 
 // 台指期
 export const getFuturesQuote         = (product = "TXF")                  => api.get("/api/futures/quote",         { params: { product } });
