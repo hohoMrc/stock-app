@@ -1460,12 +1460,35 @@ def _calc_ma_squeeze(closes_list: list) -> bool:
     return True
 
 
+def ema_series(closes: list, period: int) -> list:
+    """計算EMA序列，種子值用前period筆的SMA（業界標準做法，不是直接拿第一筆收盤價當種子——
+    那樣種子偏差要更久才能衰減乾淨）。回傳長度跟 closes 一樣，前 period-1 筆是 None（資料還
+    不夠算不出來），方便跟 closes 用同樣的索引直接對齊（例如 ema_series[-1] 對應 closes[-1]）。
+
+    EMA 是遞迴指標，暖身天數不夠的話早期數值可能偏差5%以上，業界經驗是至少要餵
+    period 的 3~4 倍長度的資料才能收斂準確（EMA60 建議至少 200+ 個交易日）——這也是
+    這個 repo 一度算出來的 EMA60 跟看盤圖表（抓一整年資料算）對不上的根本原因，之前
+    這裡的呼叫端大多只抓 120 個日曆天（~80個交易日），現在改抓 400 天。
+    """
+    n = len(closes)
+    result = [None] * n
+    if n < period:
+        return result
+    k = 2 / (period + 1)
+    ema = sum(closes[:period]) / period
+    result[period - 1] = ema
+    for i in range(period, n):
+        ema = closes[i] * k + ema * (1 - k)
+        result[i] = ema
+    return result
+
+
 def scan_near_ema60(limit: int = 500) -> list:
     """掃全市場，回傳收盤價在 EMA60 上方 0~3% 內、日量 ≥ 2000 張、股價 ≥ 10 元、非金融保險的股票。"""
     from app.db import get_all_db_tickers_with_meta, get_candles
     from datetime import date, timedelta
 
-    from_date = (date.today() - timedelta(days=120)).strftime("%Y-%m-%d")
+    from_date = (date.today() - timedelta(days=400)).strftime("%Y-%m-%d")
     to_date   = date.today().strftime("%Y-%m-%d")
 
     all_tickers = get_all_db_tickers_with_meta()
@@ -1475,7 +1498,9 @@ def scan_near_ema60(limit: int = 500) -> list:
         if row.get("parent_industry") == "金融保險":
             continue
         records = get_candles(ticker, from_date, to_date)
-        if not records or len(records) < 62:
+        # 需要60筆才算得出EMA60、再+20筆讓「近20日是否都站上」的檢查有值可比，不然
+        # ema_series() 暖身期那段是 None，比較時會直接炸掉
+        if not records or len(records) < 80:
             continue
         last = records[-1]
         vol_shares = last.get("volume") or 0
@@ -1484,13 +1509,9 @@ def scan_near_ema60(limit: int = 500) -> list:
         if (last.get("close") or 0) < 10:
             continue
         closes = [r["close"] for r in records if r["close"] is not None]
-        # 逐日計算 EMA60，保留最後 20 個交易日的 EMA 值
-        k, ema = 2 / 61, None
-        ema_series = []
-        for c in closes:
-            ema = c if ema is None else c * k + ema * (1 - k)
-            ema_series.append(ema)
+        ema60_series = ema_series(closes, 60)
         close = last.get("close")
+        ema = ema60_series[-1]
         if not close or not ema:
             continue
         dev = (close - ema) / ema
@@ -1500,7 +1521,7 @@ def scan_near_ema60(limit: int = 500) -> list:
         # 1% 容忍帶（收盤 ≥ EMA60×99% 都算過）+ 最多容許 2 天真的跌破，
         # 避免單一天些微跌破（例如只差0.2%）就把明明持續走穩的股票整組刷掉。
         recent_closes = closes[-20:]
-        recent_emas   = ema_series[-20:]
+        recent_emas   = ema60_series[-20:]
         violations = sum(1 for c, e in zip(recent_closes, recent_emas) if c < e * 0.99)
         if violations > 2:
             continue
@@ -1802,28 +1823,26 @@ def _check_near_ema60_single(ticker: str) -> dict | None:
     """單一股票版「EMA60近線」判斷，邏輯同 scan_near_ema60，但只查一檔（給 AI 分析用，不用跑全市場掃描）。"""
     from app.db import get_candles
     from datetime import date, timedelta
-    from_date = (date.today() - timedelta(days=120)).strftime("%Y-%m-%d")
+    from_date = (date.today() - timedelta(days=400)).strftime("%Y-%m-%d")
     to_date   = date.today().strftime("%Y-%m-%d")
     records = get_candles(ticker, from_date, to_date)
-    if not records or len(records) < 62:
+    # 需要60筆才算得出EMA60、再+20筆讓「近20日是否都站上」的檢查有值可比
+    if not records or len(records) < 80:
         return None
     last = records[-1]
     if (last.get("volume") or 0) < 2_000_000 or (last.get("close") or 0) < 10:
         return None
     closes = [r["close"] for r in records if r["close"] is not None]
-    k, ema = 2 / 61, None
-    ema_series = []
-    for c in closes:
-        ema = c if ema is None else c * k + ema * (1 - k)
-        ema_series.append(ema)
+    ema60_series = ema_series(closes, 60)
     close = last.get("close")
+    ema = ema60_series[-1]
     if not close or not ema:
         return None
     dev = (close - ema) / ema
     if not (0 <= dev <= 0.03):
         return None
     recent_closes = closes[-20:]
-    recent_emas   = ema_series[-20:]
+    recent_emas   = ema60_series[-20:]
     if any(c < e for c, e in zip(recent_closes, recent_emas)):
         return None
     return {"ema60": round(float(ema), 2), "dev_pct": round(dev * 100, 2)}

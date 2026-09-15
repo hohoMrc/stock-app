@@ -254,7 +254,8 @@ def run_shortterm_monthly_review() -> dict | None:
 
 def _stock_trend_and_liquidity(ticker: str) -> tuple[float, float] | None:
     """回傳 (收盤價, EMA60) 前提是流動性足夠、資料夠、且站上EMA60；不符合就回傳 None。"""
-    from_date = (date.today() - timedelta(days=120)).strftime("%Y-%m-%d")
+    from app.services.stock_data import ema_series
+    from_date = (date.today() - timedelta(days=400)).strftime("%Y-%m-%d")
     to_date   = date.today().strftime("%Y-%m-%d")
     records = get_candles(ticker, from_date, to_date)
     if not records or len(records) < 62:
@@ -263,9 +264,7 @@ def _stock_trend_and_liquidity(ticker: str) -> tuple[float, float] | None:
     if last_vol_zhang < LT_MIN_VOLUME_ZHANG:
         return None
     closes = [r["close"] for r in records if r["close"] is not None]
-    k, ema = 2 / 61, None
-    for c in closes:
-        ema = c if ema is None else c * k + ema * (1 - k)
+    ema = ema_series(closes, 60)[-1]
     close = closes[-1]
     if not close or not ema or close <= ema:
         return None

@@ -137,7 +137,7 @@ def check_ema60_breakouts() -> list[dict]:
         return []
 
     today_str  = date.today().strftime("%Y-%m-%d")
-    from_date  = (date.today() - timedelta(days=120)).strftime("%Y-%m-%d")  # 120天確保有足夠K棒算EMA60
+    from_date  = (date.today() - timedelta(days=400)).strftime("%Y-%m-%d")  # 抓約250個交易日，EMA60才有足夠暖身天數收斂準確
     cooldown_since = (date.today() - timedelta(days=EMA60_BREAKOUT_COOLDOWN_DAYS)).strftime("%Y-%m-%d")
     recent_breakout_tickers = {r["ticker"] for r in get_recent_scan_signals("ema60_breakout", cooldown_since)}
     name_map = {w["ticker"]: w.get("name", "") for w in watchlist}
@@ -168,14 +168,9 @@ def check_ema60_breakouts() -> list[dict]:
         if len(closes) < 62:
             continue
 
-        k10, ema10 = 2 / 11, None
-        k60, ema60 = 2 / 61, None
-        ema10_series, ema60_series = [], []
-        for c in closes:
-            ema10 = c if ema10 is None else c * k10 + ema10 * (1 - k10)
-            ema60 = c if ema60 is None else c * k60 + ema60 * (1 - k60)
-            ema10_series.append(ema10)
-            ema60_series.append(ema60)
+        from app.services.stock_data import ema_series
+        ema10_series = ema_series(closes, 10)
+        ema60_series = ema_series(closes, 60)
 
         today_close, today_ema10, today_ema60 = closes[-1], ema10_series[-1], ema60_series[-1]
         prev_close,  prev_ema10  = closes[-2], ema10_series[-2]
@@ -242,7 +237,7 @@ def check_ema60_breakout_invalidations() -> list[dict]:
     """
     today_str = date.today().strftime("%Y-%m-%d")
     since = (date.today() - timedelta(days=EMA60_BREAKOUT_TRACKING_DAYS)).strftime("%Y-%m-%d")
-    from_date = (date.today() - timedelta(days=120)).strftime("%Y-%m-%d")
+    from_date = (date.today() - timedelta(days=400)).strftime("%Y-%m-%d")  # 抓約250個交易日，EMA60才有足夠暖身天數收斂準確
 
     rows = get_recent_scan_signals("ema60_breakout", since)
     if not rows:
@@ -259,11 +254,9 @@ def check_ema60_breakout_invalidations() -> list[dict]:
         if len(closes) < 62:
             continue
 
-        k10, ema10 = 2 / 11, None
-        k60, ema60 = 2 / 61, None
-        for c in closes:
-            ema10 = c if ema10 is None else c * k10 + ema10 * (1 - k10)
-            ema60 = c if ema60 is None else c * k60 + ema60 * (1 - k60)
+        from app.services.stock_data import ema_series
+        ema10 = ema_series(closes, 10)[-1]
+        ema60 = ema_series(closes, 60)[-1]
 
         if ema10 < ema60:
             newly_invalidated.append({"ticker": r["ticker"], "name": r.get("name", ""), "signal_date": r["signal_date"]})
