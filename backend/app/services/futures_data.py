@@ -53,13 +53,16 @@ def _trading_day_of(epoch: int) -> str:
 
 
 def _current_symbol_fallback(product: str = "TXF") -> str:
-    """日期推算備援：台指期結算日固定是每月第三個星期三（未考慮國定假日順延）。"""
+    """日期推算備援：台指期結算日固定是每月第三個星期三（未考慮國定假日順延）。
+    結算日當天就切到下個月合約——結算價當天上午就固定了，本月合約形同尾盤，
+    主流看盤軟體結算日當天就已經把近月報價換成下個月。
+    """
     today = date.today()
     year, month = today.year, today.month
     cal       = calendar.monthcalendar(year, month)
     weds      = [w[2] for w in cal if w[2] != 0]
     third_wed = weds[2] if len(weds) >= 3 else weds[-1]
-    if today > date(year, month, third_wed):
+    if today >= date(year, month, third_wed):
         month += 1
         if month > 12:
             month, year = 1, year + 1
@@ -69,7 +72,9 @@ def _current_symbol_fallback(product: str = "TXF") -> str:
 def _current_symbol(product: str = "TXF") -> str:
     """向 Fugle 查詢該商品目前上市的合約，取結算日最近且尚未結算的作為近月合約。
     比自己用「每月第三個星期三」推算更可靠（會遇到國定假日順延結算日的情況），
-    查詢失敗時退回日期推算。"""
+    查詢失敗時退回日期推算。結算日當天就排除該合約、直接算下個月——結算價當天
+    上午就固定了，主流看盤軟體結算日當天就已經把近月報價換成下個月合約。
+    """
     cached = _symbol_cache.get(product)
     if cached and time.time() - cached[0] < _SYMBOL_CACHE_TTL:
         return cached[1]
@@ -78,7 +83,7 @@ def _current_symbol(product: str = "TXF") -> str:
         contracts = data.get("data", [])
         today_str = date.today().strftime("%Y-%m-%d")
         upcoming = sorted(
-            (c for c in contracts if c.get("settlementDate") and c.get("symbol") and c["settlementDate"] >= today_str),
+            (c for c in contracts if c.get("settlementDate") and c.get("symbol") and c["settlementDate"] > today_str),
             key=lambda c: c["settlementDate"],
         )
         if upcoming:
