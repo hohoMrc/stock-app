@@ -791,11 +791,13 @@ def get_scan_signal_daily_counts(days: int = 14) -> list[dict]:
 
 
 def get_db_table_sizes(top_n: int = 6) -> list[dict]:
-    """DB 各資料表實際佔用空間（用 dbstat 虛擬表算頁面大小，比用列數估算準確），供圓餅圖用。"""
+    """DB 各資料表實際佔用空間（用 dbstat 虛擬表算頁面大小，索引併入所屬資料表，不單獨列出），供圓餅圖用。"""
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT name, SUM(pgsize) AS bytes FROM dbstat "
-            "WHERE name NOT LIKE 'sqlite_%' GROUP BY name ORDER BY bytes DESC"
+            "SELECT COALESCE(m.tbl_name, d.name) AS name, SUM(d.pgsize) AS bytes "
+            "FROM dbstat d LEFT JOIN sqlite_master m ON m.name = d.name "
+            "WHERE d.name NOT LIKE 'sqlite_%' "
+            "GROUP BY name ORDER BY bytes DESC"
         ).fetchall()
     rows = [dict(r) for r in rows]
     top, rest = rows[:top_n], rows[top_n:]

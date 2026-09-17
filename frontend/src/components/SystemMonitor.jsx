@@ -15,6 +15,36 @@ const FRESHNESS_LABELS = {
 
 const PIE_COLORS = ["#60a5fa", "#fbbf24", "#4ade80", "#f87171", "#a78bfa", "#34d399", "#94a3b8"];
 
+const TABLE_LABELS = {
+  candles: "股票日K",
+  futures_candles: "期貨K棒",
+  institutional_trades: "三大法人",
+  fundamentals: "基本面",
+  margin_trading: "資券",
+  scan_signals: "掃描訊號",
+  news_summaries: "新聞摘要",
+  stock_meta: "股票基本資料",
+  ema60_watchlist: "EMA60觀察名單",
+  ema60_watch_events: "EMA60事件",
+  ema60_breakout_invalidated: "EMA60失效紀錄",
+  users: "使用者帳號",
+  watchlists: "自選股",
+  watchlist_groups: "自選股分組",
+  price_alerts: "價格提醒",
+  claude_strategy_config: "Claude策略設定",
+  paper_accounts: "模擬股票帳戶",
+  paper_positions: "模擬股票持倉",
+  paper_orders: "模擬股票委託",
+  paper_daytrade_accounts: "模擬當沖帳戶",
+  paper_daytrade_positions: "模擬當沖持倉",
+  paper_daytrade_orders: "模擬當沖委託",
+  paper_futures_accounts: "模擬期貨帳戶",
+  paper_futures_positions: "模擬期貨持倉",
+  paper_futures_orders: "模擬期貨委託",
+  paper_futures_conditional_orders: "模擬期貨條件單",
+  paper_conditional_orders: "模擬股票條件單",
+};
+
 function daysAgo(dateStr) {
   if (!dateStr) return null;
   const diffMs = new Date().setHours(0, 0, 0, 0) - new Date(dateStr).setHours(0, 0, 0, 0);
@@ -118,7 +148,7 @@ export default function SystemMonitor() {
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
                 <Pie
-                  data={data.table_sizes || []}
+                  data={(data.table_sizes || []).map((t) => ({ ...t, name: TABLE_LABELS[t.name] ?? t.name }))}
                   dataKey="mb"
                   nameKey="name"
                   cx="50%"
