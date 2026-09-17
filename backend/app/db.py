@@ -790,8 +790,23 @@ def get_scan_signal_daily_counts(days: int = 14) -> list[dict]:
     return result
 
 
+def get_db_table_sizes(top_n: int = 6) -> list[dict]:
+    """DB 各資料表實際佔用空間（用 dbstat 虛擬表算頁面大小，比用列數估算準確），供圓餅圖用。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT name, SUM(pgsize) AS bytes FROM dbstat "
+            "WHERE name NOT LIKE 'sqlite_%' GROUP BY name ORDER BY bytes DESC"
+        ).fetchall()
+    rows = [dict(r) for r in rows]
+    top, rest = rows[:top_n], rows[top_n:]
+    result = [{"name": r["name"], "mb": round(r["bytes"] / 1024 / 1024, 2)} for r in top]
+    if rest:
+        result.append({"name": "其他", "mb": round(sum(r["bytes"] for r in rest) / 1024 / 1024, 2)})
+    return result
+
+
 def get_system_status() -> dict:
-    """系統監控用：各資料表最新日期 + 掃描訊號最新狀態 + 近期趨勢 + DB 檔案大小。"""
+    """系統監控用：各資料表最新日期 + 掃描訊號最新狀態 + 近期趨勢 + DB 空間佔比。"""
     with _conn() as conn:
         candles_latest = conn.execute("SELECT MAX(date) AS d FROM candles").fetchone()["d"]
         inst_latest = conn.execute("SELECT MAX(date) AS d FROM institutional_trades").fetchone()["d"]
@@ -810,6 +825,7 @@ def get_system_status() -> dict:
         },
         "scans": [dict(r) for r in scan_rows],
         "daily_scan_counts": get_scan_signal_daily_counts(),
+        "table_sizes": get_db_table_sizes(),
         "db_size_mb": round(DB_PATH.stat().st_size / 1024 / 1024, 1),
     }
 

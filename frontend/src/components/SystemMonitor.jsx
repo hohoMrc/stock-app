@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from "recharts";
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from "recharts";
 import { getSystemStatus } from "../api";
 
 const SCAN_LABELS = {
@@ -12,6 +12,8 @@ const FRESHNESS_LABELS = {
   institutional_trades: "三大法人",
   news_summaries: "新聞摘要",
 };
+
+const PIE_COLORS = ["#60a5fa", "#fbbf24", "#4ade80", "#f87171", "#a78bfa", "#34d399", "#94a3b8"];
 
 function daysAgo(dateStr) {
   if (!dateStr) return null;
@@ -112,13 +114,26 @@ export default function SystemMonitor() {
           </div>
 
           <div className="stock-card market-panel">
-            <h3 className="paper-section-title">💾 資料庫</h3>
-            <div className="market-link-list">
-              <div className="market-link-row">
-                <span>檔案大小</span>
-                <span className="market-link-count">{data.db_size_mb} MB</span>
-              </div>
-            </div>
+            <h3 className="paper-section-title">💾 資料庫（共 {data.db_size_mb} MB）</h3>
+            <ResponsiveContainer width="100%" height={240}>
+              <PieChart>
+                <Pie
+                  data={data.table_sizes || []}
+                  dataKey="mb"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                >
+                  {(data.table_sizes || []).map((_, i) => (
+                    <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v) => [`${v} MB`, ""]} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
         </>
       )}
