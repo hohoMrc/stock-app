@@ -797,7 +797,7 @@ def get_db_table_sizes(top_n: int = 6) -> list[dict]:
             "SELECT COALESCE(m.tbl_name, d.name) AS name, SUM(d.pgsize) AS bytes "
             "FROM dbstat d LEFT JOIN sqlite_master m ON m.name = d.name "
             "WHERE d.name NOT LIKE 'sqlite_%' "
-            "GROUP BY name ORDER BY bytes DESC"
+            "GROUP BY COALESCE(m.tbl_name, d.name) ORDER BY bytes DESC"
         ).fetchall()
     rows = [dict(r) for r in rows]
     top, rest = rows[:top_n], rows[top_n:]
