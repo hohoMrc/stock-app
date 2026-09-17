@@ -766,8 +766,32 @@ def get_recent_scan_signals(scan_type: str, since_date: str, limit: int = 100) -
     return [dict(r) for r in rows]
 
 
+def get_scan_signal_daily_counts(days: int = 14) -> list[dict]:
+    """近N天每日 MA黏合/週漲幅急漲 訊號筆數，缺的日期補0，方便畫圖時看出斷更。"""
+    scan_types = ["bird_beak", "weekly_surge"]
+    since = (datetime.now() - timedelta(days=days - 1)).strftime("%Y-%m-%d")
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT signal_date, scan_type, COUNT(*) AS cnt FROM scan_signals "
+            "WHERE signal_date >= ? AND scan_type IN ({}) "
+            "GROUP BY signal_date, scan_type".format(",".join("?" * len(scan_types))),
+            (since, *scan_types)
+        ).fetchall()
+    by_date = {}
+    for r in rows:
+        by_date.setdefault(r["signal_date"], {})[r["scan_type"]] = r["cnt"]
+    result = []
+    for i in range(days):
+        d = (datetime.now() - timedelta(days=days - 1 - i)).strftime("%Y-%m-%d")
+        row = {"date": d}
+        for st in scan_types:
+            row[st] = by_date.get(d, {}).get(st, 0)
+        result.append(row)
+    return result
+
+
 def get_system_status() -> dict:
-    """系統監控用：各資料表最新日期 + 掃描訊號最新狀態 + DB 檔案大小。"""
+    """系統監控用：各資料表最新日期 + 掃描訊號最新狀態 + 近期趨勢 + DB 檔案大小。"""
     with _conn() as conn:
         candles_latest = conn.execute("SELECT MAX(date) AS d FROM candles").fetchone()["d"]
         inst_latest = conn.execute("SELECT MAX(date) AS d FROM institutional_trades").fetchone()["d"]
@@ -785,6 +809,7 @@ def get_system_status() -> dict:
             "news_summaries": news_latest,
         },
         "scans": [dict(r) for r in scan_rows],
+        "daily_scan_counts": get_scan_signal_daily_counts(),
         "db_size_mb": round(DB_PATH.stat().st_size / 1024 / 1024, 1),
     }
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from "recharts";
 import { getSystemStatus } from "../api";
 
 const SCAN_LABELS = {
@@ -63,6 +64,34 @@ export default function SystemMonitor() {
                 );
               })}
             </div>
+          </div>
+
+          <div className="stock-card market-panel">
+            <h3 className="paper-section-title">📊 近14日掃描訊號趨勢</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={data.daily_scan_counts || []} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(v) => {
+                    const [, m, d] = v.split("-");
+                    return `${parseInt(m)}/${parseInt(d)}`;
+                  }}
+                />
+                <YAxis tick={{ fontSize: 11 }} width={30} allowDecimals={false} />
+                <Tooltip
+                  labelFormatter={(l) => {
+                    const [y, m, d] = l.split("-");
+                    return `${y}年${parseInt(m)}月${parseInt(d)}日`;
+                  }}
+                  formatter={(v, name) => [`${v} 檔`, SCAN_LABELS[name] ?? name]}
+                />
+                <Legend formatter={(name) => SCAN_LABELS[name] ?? name} />
+                <Bar dataKey="bird_beak" name="bird_beak" fill="#60a5fa" />
+                <Bar dataKey="weekly_surge" name="weekly_surge" fill="#fbbf24" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
 
           <div className="stock-card market-panel">
