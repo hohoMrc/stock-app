@@ -9,6 +9,7 @@ import WatchNoteModal from "./components/WatchNoteModal";
 import TradeValueRanking from "./components/TradeValueRanking";
 import TradingTerminal from "./components/TradingTerminal";
 import AdminPage from "./components/AdminPage";
+import SystemMonitor from "./components/SystemMonitor";
 import FuturesPage from "./components/FuturesPage";
 import PaperTrading from "./components/PaperTrading";
 import NewsPage from "./components/NewsPage";
@@ -431,6 +432,14 @@ export default function App() {
               管理
             </button>
           )}
+          {username === ADMIN_USERNAME && (
+            <button
+              className={activePage === "monitor" ? "active" : ""}
+              onClick={() => setActivePage("monitor")}
+            >
+              監控
+            </button>
+          )}
         </nav>
 
         {/* 手機版：漢堡按鈕 */}
@@ -500,6 +509,12 @@ export default function App() {
                 className={activePage === "admin" ? "active" : ""}
                 onClick={() => setActivePage("admin")}
               >管理</button>
+            )}
+            {username === ADMIN_USERNAME && (
+              <button
+                className={activePage === "monitor" ? "active" : ""}
+                onClick={() => setActivePage("monitor")}
+              >監控</button>
             )}
             <div className="mobile-menu-divider" />
             {username ? (
@@ -618,6 +633,9 @@ export default function App() {
         )}
         {activePage === "admin" && username === ADMIN_USERNAME && (
           <AdminPage />
+        )}
+        {activePage === "monitor" && username === ADMIN_USERNAME && (
+          <SystemMonitor />
         )}
 
         {/* 保持 DOM 存在（display:none 效果），避免切頁時狀態消失 */}

@@ -766,6 +766,29 @@ def get_recent_scan_signals(scan_type: str, since_date: str, limit: int = 100) -
     return [dict(r) for r in rows]
 
 
+def get_system_status() -> dict:
+    """系統監控用：各資料表最新日期 + 掃描訊號最新狀態 + DB 檔案大小。"""
+    with _conn() as conn:
+        candles_latest = conn.execute("SELECT MAX(date) AS d FROM candles").fetchone()["d"]
+        inst_latest = conn.execute("SELECT MAX(date) AS d FROM institutional_trades").fetchone()["d"]
+        news_latest = conn.execute("SELECT MAX(date) AS d FROM news_summaries").fetchone()["d"]
+        scan_rows = conn.execute(
+            "SELECT scan_type, MAX(signal_date) AS latest_date, "
+            "COUNT(CASE WHEN signal_date = (SELECT MAX(s2.signal_date) FROM scan_signals s2 "
+            "WHERE s2.scan_type = scan_signals.scan_type) THEN 1 END) AS latest_count "
+            "FROM scan_signals GROUP BY scan_type"
+        ).fetchall()
+    return {
+        "data_freshness": {
+            "candles": candles_latest,
+            "institutional_trades": inst_latest,
+            "news_summaries": news_latest,
+        },
+        "scans": [dict(r) for r in scan_rows],
+        "db_size_mb": round(DB_PATH.stat().st_size / 1024 / 1024, 1),
+    }
+
+
 # ── ema60_watchlist（EMA60近線候選觀察名單→等噴出訊號）──────
 
 def upsert_ema60_watch(ticker: str, name: str, date_str: str, price: float | None) -> bool:

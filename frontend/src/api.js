@@ -125,3 +125,6 @@ export const getClaudePerformance    = (strategy) => api.get(`/api/claude-trader
 
 // 訊號績效總覽
 export const getSignalOverview = (days = 180) => api.get("/api/signals/overview", { params: { days } });
+
+// 系統監控
+export const getSystemStatus = () => api.get("/api/system/status");
