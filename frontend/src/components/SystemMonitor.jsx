@@ -2,9 +2,20 @@ import { useState, useEffect } from "react";
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from "recharts";
 import { getSystemStatus } from "../api";
 
+// 對照 backend/app/services/signal_tracking.py 的 SCAN_LABELS，維持全站命名一致
 const SCAN_LABELS = {
-  bird_beak: "MA黏合",
   weekly_surge: "週漲幅急漲",
+  bird_beak: "鳥嘴與分歧",
+  near_ema60: "EMA60近線",
+  volume_breakout: "量價突破",
+  institutional_buying: "法人連買",
+  ema60_breakout: "EMA60貼線噴出",
+  ut_bot_long: "UT Bot 多單",
+  ut_bot_short: "UT Bot 空單",
+  supertrend_long: "SuperTrend 多單",
+  supertrend_short: "SuperTrend 空單",
+  volume_breakout_loose: "量價突破(寬鬆)",
+  rs_momentum: "RS動能",
 };
 
 const FRESHNESS_LABELS = {
