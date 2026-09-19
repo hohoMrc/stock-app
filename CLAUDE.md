@@ -34,6 +34,10 @@
 ssh -i ~/.ssh/stock-key ubuntu@13.231.218.149 "cd /home/ubuntu/stock-app && git pull && sudo systemctl restart stock-app"
 ```
 
+## EC2 主機環境
+
+機器規格、常駐服務、crontab 排程（未版控，只有這份文件備份）詳見 `docs/ec2-infra.md`。
+
 ## 主要功能
 - 台股 K 線資料存 SQLite DB，每日定時更新（`daily_update`）
 - 完成後發 **Telegram 通知**
