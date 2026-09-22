@@ -44,6 +44,7 @@ ssh -i ~/.ssh/stock-key ubuntu@13.231.218.149 "free -h; df -h /; nproc"
 | 週一~五 08:00-13:00,15:00-23:00；週二~六 00:00-05:00 每2分 | `futures_conditional_check.py` | 期貨條件單檢查 |
 | 週一~五 09:00-13:00 每2分 | `stock_conditional_check.py` | 股票條件單檢查 |
 | 週一~五 09:00-13:00 每2分 | `day_trading_check.py` | 當沖條件檢查 |
+| 週一~五 08:00-13:00,15:00-23:00；週二~六 00:00-05:00 每2分 | `futures_ema_alert_check.py` | 微台指(TMF)觸及EMA126(1分K)即發Telegram通知 |
 | 每6小時 | — | 清理 `backend/log/` 下超過1天的 Fugle/Fubon SDK log（`program.log.*`／`notify.log.*`／`client.log.*`） |
 
 確認/編輯指令：
