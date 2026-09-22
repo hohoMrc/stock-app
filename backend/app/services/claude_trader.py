@@ -446,13 +446,17 @@ def run_day_trading_check() -> dict:
     held_tickers = {p["ticker"] for p in positions}
     for p in positions:
         ticker = p["ticker"]
-        fresh_price = fresh_quotes.get(ticker, {}).get("close")
+        fresh_q = fresh_quotes.get(ticker, {})
+        fresh_price = fresh_q.get("close")
         return_pct = (round((fresh_price - p["avg_cost"]) / p["avg_cost"] * 100, 2)
                       if fresh_price and p.get("avg_cost") else None)
 
         reason = None
         if force_close:
             reason = "當沖強制收盤平倉"
+        elif fresh_q.get("is_limit_up"):
+            # 當沖規則：當天買當天賣，鎖漲停代表今天已經到頂，不會再更高，直接出場鎖利
+            reason = f"已鎖漲停（報酬率 {return_pct}%），今天不會再更高，直接出場"
         elif return_pct is not None and return_pct <= cfg["dt_stop_loss_pct"]:
             reason = f"當沖停損（報酬率 {return_pct}%）"
         else:
