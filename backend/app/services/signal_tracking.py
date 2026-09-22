@@ -23,14 +23,18 @@ SCAN_LABELS = {
     "volume_breakout_loose":  "量價突破(寬鬆)",
     "rs_momentum":            "RS動能",
     "tmf_ema126_touch":       "微台EMA126觸價",
+    "tmf_15m_below_ema60":    "微台15分K跌破EMA60",
 }
 
 # 大部分篩選都是「看多」訊號，報酬率正的算贏；空單訊號方向相反，跌才算贏，
 # 統計時要把報酬率符號反過來才能跟其他篩選用同一套「正的=贏」邏輯比較。
-SCAN_DIRECTION = {"ut_bot_short": -1, "supertrend_short": -1}
+SCAN_DIRECTION = {"ut_bot_short": -1, "supertrend_short": -1, "tmf_15m_below_ema60": -1}
 
 # 期貨（大台指/微台指）訊號的日K要從期貨自己的資料來源拿，不是股票的 candles 表
-FUTURES_SCAN_TYPES = {"ut_bot_long", "ut_bot_short", "supertrend_long", "supertrend_short", "tmf_ema126_touch"}
+FUTURES_SCAN_TYPES = {
+    "ut_bot_long", "ut_bot_short", "supertrend_long", "supertrend_short",
+    "tmf_ema126_touch", "tmf_15m_below_ema60",
+}
 
 
 def _futures_daily_candles(product: str) -> list[dict]:

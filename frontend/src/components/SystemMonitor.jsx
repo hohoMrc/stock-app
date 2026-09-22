@@ -17,6 +17,7 @@ const SCAN_LABELS = {
   volume_breakout_loose: "量價突破(寬鬆)",
   rs_momentum: "RS動能",
   tmf_ema126_touch: "微台EMA126觸價",
+  tmf_15m_below_ema60: "微台15分K跌破EMA60",
 };
 
 const FRESHNESS_LABELS = {

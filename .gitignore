@@ -8,3 +8,4 @@ backend/log/
 backend/fubon_mac.zip
 backend/fubon_neo-*-macosx*.whl
 backend/scripts/.futures_ema_alert_state.json
+backend/scripts/.futures_ema60_15m_alert_state.json
