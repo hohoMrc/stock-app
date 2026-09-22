@@ -11,11 +11,31 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "../.env"))
 
+import json
+import time
 import urllib.request
 import urllib.parse
 
 PRODUCT = "TMF"
 EMA_PERIOD = 126
+COOLDOWN_SECONDS = 10 * 60  # 上下貫穿EMA126很容易來回觸發，10分鐘內不重複通知
+STATE_PATH = os.path.join(os.path.dirname(__file__), ".futures_ema_alert_state.json")
+
+
+def _load_last_notified_ts() -> float:
+    try:
+        with open(STATE_PATH) as f:
+            return json.load(f).get("last_notified_ts", 0)
+    except Exception:
+        return 0
+
+
+def _save_last_notified_ts(ts: float):
+    try:
+        with open(STATE_PATH, "w") as f:
+            json.dump({"last_notified_ts": ts}, f)
+    except Exception as e:
+        print(f"[微台EMA126] 寫入狀態檔失敗: {e}")
 
 
 def _tg_chat_ids() -> list:
@@ -76,10 +96,17 @@ try:
             direction = "站上" if last_close >= last_ema else "跌破"
             print(f"[微台EMA126] 觸價：{direction} EMA126（價 {last_close}／EMA {round(last_ema, 1)}）")
             record_signals("tmf_ema126_touch", [{"ticker": PRODUCT, "name": "微台指", "close": last_close}])
-            _tg_notify(
-                f"📍 微台指(TMF) 價格{direction} EMA126\n"
-                f"現價：{last_close}\nEMA126：{round(last_ema, 1)}"
-            )
+
+            now_ts = time.time()
+            elapsed = now_ts - _load_last_notified_ts()
+            if elapsed >= COOLDOWN_SECONDS:
+                _tg_notify(
+                    f"📍 微台指(TMF) 價格{direction} EMA126\n"
+                    f"現價：{last_close}\nEMA126：{round(last_ema, 1)}"
+                )
+                _save_last_notified_ts(now_ts)
+            else:
+                print(f"[微台EMA126] 冷卻中（距上次通知 {int(elapsed)} 秒），不重複發送")
         else:
             print(f"[微台EMA126] 未觸價（價 {last_close}／EMA {round(last_ema, 1)}）")
 
