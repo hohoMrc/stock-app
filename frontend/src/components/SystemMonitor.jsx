@@ -16,6 +16,7 @@ const SCAN_LABELS = {
   supertrend_short: "SuperTrend 空單",
   volume_breakout_loose: "量價突破(寬鬆)",
   rs_momentum: "RS動能",
+  tmf_ema126_touch: "微台EMA126觸價",
 };
 
 const FRESHNESS_LABELS = {
