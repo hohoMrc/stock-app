@@ -2816,6 +2816,31 @@ def get_industry_performance(force: bool = False) -> list:
     return results
 
 
+def get_industry_top_stocks(industry: str, limit: int = 5, force: bool = False) -> list:
+    """指定產業（parent_industry 大分類）當日漲幅前 N 檔個股。
+    沿用 get_industry_performance() 同一份全市場即時報價快取（5分鐘），不額外打 API。
+    """
+    quotes = _get_all_market_quotes(force)
+    if not quotes:
+        return []
+
+    from app.db import get_all_db_tickers_with_meta
+    stocks = []
+    for row in get_all_db_tickers_with_meta():
+        if row.get("parent_industry") != industry:
+            continue
+        q = quotes.get(row["ticker"])
+        if q:
+            stocks.append({
+                "ticker":      row["ticker"],
+                "name":        row.get("name"),
+                "change_pct":  round(q["change_pct"], 2),
+            })
+
+    stocks.sort(key=lambda x: x["change_pct"], reverse=True)
+    return stocks[:limit]
+
+
 def get_upcoming_dividends(days: int = 60, force: bool = False) -> list:
     """近 N 天全市場即將除權息清單。Fugle corporate-actions/dividends 這個端點不管傳哪個
     symbol，實際上都會回傳全市場資料（已驗證），所以只需要打一次 API，不用逐股查。

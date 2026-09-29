@@ -2404,6 +2404,26 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .market-link-clickable:hover { color: var(--accent); }
 .market-link-count { color: var(--text-muted); font-size: 13px; }
 
+/* 產業列表：點擊原地展開該產業前幾檔個股 */
+.market-link-value { display: inline-flex; align-items: center; gap: 4px; }
+.market-caret { font-size: 10px; color: var(--text-muted); transition: transform 0.15s; }
+.market-caret.open { transform: rotate(180deg); }
+.market-industry-movers {
+  padding: 2px 4px 8px 14px;
+  background: var(--bg-elevated);
+  border-radius: 0 0 8px 8px;
+  margin-bottom: 4px;
+}
+.market-industry-movers .market-link-row { font-size: 13px; }
+.market-industry-more {
+  text-align: center;
+  font-size: 12px;
+  color: var(--accent);
+  padding: 6px 4px 2px;
+  cursor: pointer;
+}
+.market-industry-more:hover { text-decoration: underline; }
+
 @media (max-width: 640px) {
   /* 大盤狀態首頁：4欄→2欄，兩欄卡片疊成單欄（要放在上面基礎規則後面，CSS層疊順序才會贏過去） */
   .market-overview-page .info-grid { grid-template-columns: repeat(2, 1fr); }

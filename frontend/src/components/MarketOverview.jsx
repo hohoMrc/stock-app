@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getMarketOverview } from "../api";
+import { getMarketOverview, getIndustryTopMovers } from "../api";
 import { hasTodayCloseData } from "../marketHours";
 
 const SCAN_LABELS = {
@@ -128,25 +128,82 @@ function FuturesCard({ futures, onNavigate }) {
   );
 }
 
-function IndustryList({ title, industries, onSelectIndustry }) {
+function IndustryList({ title, industries, onSelectIndustry, onSelect }) {
+  const [expanded, setExpanded] = useState(null);
+  const [moversMap, setMoversMap] = useState({});
+  const [loadingKey, setLoadingKey] = useState(null);
+
+  const toggle = (industry) => {
+    if (expanded === industry) {
+      setExpanded(null);
+      return;
+    }
+    setExpanded(industry);
+    if (!moversMap[industry]) {
+      setLoadingKey(industry);
+      getIndustryTopMovers(industry, 5)
+        .then((res) => setMoversMap((m) => ({ ...m, [industry]: res.data.stocks })))
+        .catch(() => setMoversMap((m) => ({ ...m, [industry]: [] })))
+        .finally(() => setLoadingKey(null));
+    }
+  };
+
   return (
     <div className="stock-card market-panel">
       <h3 className="paper-section-title">{title}</h3>
       {!industries?.length ? (
         <p className="no-data">暫無資料</p>
       ) : (
-        industries.map((ind) => (
-          <div
-            key={ind.industry}
-            className="market-link-row market-link-clickable"
-            onClick={() => onSelectIndustry(ind.industry)}
-          >
-            <span>{ind.industry}</span>
-            <span className={ind.avg_change_pct > 0 ? "up" : ind.avg_change_pct < 0 ? "down" : ""}>
-              {fmtSigned(ind.avg_change_pct, "%")}
-            </span>
-          </div>
-        ))
+        industries.map((ind) => {
+          const isOpen = expanded === ind.industry;
+          const movers = moversMap[ind.industry];
+          return (
+            <div key={ind.industry} className="market-industry-group">
+              <div
+                className="market-link-row market-link-clickable"
+                onClick={() => toggle(ind.industry)}
+              >
+                <span>{ind.industry}</span>
+                <span className="market-link-value">
+                  <span className={ind.avg_change_pct > 0 ? "up" : ind.avg_change_pct < 0 ? "down" : ""}>
+                    {fmtSigned(ind.avg_change_pct, "%")}
+                  </span>
+                  <span className={`market-caret ${isOpen ? "open" : ""}`}>▾</span>
+                </span>
+              </div>
+              {isOpen && (
+                <div className="market-industry-movers">
+                  {loadingKey === ind.industry ? (
+                    <p className="no-data">載入中...</p>
+                  ) : !movers?.length ? (
+                    <p className="no-data">暫無個股資料</p>
+                  ) : (
+                    <>
+                      {movers.map((s) => (
+                        <div
+                          key={s.ticker}
+                          className="market-link-row market-link-clickable"
+                          onClick={(e) => { e.stopPropagation(); onSelect(s.ticker); }}
+                        >
+                          <span>{s.ticker} {s.name}</span>
+                          <span className={s.change_pct > 0 ? "up" : s.change_pct < 0 ? "down" : ""}>
+                            {fmtSigned(s.change_pct, "%")}
+                          </span>
+                        </div>
+                      ))}
+                      <div
+                        className="market-industry-more"
+                        onClick={(e) => { e.stopPropagation(); onSelectIndustry(ind.industry); }}
+                      >
+                        看該產業全部個股 →
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })
       )}
     </div>
   );
@@ -215,8 +272,8 @@ export default function MarketOverview({ onSelect, onSelectIndustry, onNavigate 
           </div>
 
           <div className="market-overview-cols">
-            <IndustryList title="🔥 今日強勢產業 Top5" industries={data.industry_top5} onSelectIndustry={onSelectIndustry} />
-            <IndustryList title="❄️ 今日弱勢產業 Top5" industries={data.industry_bottom5} onSelectIndustry={onSelectIndustry} />
+            <IndustryList title="🔥 今日強勢產業 Top5" industries={data.industry_top5} onSelectIndustry={onSelectIndustry} onSelect={onSelect} />
+            <IndustryList title="❄️ 今日弱勢產業 Top5" industries={data.industry_bottom5} onSelectIndustry={onSelectIndustry} onSelect={onSelect} />
           </div>
 
           <div className="market-overview-cols">
