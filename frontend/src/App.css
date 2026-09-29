@@ -2410,6 +2410,50 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   .market-overview-cols { grid-template-columns: 1fr; }
 }
 
+/* 大盤狀態首頁：參考「旺來台股情報站」卡片式風格，改用藍色系
+   （--accent 在此頁面範圍內覆蓋，market-link-clickable:hover 等既有規則會自動吃到新色，不用逐條改） */
+.market-overview-page {
+  --accent:       #3b82f6;
+  --accent-dark:  #1d4ed8;
+  --accent-glow:  rgba(59, 130, 246, 0.18);
+  --accent-glow2: rgba(59, 130, 246, 0.08);
+}
+
+.market-overview-page .ranking-header h2 {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border-left: 4px solid var(--accent);
+  padding-left: 10px;
+}
+
+.market-overview-page .futures-quote,
+.market-overview-page .stock-card.market-panel {
+  border: 1px solid var(--border-light);
+  border-top: 2px solid var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-glow2), 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.market-overview-page .futures-symbol {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.market-overview-page .paper-section-title {
+  color: var(--accent);
+  font-weight: 700;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.market-overview-page .info-item:hover {
+  border-color: var(--accent-glow);
+}
+
+.market-overview-page .market-link-row:hover {
+  background: var(--accent-glow2);
+  border-radius: 6px;
+}
+
 .futures-product-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
 .futures-product-btn { padding: 6px 18px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; font-size: 14px; font-weight: 500; }
 .futures-product-btn.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
