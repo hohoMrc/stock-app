@@ -4,7 +4,7 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", sans-serif;
+  font-family: -apple-system, "system-ui", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
   color: #e2e8f0;
   background: #0a0f1e;
 }
