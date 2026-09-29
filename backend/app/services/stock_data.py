@@ -2816,8 +2816,9 @@ def get_industry_performance(force: bool = False) -> list:
     return results
 
 
-def get_industry_top_stocks(industry: str, limit: int = 5, force: bool = False) -> list:
-    """指定產業（parent_industry 大分類）當日漲幅前 N 檔個股。
+def get_industry_top_stocks(industry: str, limit: int = 5, direction: str = "up", force: bool = False) -> list:
+    """指定產業（parent_industry 大分類）當日漲跌幅前 N 檔個股。
+    direction="up" 取漲最多的（強勢產業用），"down" 取跌最兇的（弱勢產業用）。
     沿用 get_industry_performance() 同一份全市場即時報價快取（5分鐘），不額外打 API。
     """
     quotes = _get_all_market_quotes(force)
@@ -2837,7 +2838,7 @@ def get_industry_top_stocks(industry: str, limit: int = 5, force: bool = False) 
                 "change_pct":  round(q["change_pct"], 2),
             })
 
-    stocks.sort(key=lambda x: x["change_pct"], reverse=True)
+    stocks.sort(key=lambda x: x["change_pct"], reverse=(direction != "down"))
     return stocks[:limit]
 
 

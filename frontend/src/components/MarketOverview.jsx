@@ -128,7 +128,7 @@ function FuturesCard({ futures, onNavigate }) {
   );
 }
 
-function IndustryList({ title, industries, onSelectIndustry, onSelect }) {
+function IndustryList({ title, industries, onSelectIndustry, onSelect, direction = "up" }) {
   const [expanded, setExpanded] = useState(null);
   const [moversMap, setMoversMap] = useState({});
   const [loadingKey, setLoadingKey] = useState(null);
@@ -141,7 +141,7 @@ function IndustryList({ title, industries, onSelectIndustry, onSelect }) {
     setExpanded(industry);
     if (!moversMap[industry]) {
       setLoadingKey(industry);
-      getIndustryTopMovers(industry, 5)
+      getIndustryTopMovers(industry, 5, direction)
         .then((res) => setMoversMap((m) => ({ ...m, [industry]: res.data.stocks })))
         .catch(() => setMoversMap((m) => ({ ...m, [industry]: [] })))
         .finally(() => setLoadingKey(null));
@@ -272,8 +272,8 @@ export default function MarketOverview({ onSelect, onSelectIndustry, onNavigate 
           </div>
 
           <div className="market-overview-cols">
-            <IndustryList title="🔥 今日強勢產業 Top5" industries={data.industry_top5} onSelectIndustry={onSelectIndustry} onSelect={onSelect} />
-            <IndustryList title="❄️ 今日弱勢產業 Top5" industries={data.industry_bottom5} onSelectIndustry={onSelectIndustry} onSelect={onSelect} />
+            <IndustryList title="🔥 今日強勢產業 Top5" industries={data.industry_top5} onSelectIndustry={onSelectIndustry} onSelect={onSelect} direction="up" />
+            <IndustryList title="❄️ 今日弱勢產業 Top5" industries={data.industry_bottom5} onSelectIndustry={onSelectIndustry} onSelect={onSelect} direction="down" />
           </div>
 
           <div className="market-overview-cols">

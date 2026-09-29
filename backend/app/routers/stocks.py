@@ -202,9 +202,16 @@ async def get_by_industry(industry: str, exclude: str = "", use_parent: bool = Q
 
 
 @router.get("/industry/{industry}/top-movers")
-async def get_industry_top_movers(industry: str, limit: int = Query(default=5, le=20), force: bool = Query(default=False)):
+async def get_industry_top_movers(
+    industry: str,
+    limit: int = Query(default=5, le=20),
+    direction: str = Query(default="up"),
+    force: bool = Query(default=False),
+):
+    if direction not in ("up", "down"):
+        raise HTTPException(status_code=400, detail="direction 需為 up 或 down")
     try:
-        stocks = await run_in_threadpool(get_industry_top_stocks, industry, limit, force)
+        stocks = await run_in_threadpool(get_industry_top_stocks, industry, limit, direction, force)
         return {"industry": industry, "count": len(stocks), "stocks": stocks}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

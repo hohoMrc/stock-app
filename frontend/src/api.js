@@ -36,8 +36,8 @@ export const scanVolumeBreakout = (limit = 200) => api.get("/api/stocks/scan/vol
 export const scanInstitutionalBuying = (minDays = 3, limit = 200, minTotalNetZhang = 0) => api.get("/api/stocks/scan/institutional-buying", { params: { min_days: minDays, limit, min_total_net_zhang: minTotalNetZhang } });
 export const getIndustryStocks = (industry, exclude, useParent = false) =>
   api.get(`/api/stocks/industry/${encodeURIComponent(industry)}`, { params: { exclude, use_parent: useParent } });
-export const getIndustryTopMovers = (industry, limit = 5) =>
-  api.get(`/api/stocks/industry/${encodeURIComponent(industry)}/top-movers`, { params: { limit } });
+export const getIndustryTopMovers = (industry, limit = 5, direction = "up") =>
+  api.get(`/api/stocks/industry/${encodeURIComponent(industry)}/top-movers`, { params: { limit, direction } });
 export const getTradeValueRanking = (limit = 50, force = false) => api.get("/api/stocks/ranking/trade-value", { params: { limit, force } });
 export const getTurnoverRanking   = (limit = 50, force = false) => api.get("/api/stocks/ranking/turnover",     { params: { limit, force } });
 export const getMoversRanking     = (direction = "up", limit = 50, force = false) => api.get("/api/stocks/ranking/movers", { params: { direction, limit, force } });
