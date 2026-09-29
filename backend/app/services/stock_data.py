@@ -2894,6 +2894,35 @@ def get_upcoming_dividends(days: int = 60, force: bool = False) -> list:
     return results
 
 
+def get_weekly_calendar(days: int = 8, force: bool = False) -> list:
+    """大盤狀態頁「本週行事曆」：目前只有除權息（來自 get_upcoming_dividends），
+    依日期分組，只回傳有事件的日期。法說會/總經/政策等新聞類事件之後如有
+    合適的新聞來源可再擴充進來，目前規模先只做除權息這塊。
+    """
+    dividends = get_upcoming_dividends(days=days, force=force)
+    groups: dict[str, list] = {}
+    for d in dividends:
+        groups.setdefault(d["date"], []).append({
+            "category": "除權息",
+            "title":    f'{d["name"]}({d["ticker"]}) 除{d["dividend_type"]}',
+        })
+
+    weekday_names = ["一", "二", "三", "四", "五", "六", "日"]
+    today = date.today()
+    result = []
+    for i in range(days):
+        d = today + timedelta(days=i)
+        d_str = d.strftime("%Y-%m-%d")
+        if d_str in groups:
+            result.append({
+                "date":     d_str,
+                "weekday":  weekday_names[d.weekday()],
+                "is_today": i == 0,
+                "items":    groups[d_str],
+            })
+    return result
+
+
 # 委買委賣快照快取（盤中更新，盤後繼續顯示最後快照，保留 24 小時）
 _orderbook_snapshot: dict = {}  # ticker → (ts, bids, asks)
 

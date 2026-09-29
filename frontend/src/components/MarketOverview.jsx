@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getMarketOverview, getIndustryTopMovers } from "../api";
+import { getMarketOverview, getIndustryTopMovers, getWeeklyCalendar, getPremarketNews, getTodayFocus } from "../api";
 import { hasTodayCloseData } from "../marketHours";
 
 const SCAN_LABELS = {
@@ -233,6 +233,78 @@ function MoversList({ title, stocks, onSelect }) {
   );
 }
 
+function WeeklyCalendar() {
+  const [days, setDays] = useState(null);
+
+  useEffect(() => {
+    getWeeklyCalendar(8)
+      .then((res) => setDays(res.data.days))
+      .catch(() => setDays([]));
+  }, []);
+
+  return (
+    <div className="stock-card market-panel">
+      <h3 className="paper-section-title">📅 本週行事曆</h3>
+      {days == null ? (
+        <p className="no-data">載入中...</p>
+      ) : !days.length ? (
+        <p className="no-data">近期無除權息事件</p>
+      ) : (
+        days.map((day) => (
+          <div key={day.date} className="calendar-day">
+            <div className="calendar-day-header">
+              {day.date.slice(5).replace("-", "/")}（週{day.weekday}{day.is_today ? "．今天" : ""}）
+            </div>
+            {day.items.map((item, i) => (
+              <div key={i} className="calendar-item">
+                <span className="calendar-tag">{item.category}</span>
+                <span>{item.title}</span>
+              </div>
+            ))}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+function NewsList({ title, icon, fetcher, emptyText }) {
+  const [items, setItems] = useState(null);
+
+  useEffect(() => {
+    fetcher()
+      .then((res) => setItems(res.data.items))
+      .catch(() => setItems([]));
+  }, [fetcher]);
+
+  return (
+    <div className="stock-card market-panel">
+      <h3 className="paper-section-title">{icon} {title}</h3>
+      {items == null ? (
+        <p className="no-data">載入中...</p>
+      ) : !items.length ? (
+        <p className="no-data">{emptyText}</p>
+      ) : (
+        items.map((it, i) => (
+          <a
+            key={i}
+            href={it.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="market-link-row market-link-clickable news-row"
+          >
+            <span className="news-title">
+              <span className="calendar-tag">{it.category}</span>
+              {it.title}
+            </span>
+            <span className="news-time">{it.published_at.slice(11, 16)}</span>
+          </a>
+        ))
+      )}
+    </div>
+  );
+}
+
 export default function MarketOverview({ onSelect, onSelectIndustry, onNavigate }) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
@@ -279,6 +351,13 @@ export default function MarketOverview({ onSelect, onSelectIndustry, onNavigate 
           <div className="market-overview-cols">
             <MoversList title="📈 漲幅王 Top5" stocks={data.movers_up_top5} onSelect={onSelect} />
             <MoversList title="📉 跌幅王 Top5" stocks={data.movers_down_top5} onSelect={onSelect} />
+          </div>
+
+          <WeeklyCalendar />
+
+          <div className="market-overview-cols">
+            <NewsList title="盤前快訊" icon="🌅" fetcher={getPremarketNews} emptyText="暫無最新新聞" />
+            <NewsList title="今日焦點" icon="🎯" fetcher={getTodayFocus} emptyText="今天還沒有相關新聞" />
           </div>
         </>
       )}

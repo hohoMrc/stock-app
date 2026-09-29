@@ -2424,6 +2424,28 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 }
 .market-industry-more:hover { text-decoration: underline; }
 
+/* 本週行事曆 */
+.calendar-day { padding: 8px 0; border-bottom: 1px solid var(--border-light); }
+.calendar-day:last-child { border-bottom: none; }
+.calendar-day-header { font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; }
+.calendar-item { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; font-size: 14px; }
+.calendar-tag {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-glow2);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+/* 盤前快訊／今日焦點 */
+.news-row { text-decoration: none; color: inherit; gap: 10px; }
+.news-row:hover .news-title { color: var(--accent); }
+.news-title { display: flex; align-items: baseline; gap: 8px; flex: 1; min-width: 0; }
+.news-time { flex-shrink: 0; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
 @media (max-width: 640px) {
   /* 大盤狀態首頁：4欄→2欄，兩欄卡片疊成單欄（要放在上面基礎規則後面，CSS層疊順序才會贏過去） */
   .market-overview-page .info-grid { grid-template-columns: repeat(2, 1fr); }

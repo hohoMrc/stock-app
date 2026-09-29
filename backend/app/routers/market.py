@@ -1,13 +1,14 @@
 from concurrent.futures import ThreadPoolExecutor
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 
 from app.services.stock_data import (
     get_taiex_quote, get_market_breadth, get_institutional_summary,
-    get_industry_performance, get_movers_ranking,
+    get_industry_performance, get_movers_ranking, get_weekly_calendar,
     scan_ma_squeeze, scan_near_ema60, scan_volume_breakout, scan_institutional_buying,
 )
 from app.services.futures_data import get_futures_quote, get_institutional_positions
+from app.services.news_feed import get_premarket_news, get_today_focus
 
 router = APIRouter(prefix="/api/market", tags=["market"])
 
@@ -69,5 +70,32 @@ def _build_overview() -> dict:
 async def market_overview():
     try:
         return await run_in_threadpool(_build_overview)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/calendar/weekly")
+async def market_weekly_calendar(days: int = Query(default=8, le=30), force: bool = Query(default=False)):
+    try:
+        days_list = await run_in_threadpool(get_weekly_calendar, days, force)
+        return {"days": days_list}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/news/premarket")
+async def market_premarket_news(limit: int = Query(default=15, le=50), force: bool = Query(default=False)):
+    try:
+        items = await run_in_threadpool(get_premarket_news, limit, force)
+        return {"count": len(items), "items": items}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/news/today-focus")
+async def market_today_focus(limit: int = Query(default=10, le=50), force: bool = Query(default=False)):
+    try:
+        items = await run_in_threadpool(get_today_focus, limit, force)
+        return {"count": len(items), "items": items}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

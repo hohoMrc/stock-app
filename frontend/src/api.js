@@ -119,6 +119,9 @@ export const updateAlert = (id, body) => api.patch(`/api/alerts/${id}`, body);
 export const deleteAlert = (id) => api.delete(`/api/alerts/${id}`);
 
 export const getMarketOverview = () => api.get("/api/market/overview");
+export const getWeeklyCalendar = (days = 8) => api.get("/api/market/calendar/weekly", { params: { days } });
+export const getPremarketNews  = (limit = 15) => api.get("/api/market/news/premarket", { params: { limit } });
+export const getTodayFocus     = (limit = 10) => api.get("/api/market/news/today-focus", { params: { limit } });
 
 // Claude 自動選股交易（長期投資／短期交易，唯讀觀察用）
 export const getClaudePortfolio      = (strategy) => api.get(`/api/claude-trader/portfolio/${strategy}`);
