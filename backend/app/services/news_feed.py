@@ -73,9 +73,20 @@ def _get_all_cna_items(force: bool = False) -> list:
     all_items = []
     for category, url in CNA_FEEDS:
         all_items.extend(_fetch_feed_items(category, url))
-    all_items.sort(key=lambda x: x["_dt"], reverse=True)
-    _cache_set("cna_all", all_items)
-    return all_items
+
+    # 同一篇報導常會同時掛在中央社的多個分類 feed（例如財經+國際），依 link 去重，
+    # 保留 CNA_FEEDS 裡排序較前面那個分類（第一次出現的）
+    seen_links: set = set()
+    deduped = []
+    for it in all_items:
+        if it["link"] in seen_links:
+            continue
+        seen_links.add(it["link"])
+        deduped.append(it)
+
+    deduped.sort(key=lambda x: x["_dt"], reverse=True)
+    _cache_set("cna_all", deduped)
+    return deduped
 
 
 def get_premarket_news(limit: int = 15, force: bool = False) -> list:
