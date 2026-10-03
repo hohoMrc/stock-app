@@ -4,45 +4,30 @@
 20秒以上）。這幾個函式都用 RANKING_TTL=300秒(5分鐘) 的快取，所以排程
 抓每 4 分鐘跑一次，確保快取隨時是熱的。
 
+注意：必須直接打本機正在跑的服務（localhost:8000），不能用 import
+直接呼叫 stock_data.py 的函式——那樣會在「這支排程腳本自己的 process」
+裡算好快取，跟真正在跑、服務使用者的 uvicorn process 是不同的記憶體
+空間，兩邊的 _ranking_cache 字典互不相通，獨立呼叫完全沒有預熱到
+使用者實際會打到的那份快取。
+
 執行時機：建議台灣時間每天白天到晚上每 4 分鐘跑一次（涵蓋盤中+夜盤）。
 用法：
   python3 scripts/warm_cache.py
 """
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+import requests
 
-from dotenv import load_dotenv
-load_dotenv(os.path.join(os.path.dirname(__file__), "../.env"))
+BASE = "http://localhost:8000"
 
-from app.services.stock_data import (
-    get_taiex_quote, get_market_breadth, get_institutional_summary,
-    get_industry_performance, get_movers_ranking,
-    scan_ma_squeeze, scan_near_ema60, scan_volume_breakout, scan_institutional_buying,
-    get_turnover_ranking, get_trade_value_ranking,
-)
-from app.services.futures_data import get_futures_quote, get_institutional_positions
-
-TASKS = [
-    ("大盤指數",     get_taiex_quote),
-    ("漲跌家數",     get_market_breadth),
-    ("三大法人",     get_institutional_summary),
-    ("產業表現",     get_industry_performance),
-    ("漲幅王",       lambda: get_movers_ranking("up", 5)),
-    ("跌幅王",       lambda: get_movers_ranking("down", 5)),
-    ("鳥嘴與分歧",   lambda: scan_ma_squeeze(500)),
-    ("EMA60近線",    lambda: scan_near_ema60(500)),
-    ("量價突破",     lambda: scan_volume_breakout(500)),
-    ("法人連買",     lambda: scan_institutional_buying(3, 500, 2000)),
-    ("台指期報價",   get_futures_quote),
-    ("期貨法人部位", get_institutional_positions),
-    ("週轉率排行",   lambda: get_turnover_ranking(50)),
-    ("成交值排行",   lambda: get_trade_value_ranking(50)),
+ENDPOINTS = [
+    ("大盤總覽（含全市場掃描/排行/期貨）", "/api/market/overview"),
+    ("週轉率排行",                      "/api/stocks/ranking/turnover?limit=50"),
+    ("成交值排行",                      "/api/stocks/ranking/trade-value?limit=50"),
 ]
 
 if __name__ == "__main__":
-    for name, fn in TASKS:
+    for name, path in ENDPOINTS:
         try:
-            fn()
+            resp = requests.get(f"{BASE}{path}", timeout=60)
+            print(f"[預熱快取] {name}: HTTP {resp.status_code}")
         except Exception as e:
             print(f"[預熱快取] {name} 失敗: {e}")
