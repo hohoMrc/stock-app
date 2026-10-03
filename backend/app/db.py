@@ -412,6 +412,12 @@ def init_db():
             conn.execute("ALTER TABLE ema60_watch_events ADD COLUMN source TEXT NOT NULL DEFAULT 'watchlist'")
         except Exception:
             pass
+        # Migration: candles 加預先算好的 EMA60 欄位，讓 scan_near_ema60 可以直接查表，
+        # 不用每次掃描都重新用 400 天收盤價現場算一次（CPU 很貴，見 update_ema60）
+        try:
+            conn.execute("ALTER TABLE candles ADD COLUMN ema60 REAL")
+        except Exception:
+            pass
 
 
 # ── stock_meta ──────────────────────────────────────────
@@ -550,11 +556,24 @@ def get_all_candles_in_range(from_date: str, to_date: str) -> dict[str, list[dic
 def get_candles(ticker: str, from_date: str, to_date: str) -> list[dict]:
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT date, open, high, low, close, volume FROM candles "
+            "SELECT date, open, high, low, close, volume, ema60 FROM candles "
             "WHERE ticker=? AND date>=? AND date<=? ORDER BY date",
             (ticker, from_date, to_date)
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def save_ema60(ticker: str, date_ema_pairs: list[tuple]) -> None:
+    """寫入預先算好的 EMA60（見 stock_data.update_ema60）。date_ema_pairs 是
+    [(date, ema60_value), ...]，只更新已存在的 (ticker, date) 列，不新增列。
+    """
+    if not date_ema_pairs:
+        return
+    with _conn() as conn:
+        conn.executemany(
+            "UPDATE candles SET ema60=? WHERE ticker=? AND date=?",
+            [(ema, ticker, d) for d, ema in date_ema_pairs],
+        )
 
 
 def save_candles(ticker: str, records: list[dict]):

@@ -1493,9 +1493,33 @@ def ema_series(closes: list, period: int) -> list:
     return result
 
 
+def update_ema60(ticker: str) -> None:
+    """重新計算指定股票近400天的 EMA60，寫回 candles.ema60 欄位。
+    daily_update.py 每天存完新K線後呼叫一次；scan_near_ema60 之後直接查表讀
+    已經算好的值，不用每次全市場掃描都重新對每檔股票跑一次 ema_series()
+    （400天收盤價的遞迴計算，2000+檔股票加起來很貴，是 scan_near_ema60 過去
+    最慢的原因）。
+    """
+    from app.db import get_candles, save_ema60
+    from datetime import date, timedelta
+
+    from_date = (date.today() - timedelta(days=400)).strftime("%Y-%m-%d")
+    to_date   = date.today().strftime("%Y-%m-%d")
+    records = get_candles(ticker, from_date, to_date)
+    closes = [r["close"] for r in records if r["close"] is not None]
+    if len(closes) < 60:
+        return
+    ema60_series = ema_series(closes, 60)
+    pairs = [(r["date"], ema) for r, ema in zip(records, ema60_series) if ema is not None]
+    save_ema60(ticker, pairs)
+
+
 def scan_near_ema60(limit: int = 500, force: bool = False) -> list:
     """掃全市場，回傳收盤價在 EMA60 上方 0~3% 內、日量 ≥ 2000 張、股價 ≥ 10 元、非金融保險的股票。
     只讀當天收盤的日K（daily_update 跑完才會變），同一天內重複掃沒有意義，所以加 5 分鐘快取。
+    EMA60 優先讀 candles.ema60 這個預先算好的欄位（見 update_ema60，daily_update 每天
+    存完新K線後會更新），不用每次掃描都對 2000+ 檔股票重新跑一次 400 天的 ema_series()。
+    極少數還沒被 update_ema60 回填過的股票（ema60 是 None）才現場算一次當備援。
     """
     cache_key = f"near_ema60_{limit}"
     if not force:
@@ -1527,7 +1551,10 @@ def scan_near_ema60(limit: int = 500, force: bool = False) -> list:
         if (last.get("close") or 0) < 10:
             continue
         closes = [r["close"] for r in records if r["close"] is not None]
-        ema60_series = ema_series(closes, 60)
+        ema60_series = [r.get("ema60") for r in records]
+        if ema60_series[-1] is None:
+            # 備援：這檔還沒被 update_ema60 回填過，現場算一次
+            ema60_series = ema_series(closes, 60)
         close = last.get("close")
         ema = ema60_series[-1]
         if not close or not ema:
@@ -1540,7 +1567,7 @@ def scan_near_ema60(limit: int = 500, force: bool = False) -> list:
         # 避免單一天些微跌破（例如只差0.2%）就把明明持續走穩的股票整組刷掉。
         recent_closes = closes[-20:]
         recent_emas   = ema60_series[-20:]
-        violations = sum(1 for c, e in zip(recent_closes, recent_emas) if c < e * 0.99)
+        violations = sum(1 for c, e in zip(recent_closes, recent_emas) if e is not None and c < e * 0.99)
         if violations > 2:
             continue
         prev = records[-2] if len(records) >= 2 else last

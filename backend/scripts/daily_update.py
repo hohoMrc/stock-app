@@ -148,6 +148,8 @@ def update_ticker(ticker: str, days: int = 7, retries: int = 3) -> int:
             records = _fugle_candles(ticker, from_dt, to_dt)
             if records:
                 save_candles(ticker, records)
+                from app.services.stock_data import update_ema60
+                update_ema60(ticker)
                 return len(records)
             return 0
         except Exception as e:
