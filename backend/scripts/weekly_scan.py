@@ -56,7 +56,7 @@ if __name__ == "__main__":
     try:
         from app.services.stock_data import scan_all_weekly_surge
         from app.services.signal_tracking import record_signals
-        hits = scan_all_weekly_surge(min_weekly_change=20, min_volume=1000, min_capital=2)
+        hits = scan_all_weekly_surge(min_weekly_change=20, min_volume=1000, min_capital=2, force=True)
         record_signals("weekly_surge", hits)
 
         if hits:

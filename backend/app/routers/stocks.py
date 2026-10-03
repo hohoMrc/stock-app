@@ -49,27 +49,28 @@ async def weekly_surge_scan(
     min_weekly_change: float = Query(default=20.0),
     min_volume: float = Query(default=1000.0),
     min_capital: float = Query(default=2.0),
+    force: bool = Query(default=False),
 ):
     try:
-        results = scan_all_weekly_surge(min_weekly_change, min_volume, min_capital)
+        results = scan_all_weekly_surge(min_weekly_change, min_volume, min_capital, force=force)
         return {"count": len(results), "stocks": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/scan/ma-squeeze")
-async def ma_squeeze_scan(limit: int = Query(default=200, le=500)):
+async def ma_squeeze_scan(limit: int = Query(default=200, le=500), force: bool = Query(default=False)):
     try:
-        results = scan_ma_squeeze(limit)
+        results = scan_ma_squeeze(limit, force=force)
         return {"count": len(results), "stocks": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/scan/near-ema60")
-async def near_ema60_scan(limit: int = Query(default=500, le=500)):
+async def near_ema60_scan(limit: int = Query(default=500, le=500), force: bool = Query(default=False)):
     try:
-        results = await run_in_threadpool(scan_near_ema60, limit)
+        results = await run_in_threadpool(scan_near_ema60, limit, force)
         return {"count": len(results), "stocks": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -96,9 +97,9 @@ async def near_ema60_breakouts():
 
 
 @router.get("/scan/volume-breakout")
-async def volume_breakout_scan(limit: int = Query(default=200, le=500)):
+async def volume_breakout_scan(limit: int = Query(default=200, le=500), force: bool = Query(default=False)):
     try:
-        results = await run_in_threadpool(scan_volume_breakout, limit)
+        results = await run_in_threadpool(scan_volume_breakout, limit, 3.0, force)
         return {"count": len(results), "stocks": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

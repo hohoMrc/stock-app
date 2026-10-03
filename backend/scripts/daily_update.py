@@ -196,7 +196,7 @@ if __name__ == "__main__":
         try:
             from app.services.stock_data import scan_ma_squeeze
             from app.services.signal_tracking import record_signals
-            hits = scan_ma_squeeze(500)
+            hits = scan_ma_squeeze(500, force=True)
             _check_scan_alerts("bird_beak", hits)
             record_signals("bird_beak", hits)
             lines = [
@@ -215,7 +215,7 @@ if __name__ == "__main__":
         try:
             from app.services.stock_data import scan_near_ema60
             from app.services.signal_tracking import record_signals, update_ema60_watchlist, check_ema60_breakouts
-            ema_hits = scan_near_ema60(500)
+            ema_hits = scan_near_ema60(500, force=True)
             _check_scan_alerts("near_ema60", ema_hits)
             record_signals("near_ema60", ema_hits)
             lines = [
@@ -253,7 +253,7 @@ if __name__ == "__main__":
         try:
             from app.services.stock_data import scan_volume_breakout
             from app.services.signal_tracking import record_signals
-            vb_hits = scan_volume_breakout(200)
+            vb_hits = scan_volume_breakout(200, force=True)
             _check_scan_alerts("volume_breakout", vb_hits)
             record_signals("volume_breakout", vb_hits)
             lines = [
@@ -318,7 +318,7 @@ if __name__ == "__main__":
             from app.services.signal_tracking import record_signals
             # 用2倍量增的寬鬆版，不是公開選股篩選頁/上面用的3倍版——回測13個月資料後
             # 發現3倍門檻太嚴格，勝率/損益比都比2倍版差，只有 Claude 自己的帳號改用寬鬆版
-            vb_loose_hits = _svb(200, vol_mult=2.0)
+            vb_loose_hits = _svb(200, vol_mult=2.0, force=True)
             rs_momentum_hits = _srm(200)
             record_signals("volume_breakout_loose", vb_loose_hits)
             record_signals("rs_momentum", rs_momentum_hits)

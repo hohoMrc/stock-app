@@ -1314,12 +1314,20 @@ def _get_weekly_change(ticker: str, db_only: bool = False):
 
 def scan_all_weekly_surge(min_weekly_change: float = 20.0,
                           min_volume: float = None,
-                          min_capital: float = None) -> list:
+                          min_capital: float = None,
+                          force: bool = False) -> list:
     """
     全市場批次掃描週漲幅，全部從 DB 讀取（收盤後使用）。
     Step 1: 從 DB 取近 50 天 K 線，計算週漲幅。
     Step 2: 符合門檻者再從 DB 取 volume/capital 篩選，Fugle 補即時股價。
+    底層日K同一天內不會變，加 5 分鐘快取避免重複全市場掃描。
     """
+    cache_key = f"weekly_surge_{min_weekly_change}_{min_volume}_{min_capital}"
+    if not force:
+        cached = _cache_get(_ranking_cache, cache_key, RANKING_TTL)
+        if cached is not None:
+            return cached
+
     from app.db import get_all_candles_in_range
 
     def is_regular(code: str) -> bool:
@@ -1390,7 +1398,9 @@ def scan_all_weekly_surge(min_weekly_change: float = 20.0,
         except Exception:
             pass
 
-    return sorted(results, key=lambda x: x.get("weekly_change_pct", 0), reverse=True)
+    sorted_results = sorted(results, key=lambda x: x.get("weekly_change_pct", 0), reverse=True)
+    _cache_set(_ranking_cache, cache_key, sorted_results)
+    return sorted_results
 
 
 def _calc_ma(ticker: str, ma_key: str, db_only: bool = False):
@@ -1483,8 +1493,16 @@ def ema_series(closes: list, period: int) -> list:
     return result
 
 
-def scan_near_ema60(limit: int = 500) -> list:
-    """掃全市場，回傳收盤價在 EMA60 上方 0~3% 內、日量 ≥ 2000 張、股價 ≥ 10 元、非金融保險的股票。"""
+def scan_near_ema60(limit: int = 500, force: bool = False) -> list:
+    """掃全市場，回傳收盤價在 EMA60 上方 0~3% 內、日量 ≥ 2000 張、股價 ≥ 10 元、非金融保險的股票。
+    只讀當天收盤的日K（daily_update 跑完才會變），同一天內重複掃沒有意義，所以加 5 分鐘快取。
+    """
+    cache_key = f"near_ema60_{limit}"
+    if not force:
+        cached = _cache_get(_ranking_cache, cache_key, RANKING_TTL)
+        if cached is not None:
+            return cached
+
     from app.db import get_all_db_tickers_with_meta, get_candles
     from datetime import date, timedelta
 
@@ -1540,14 +1558,22 @@ def scan_near_ema60(limit: int = 500) -> list:
         })
         if len(results) >= limit:
             break
+    _cache_set(_ranking_cache, cache_key, results)
     return results
 
 
-def scan_volume_breakout(limit: int = 200, vol_mult: float = 3.0) -> list:
+def scan_volume_breakout(limit: int = 200, vol_mult: float = 3.0, force: bool = False) -> list:
     """掃全市場，回傳今日爆量（≥近5日均量 vol_mult 倍）且收盤價創近20日新高、日量 ≥ 2000 張、
     非金融保險的股票。vol_mult 預設3倍（既有的公開篩選頁/排程用這個），Claude短期交易帳號
     回測後改用2倍（see claude_trader.py），量增門檻較嚴格的3倍版回測起來勝率/報酬都較差。
+    只讀日K，同一天內重複掃沒有意義，所以加 5 分鐘快取（依 limit/vol_mult 分開快取）。
     """
+    cache_key = f"volume_breakout_{limit}_{vol_mult}"
+    if not force:
+        cached = _cache_get(_ranking_cache, cache_key, RANKING_TTL)
+        if cached is not None:
+            return cached
+
     from app.db import get_all_db_tickers_with_meta, get_candles
     from datetime import date, timedelta
 
@@ -1595,6 +1621,7 @@ def scan_volume_breakout(limit: int = 200, vol_mult: float = 3.0) -> list:
         })
         if len(results) >= limit:
             break
+    _cache_set(_ranking_cache, cache_key, results)
     return results
 
 
@@ -1998,8 +2025,16 @@ def _detect_ma_pattern(ticker: str) -> dict:
     return {"bird_beak": result, "divergence": result}
 
 
-def scan_ma_squeeze(limit: int = 200) -> list:
-    """掃全市場（DB 內所有有 K 線的股票），回傳符合 MA 黏合條件的股票清單。"""
+def scan_ma_squeeze(limit: int = 200, force: bool = False) -> list:
+    """掃全市場（DB 內所有有 K 線的股票），回傳符合 MA 黏合條件的股票清單。
+    只讀日K，同一天內重複掃沒有意義，所以加 5 分鐘快取。
+    """
+    cache_key = f"ma_squeeze_{limit}"
+    if not force:
+        cached = _cache_get(_ranking_cache, cache_key, RANKING_TTL)
+        if cached is not None:
+            return cached
+
     from app.db import get_all_db_tickers_with_meta, get_candles
     from datetime import date, timedelta
     from_date = (date.today() - timedelta(days=100)).strftime("%Y-%m-%d")
@@ -2037,6 +2072,7 @@ def scan_ma_squeeze(limit: int = 200) -> list:
         })
         if len(results) >= limit:
             break
+    _cache_set(_ranking_cache, cache_key, results)
     return results
 
 
