@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getMarketOverview, getIndustryTopMovers, getWeeklyCalendar, getPremarketNews, getTodayFocus } from "../api";
+import { getMarketOverview, getIndustryTopMovers, getWeeklyCalendar, getPremarketNews, getTodayFocus, getTodayFocusSummary } from "../api";
 import { hasTodayCloseData } from "../marketHours";
 
 const SCAN_LABELS = {
@@ -268,8 +268,9 @@ function WeeklyCalendar() {
   );
 }
 
-function NewsList({ title, icon, fetcher, emptyText }) {
+function NewsList({ title, icon, fetcher, emptyText, summaryFetcher }) {
   const [items, setItems] = useState(null);
+  const [summary, setSummary] = useState(null);
 
   useEffect(() => {
     fetcher()
@@ -277,9 +278,24 @@ function NewsList({ title, icon, fetcher, emptyText }) {
       .catch(() => setItems([]));
   }, [fetcher]);
 
+  useEffect(() => {
+    if (!summaryFetcher) return;
+    summaryFetcher()
+      .then((res) => setSummary(res.data.summary))
+      .catch(() => setSummary(null));
+  }, [summaryFetcher]);
+
   return (
     <div className="stock-card market-panel">
       <h3 className="paper-section-title">{icon} {title}</h3>
+      {summaryFetcher && summary && (
+        <div className="news-ai-summary">
+          <div className="news-ai-summary-label">🤖 AI 摘要</div>
+          {summary.split("\n").filter(Boolean).map((line, i) => (
+            <div key={i} className="news-ai-summary-line">{line}</div>
+          ))}
+        </div>
+      )}
       {items == null ? (
         <p className="no-data">載入中...</p>
       ) : !items.length ? (
@@ -357,7 +373,7 @@ export default function MarketOverview({ onSelect, onSelectIndustry, onNavigate 
 
           <div className="market-overview-cols">
             <NewsList title="盤前快訊" icon="🌅" fetcher={getPremarketNews} emptyText="暫無最新新聞" />
-            <NewsList title="今日焦點" icon="🎯" fetcher={getTodayFocus} emptyText="今天還沒有相關新聞" />
+            <NewsList title="今日焦點" icon="🎯" fetcher={getTodayFocus} emptyText="今天還沒有相關新聞" summaryFetcher={getTodayFocusSummary} />
           </div>
         </>
       )}

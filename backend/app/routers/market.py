@@ -8,7 +8,7 @@ from app.services.stock_data import (
     scan_ma_squeeze, scan_near_ema60, scan_volume_breakout, scan_institutional_buying,
 )
 from app.services.futures_data import get_futures_quote, get_institutional_positions
-from app.services.news_feed import get_premarket_news, get_today_focus
+from app.services.news_feed import get_premarket_news, get_today_focus, get_today_focus_summary
 
 router = APIRouter(prefix="/api/market", tags=["market"])
 
@@ -97,5 +97,14 @@ async def market_today_focus(limit: int = Query(default=10, le=50), force: bool 
     try:
         items = await run_in_threadpool(get_today_focus, limit, force)
         return {"count": len(items), "items": items}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/news/today-summary")
+async def market_today_focus_summary(force: bool = Query(default=False)):
+    try:
+        summary = await run_in_threadpool(get_today_focus_summary, force)
+        return {"summary": summary}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -122,6 +122,7 @@ export const getMarketOverview = () => api.get("/api/market/overview");
 export const getWeeklyCalendar = (days = 8) => api.get("/api/market/calendar/weekly", { params: { days } });
 export const getPremarketNews  = (limit = 15) => api.get("/api/market/news/premarket", { params: { limit } });
 export const getTodayFocus     = (limit = 10) => api.get("/api/market/news/today-focus", { params: { limit } });
+export const getTodayFocusSummary = () => api.get("/api/market/news/today-summary");
 
 // Claude 自動選股交易（長期投資／短期交易，唯讀觀察用）
 export const getClaudePortfolio      = (strategy) => api.get(`/api/claude-trader/portfolio/${strategy}`);

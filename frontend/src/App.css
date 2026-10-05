@@ -2446,6 +2446,16 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .news-title { display: flex; align-items: baseline; gap: 8px; flex: 1; min-width: 0; }
 .news-time { flex-shrink: 0; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
+.news-ai-summary {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.news-ai-summary-label { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+.news-ai-summary-line { font-size: 13px; color: var(--text-primary); line-height: 1.6; }
+
 @media (max-width: 640px) {
   /* 大盤狀態首頁：4欄→2欄，兩欄卡片疊成單欄（要放在上面基礎規則後面，CSS層疊順序才會贏過去） */
   .market-overview-page .info-grid { grid-template-columns: repeat(2, 1fr); }

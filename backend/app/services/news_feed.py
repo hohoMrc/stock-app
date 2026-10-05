@@ -1,7 +1,9 @@
 """大盤狀態頁「盤前快訊」「今日焦點」的新聞來源。
 
 合併兩個來源：
-- 中央社（CNA）官方公開 RSS（財經／政治／國際）
+- 中央社（CNA）官方公開 RSS，只用財經分類——中央社沒有獨立的「證券」細分類
+  RSS（官方 RSS 清單裡最接近的就是財經），政策/國際這兩類跟台股關聯度低，
+  已經拿掉
 - 鉅亨網（cnyes）新聞 API（`app.services.news_data.get_hot_news`，跟每天早上
   07:30 TG 熱門新聞用的是同一支，自帶分類標籤如〈熱門股〉〈台股盤前要聞〉、
   品質比純 RSS 標題好）
@@ -15,13 +17,12 @@ from zoneinfo import ZoneInfo
 import requests
 
 from app.services.news_data import get_hot_news
+from app.services.news_summary import summarize_news
 
 TW_TZ = ZoneInfo("Asia/Taipei")
 
 CNA_FEEDS = [
     ("財經", "https://feeds.feedburner.com/rsscna/finance"),
-    ("政策", "https://feeds.feedburner.com/rsscna/politics"),
-    ("國際", "https://feeds.feedburner.com/rsscna/intworld"),
 ]
 
 NEWS_TTL = 600  # 10分鐘快取，避免每次開頁都打外部新聞來源
@@ -133,3 +134,30 @@ def get_today_focus(limit: int = 10, force: bool = False) -> list:
     today_tw = datetime.now(TW_TZ).date()
     todays = [it for it in items if it["_dt"].astimezone(TW_TZ).date() == today_tw]
     return [{k: v for k, v in it.items() if k != "_dt"} for it in todays[:limit]]
+
+
+def get_today_focus_summary(force: bool = False) -> str | None:
+    """用 Groq（跟每天早上 TG 熱門新聞同一套 summarize_news()）把今天的新聞
+    標題整理成幾點重點，顯示在「今日焦點」最上面。跟新聞清單用同一個10分鐘
+    快取週期；AI 摘要本身另外多留一層快取，避免 Groq 掛掉/無額度時每次都要
+    重打一次才知道失敗（直接沿用上一次成功的摘要，過期也沒差，就是給個大概）。
+    """
+    cache_key = "today_summary"
+    if not force:
+        cached = _cache_get(cache_key, NEWS_TTL)
+        if cached is not None:
+            return cached
+
+    items = get_today_focus(limit=30, force=force)
+    if not items:
+        return None
+
+    try:
+        summary = summarize_news(items)
+    except Exception as e:
+        print(f"[news] AI 摘要失敗: {e}")
+        stale = _news_cache.get(cache_key)
+        return stale[1] if stale else None
+
+    _cache_set(cache_key, summary)
+    return summary
