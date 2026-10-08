@@ -9,7 +9,8 @@ from app.db import create_user, get_user_by_username
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-SECRET_KEY = os.environ.get("JWT_SECRET", "change-me-in-production")
+# 沒設 JWT_SECRET 就直接啟動失敗，避免退回公開預設值讓 token 可被偽造
+SECRET_KEY = os.environ["JWT_SECRET"]
 ALGORITHM  = "HS256"
 TOKEN_DAYS = 30
 
