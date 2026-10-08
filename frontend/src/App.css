@@ -2715,54 +2715,117 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 
 /* ── 月營收佈告欄 ───────────────────────────────── */
 .revenue-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.revenue-month-select, .revenue-industry-select {
-  padding: 5px 10px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text-primary);
-  font-size: 13px;
+.revenue-month-pills { display: flex; gap: 6px; }
+.revenue-month-pills button {
+  padding: 4px 12px; background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 14px; font-size: 12px; color: var(--text-secondary); cursor: pointer;
 }
-.revenue-note { color: var(--text-secondary); font-size: 12px; margin: 4px 0 12px; }
+.revenue-month-pills button.active { background: var(--accent); border-color: var(--accent); color: #04202b; font-weight: 600; }
+.revenue-note { color: var(--text-secondary); font-size: 12px; margin: 4px 0 14px; }
 
+/* KPI 統計卡 */
+.rev-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.rev-kpi {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 14px;
+}
+.rev-kpi-label { color: var(--text-secondary); font-size: 12px; margin-bottom: 6px; }
+.rev-kpi-value { font-size: 22px; font-weight: 700; color: var(--text-primary); }
+.rev-kpi-value.up { color: var(--up); }
+.rev-kpi-value.down { color: var(--down); }
+.rev-kpi-sub { font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+
+/* 年增/年減 家數分布長條 */
+.rev-dist { margin-bottom: 16px; }
+.rev-dist-bar {
+  display: flex; gap: 2px; height: 10px; border-radius: 6px; overflow: hidden; margin-bottom: 4px;
+}
+.rev-dist-bar .seg { display: block; border-radius: 3px; }
+.rev-dist-bar .seg.up { background: var(--up); }
+.rev-dist-bar .seg.down { background: var(--down); }
+.rev-dist-legend { display: flex; justify-content: space-between; font-size: 12px; }
+.rev-dist-legend .up { color: var(--up); }
+.rev-dist-legend .down { color: var(--down); }
+.rev-dist-legend .muted { color: var(--text-secondary); }
+
+/* 產業成長榜：熱度長條 */
 .revenue-industry-toggle {
   background: none; border: none; color: var(--accent);
   cursor: pointer; font-size: 13px; padding: 4px 0; margin-bottom: 8px;
 }
-.revenue-industry-board {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 4px 16px; margin-bottom: 16px;
-}
-.revenue-industry-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 3px 0; }
-.revenue-industry-row .ind-name { color: var(--text-primary); }
-.revenue-industry-row .ind-rev { color: var(--text-secondary); margin-left: auto; }
-.revenue-industry-row .ind-yoy { min-width: 64px; text-align: right; }
-.revenue-industry-row .ind-yoy.up { color: var(--up); }
-.revenue-industry-row .ind-yoy.down { color: var(--down); }
+.rev-heat { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.rev-heat-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.rev-heat-name { flex: 0 0 110px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rev-heat-track { flex: 1; height: 10px; background: var(--bg-elevated); border-radius: 5px; overflow: hidden; }
+.rev-heat-fill { display: block; height: 100%; border-radius: 5px; }
+.rev-heat-fill.up { background: var(--up); }
+.rev-heat-fill.down { background: var(--down); }
+.rev-heat-val { flex: 0 0 64px; text-align: right; }
+.rev-heat-val.up { color: var(--up); }
+.rev-heat-val.down { color: var(--down); }
 
-.revenue-ranks, .revenue-filters .filter-group {
-  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;
-}
-.revenue-filters { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+/* 榜單 / 篩選 */
+.revenue-ranks { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .revenue-ranks button, .revenue-filters .filter-group button {
   padding: 5px 12px; background: var(--bg-elevated); border: 1px solid var(--border);
   border-radius: 16px; font-size: 12px; color: var(--text-secondary); cursor: pointer; transition: all 0.15s;
 }
-.revenue-ranks button:hover, .revenue-filters .filter-group button:hover {
-  border-color: var(--accent); color: var(--text-primary);
-}
+.revenue-ranks button:hover, .revenue-filters .filter-group button:hover { border-color: var(--accent); color: var(--text-primary); }
 .revenue-ranks button.active, .revenue-filters .filter-group button.active {
   background: var(--accent); border-color: var(--accent); color: #04202b; font-weight: 600;
 }
-.revenue-count { color: var(--text-secondary); font-size: 12px; margin: 4px 0; }
+.revenue-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.revenue-filters .filter-group { display: flex; gap: 6px; }
+.revenue-filter-selects { display: flex; gap: 6px; }
+.revenue-filters select, .revenue-search {
+  padding: 5px 10px; background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text-primary); font-size: 13px;
+}
+.revenue-search { flex: 1; min-width: 160px; }
+.revenue-count { color: var(--text-secondary); font-size: 12px; margin: 4px 0 8px; }
 
-.revenue-page .result-table td.up { color: var(--up); }
-.revenue-page .result-table td.down { color: var(--down); }
-.revenue-page .rev-ticker { color: var(--text-secondary); font-size: 12px; margin-right: 2px; }
-.revenue-page .rev-industry { color: var(--text-secondary); font-size: 12px; }
-.revenue-page tr.clickable { cursor: pointer; }
-.revenue-page tr.clickable:hover td { background: var(--bg-elevated); }
+/* 個股卡片列 */
+.rev-cards { display: flex; flex-direction: column; gap: 8px; }
+.rev-card {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 12px; padding: 10px 14px; cursor: pointer; transition: border-color 0.15s;
+}
+.rev-card:hover { border-color: var(--accent); }
+.rev-rank { flex: 0 0 24px; color: var(--text-secondary); font-size: 14px; font-weight: 600; text-align: center; }
+.rev-card-body { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
+.rev-card-main { flex: 1 1 150px; min-width: 0; }
+.rev-card-title { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rev-card-title b { color: var(--text-primary); }
+.rev-ticker { color: var(--text-secondary); font-size: 12px; margin-left: 2px; }
+.rev-card-sub { color: var(--text-secondary); font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rev-high-badge {
   display: inline-block; margin-left: 6px; padding: 1px 6px; font-size: 10px;
-  background: var(--accent); color: #04202b; border-radius: 8px; font-weight: 600;
+  background: var(--accent); color: #04202b; border-radius: 8px; font-weight: 600; vertical-align: middle;
+}
+.rev-card-metrics { display: flex; align-items: center; gap: 16px; flex: 0 0 auto; }
+.rev-metric { text-align: right; min-width: 56px; }
+.rev-metric.rev-metric-yoy { min-width: 150px; }
+.rev-metric-val { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+.rev-metric-val.up { color: var(--up); }
+.rev-metric-val.down { color: var(--down); }
+.rev-metric-lbl { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.rev-yoy-row { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.rev-yoy-track { flex: 1; max-width: 90px; height: 8px; background: rgba(127,127,127,0.18); border-radius: 4px; overflow: hidden; }
+.rev-yoy-fill { display: block; height: 100%; border-radius: 4px; }
+.rev-yoy-fill.up { background: var(--up); }
+.rev-yoy-fill.down { background: var(--down); }
+
+/* 手機版 */
+@media (max-width: 720px) {
+  .rev-kpis { grid-template-columns: repeat(2, 1fr); }
+  .rev-kpi-value { font-size: 19px; }
+  .rev-card-body { flex-direction: column; align-items: stretch; gap: 8px; }
+  .rev-card-metrics { gap: 10px; justify-content: space-between; }
+  .rev-metric { flex: 1; text-align: left; min-width: 0; }
+  .rev-metric.rev-metric-yoy { min-width: 0; flex: 1.4; }
+  .rev-yoy-row { justify-content: flex-start; }
+  .rev-yoy-track { max-width: 60px; }
+  .rev-heat-name { flex-basis: 84px; }
+  .revenue-search { width: 100%; flex-basis: 100%; }
 }
