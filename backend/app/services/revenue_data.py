@@ -6,6 +6,7 @@
 - 上櫃：https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap05_O
          （走 _tpex_get 放寬 SSL，見 stock_data._tpex_get 的說明）
 """
+import re
 import time
 
 import requests
@@ -104,6 +105,75 @@ def fetch_monthly_revenue() -> dict:
     saved = bulk_save_monthly_revenue(records)
     ym = records[0]["ym"] if records else None
     _board_cache.clear()  # 有新資料，清快取
+    return {"ym": ym, "saved": saved, "by_market": by_market}
+
+
+# ── 歷史回補：公開資訊觀測站 MOPS t21sc03 逐月彙總表 ──────────
+# 官方 OpenAPI 只給最新月，歷史要抓 MOPS 的月報表（big5 編碼的 HTML table）。
+# 個股資料列欄位：代號, 名稱, 當月營收, 上月營收, 去年當月, 月增%, 當月累計,
+#                 去年累計, 累計年增%, 備註
+#（注意：個股列「沒有」去年同月增減(%)，只有合計列才有，所以 yoy 自己用營收算）
+MOPS_URL = "https://mopsov.twse.com.tw/nas/t21/{seg}/t21sc03_{roc}_{month}_0.html"
+_MOPS_SEG = {"L": "sii", "O": "otc"}
+
+_TR_RE = re.compile(r"<tr[^>]*>(.*?)</tr>", re.S)
+_TD_RE = re.compile(r"<td[^>]*>(.*?)</td>", re.S)
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _cell_text(html: str) -> str:
+    return _TAG_RE.sub("", html).replace("&nbsp;", "").replace("　", "").strip()
+
+
+def _parse_mops(html: str, ym: str, market: str) -> list[dict]:
+    out = []
+    industry = None
+    for tr in _TR_RE.findall(html):
+        if "產業別" in tr:
+            # 產業別分隔列（可能是 th），從整列文字抓「產業別：XXX」到「單位」之間
+            m = re.search(r"產業別[：:]\s*(.+?)\s*單位", _TAG_RE.sub("", tr))
+            if m:
+                industry = m.group(1).strip() or None
+            continue
+        cells = [_cell_text(c) for c in _TD_RE.findall(tr)]
+        if not cells or not re.fullmatch(r"\d{4,}", cells[0]) or len(cells) < 10:
+            continue  # 跳過合計列、表頭、空列
+        rev = _num(cells[2].replace(",", ""), True)
+        rev_ly = _num(cells[4].replace(",", ""), True)
+        yoy = (round((rev - rev_ly) / rev_ly * 100, 2)
+               if rev is not None and rev_ly not in (None, 0) else None)
+        out.append({
+            "ticker": cells[0], "ym": ym, "name": cells[1], "industry": industry,
+            "market": market,
+            "rev": rev,
+            "rev_prev": _num(cells[3].replace(",", ""), True),
+            "rev_ly": rev_ly,
+            "mom_pct": _num(cells[5], False),
+            "yoy_pct": yoy,
+            "cum": _num(cells[6].replace(",", ""), True),
+            "cum_ly": _num(cells[7].replace(",", ""), True),
+            "cum_yoy_pct": _num(cells[8], False),
+            "memo": cells[9] if cells[9] not in ("-", "") else None,
+        })
+    return out
+
+
+def fetch_monthly_revenue_mops(year: int, month: int) -> dict:
+    """回補單一月份（西元 year/month）的上市+上櫃月營收，資料來源 MOPS t21sc03。"""
+    roc = year - 1911
+    ym = f"{year}-{month:02d}"
+    records: list[dict] = []
+    by_market = {}
+    for market, seg in _MOPS_SEG.items():
+        url = MOPS_URL.format(seg=seg, roc=roc, month=month)
+        resp = _tpex_get(url, headers=_TWSE_HEADERS, timeout=30)  # 放寬 SSL
+        resp.raise_for_status()
+        html = resp.content.decode("big5", errors="replace")
+        rows = _parse_mops(html, ym, market)
+        records += rows
+        by_market[market] = len(rows)
+    saved = bulk_save_monthly_revenue(records) if records else 0
+    _board_cache.clear()
     return {"ym": ym, "saved": saved, "by_market": by_market}
 
 
