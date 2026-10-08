@@ -19,6 +19,7 @@ from app.routers.market import router as market_router
 from app.routers.claude_trader import router as claude_trader_router
 from app.routers.signals import router as signals_router
 from app.routers.system import router as system_router
+from app.routers.revenue import router as revenue_router
 
 load_dotenv()
 
@@ -66,6 +67,7 @@ app.include_router(market_router)
 app.include_router(claude_trader_router)
 app.include_router(signals_router)
 app.include_router(system_router)
+app.include_router(revenue_router)
 
 
 @app.get("/")

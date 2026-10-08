@@ -350,6 +350,27 @@ def init_db():
             config_json TEXT NOT NULL,
             updated_at  REAL NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS monthly_revenue (
+            ticker      TEXT NOT NULL,      -- 公司代號
+            ym          TEXT NOT NULL,      -- 資料年月，西元 "2026-08"
+            name        TEXT,
+            industry    TEXT,               -- 產業別
+            market      TEXT,               -- 'L' 上市 / 'O' 上櫃
+            rev         INTEGER,            -- 當月營收（千元）
+            rev_prev    INTEGER,            -- 上月營收
+            rev_ly      INTEGER,            -- 去年當月營收
+            mom_pct     REAL,               -- 月增率（官方已算好）
+            yoy_pct     REAL,               -- 年增率（官方已算好）
+            cum         INTEGER,            -- 今年累計營收
+            cum_ly      INTEGER,            -- 去年累計營收
+            cum_yoy_pct REAL,               -- 累計年增率
+            memo        TEXT,
+            PRIMARY KEY (ticker, ym)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_revenue_ym ON monthly_revenue(ym);
+        CREATE INDEX IF NOT EXISTS idx_revenue_ticker ON monthly_revenue(ticker, ym DESC);
         """)
         # Migration: 舊版 DB 沒有 parent_industry 欄位
         try:
@@ -460,6 +481,52 @@ def bulk_save_stock_meta(records: list[tuple]):
             "VALUES (?, ?, ?, ?, ?, ?)",
             [(t, n, i, p, e, now) for t, n, i, p, e in records]
         )
+
+
+# ── monthly_revenue 月營收 ──────────────────────────────
+
+_REVENUE_COLS = ("ticker", "ym", "name", "industry", "market", "rev", "rev_prev",
+                 "rev_ly", "mom_pct", "yoy_pct", "cum", "cum_ly", "cum_yoy_pct", "memo")
+
+
+def bulk_save_monthly_revenue(records: list[dict]) -> int:
+    """批次 upsert 月營收。records 為 dict，key 需含 _REVENUE_COLS。回傳寫入筆數。"""
+    rows = [tuple(r.get(c) for c in _REVENUE_COLS) for r in records]
+    with _conn() as conn:
+        conn.executemany(
+            f"INSERT OR REPLACE INTO monthly_revenue({','.join(_REVENUE_COLS)}) "
+            f"VALUES ({','.join('?' * len(_REVENUE_COLS))})",
+            rows,
+        )
+    return len(rows)
+
+
+def get_revenue_months() -> list[str]:
+    """回傳 DB 裡有資料的年月清單（新到舊）。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT ym FROM monthly_revenue ORDER BY ym DESC"
+        ).fetchall()
+    return [r["ym"] for r in rows]
+
+
+def get_revenue_by_month(ym: str) -> list[dict]:
+    """回傳某年月全部股票的月營收列。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM monthly_revenue WHERE ym=?", (ym,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_ticker_revenue_history(ticker: str, limit: int = 12) -> list[dict]:
+    """回傳單一 ticker 最近 limit 個月的營收（新到舊），給「近 12 月新高」判斷用。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ym, rev FROM monthly_revenue WHERE ticker=? ORDER BY ym DESC LIMIT ?",
+            (ticker, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def get_parent_industry(ticker: str) -> str | None:

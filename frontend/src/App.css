@@ -2712,3 +2712,57 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   font-size: 13px;
   color: var(--text-muted);
 }
+
+/* ── 月營收佈告欄 ───────────────────────────────── */
+.revenue-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.revenue-month-select, .revenue-industry-select {
+  padding: 5px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.revenue-note { color: var(--text-secondary); font-size: 12px; margin: 4px 0 12px; }
+
+.revenue-industry-toggle {
+  background: none; border: none; color: var(--accent);
+  cursor: pointer; font-size: 13px; padding: 4px 0; margin-bottom: 8px;
+}
+.revenue-industry-board {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 4px 16px; margin-bottom: 16px;
+}
+.revenue-industry-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 3px 0; }
+.revenue-industry-row .ind-name { color: var(--text-primary); }
+.revenue-industry-row .ind-rev { color: var(--text-secondary); margin-left: auto; }
+.revenue-industry-row .ind-yoy { min-width: 64px; text-align: right; }
+.revenue-industry-row .ind-yoy.up { color: var(--up); }
+.revenue-industry-row .ind-yoy.down { color: var(--down); }
+
+.revenue-ranks, .revenue-filters .filter-group {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;
+}
+.revenue-filters { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.revenue-ranks button, .revenue-filters .filter-group button {
+  padding: 5px 12px; background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 16px; font-size: 12px; color: var(--text-secondary); cursor: pointer; transition: all 0.15s;
+}
+.revenue-ranks button:hover, .revenue-filters .filter-group button:hover {
+  border-color: var(--accent); color: var(--text-primary);
+}
+.revenue-ranks button.active, .revenue-filters .filter-group button.active {
+  background: var(--accent); border-color: var(--accent); color: #04202b; font-weight: 600;
+}
+.revenue-count { color: var(--text-secondary); font-size: 12px; margin: 4px 0; }
+
+.revenue-page .result-table td.up { color: var(--up); }
+.revenue-page .result-table td.down { color: var(--down); }
+.revenue-page .rev-ticker { color: var(--text-secondary); font-size: 12px; margin-right: 2px; }
+.revenue-page .rev-industry { color: var(--text-secondary); font-size: 12px; }
+.revenue-page tr.clickable { cursor: pointer; }
+.revenue-page tr.clickable:hover td { background: var(--bg-elevated); }
+.rev-high-badge {
+  display: inline-block; margin-left: 6px; padding: 1px 6px; font-size: 10px;
+  background: var(--accent); color: #04202b; border-radius: 8px; font-weight: 600;
+}

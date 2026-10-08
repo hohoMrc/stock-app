@@ -17,6 +17,7 @@ import AlertsPage from "./components/AlertsPage";
 import DividendCalendar from "./components/DividendCalendar";
 import ClaudeTrader from "./components/ClaudeTrader";
 import SignalOverview from "./components/SignalOverview";
+import RevenuePage from "./components/RevenuePage";
 import MarketOverview from "./components/MarketOverview";
 import {
   fetchWatchlist, addWatch, removeWatch, updateWatchNote,
@@ -421,6 +422,12 @@ export default function App() {
                 >
                   訊號績效總覽
                 </button>
+                <button
+                  className={activePage === "revenue" ? "active" : ""}
+                  onClick={() => { setActivePage("revenue"); setMoreMenuOpen(false); }}
+                >
+                  月營收佈告欄
+                </button>
               </div>
             )}
           </div>
@@ -504,6 +511,10 @@ export default function App() {
               className={activePage === "signal-overview" ? "active" : ""}
               onClick={() => setActivePage("signal-overview")}
             >訊號績效總覽</button>
+            <button
+              className={activePage === "revenue" ? "active" : ""}
+              onClick={() => setActivePage("revenue")}
+            >月營收佈告欄</button>
             {username === ADMIN_USERNAME && (
               <button
                 className={activePage === "admin" ? "active" : ""}
@@ -623,6 +634,9 @@ export default function App() {
         )}
         {activePage === "claude-trader" && <ClaudeTrader onSelect={(t) => handleSelectStock(t)} />}
         {activePage === "signal-overview" && <SignalOverview />}
+        {activePage === "revenue" && (
+          <RevenuePage watchlist={watchlist} onSelect={(t) => handleSelectStock(t)} />
+        )}
         {activePage === "paper" && (
           <PaperTrading
             username={username}
