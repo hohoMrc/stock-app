@@ -13,20 +13,22 @@ from app.services.news_feed import get_premarket_news, get_today_focus, get_toda
 router = APIRouter(prefix="/api/market", tags=["market"])
 
 
-def _build_overview() -> dict:
+def _build_overview(force: bool = False) -> dict:
     """大盤狀態首頁彙總資料。各項來源獨立，平行抓取（多數已有各自的5分鐘快取），
     單一項目失敗不影響其他區塊，回傳 None 讓前端顯示「暫無資料」。
+    force=True 給預熱排程用：命中快取不會延長效期，不強制重算的話快取照樣會過期，
+    使用者就會撞到 10~20 秒的冷啟動。
     """
     tasks = {
         "taiex":                get_taiex_quote,
-        "breadth":              get_market_breadth,
+        "breadth":              lambda: get_market_breadth(force),
         "institutional":        get_institutional_summary,
-        "industry":             get_industry_performance,
-        "movers_up":            lambda: get_movers_ranking("up", 5),
-        "movers_down":          lambda: get_movers_ranking("down", 5),
-        "ma_squeeze":           lambda: scan_ma_squeeze(500),
-        "near_ema60":           lambda: scan_near_ema60(500),
-        "volume_breakout":      lambda: scan_volume_breakout(500),
+        "industry":             lambda: get_industry_performance(force),
+        "movers_up":            lambda: get_movers_ranking("up", 5, force),
+        "movers_down":          lambda: get_movers_ranking("down", 5, force),
+        "ma_squeeze":           lambda: scan_ma_squeeze(500, force),
+        "near_ema60":           lambda: scan_near_ema60(500, force),
+        "volume_breakout":      lambda: scan_volume_breakout(500, force=force),
         "institutional_buying": lambda: scan_institutional_buying(3, 500, 2000),
         "futures_quote":        get_futures_quote,
         "futures_positions":    get_institutional_positions,
@@ -67,9 +69,9 @@ def _build_overview() -> dict:
 
 
 @router.get("/overview")
-async def market_overview():
+async def market_overview(force: bool = Query(default=False)):
     try:
-        return await run_in_threadpool(_build_overview)
+        return await run_in_threadpool(_build_overview, force)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

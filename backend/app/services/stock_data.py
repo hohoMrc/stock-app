@@ -15,14 +15,17 @@ from app.db import get_candles, save_candles, is_candles_fresh, get_stock_meta, 
 _fugle_client = None
 _fugle_sdk    = None
 _fugle_available = None  # None=尚未嘗試, True=可用, False=不可用
+_fugle_retry_at  = None  # 暫時性失敗（如開機時 DNS 未就緒）後，允許重試的時間點
 _fugle_lock   = threading.Lock()
+_FUGLE_RETRY_SEC = 60
 
 _PERIOD_DAYS = {"5d": 5, "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825}
 
 
 def _init_fugle():
     """用 Fubon API Key 登入，取得 Fugle 行情 token 並建立 RestClient。"""
-    global _fugle_client, _fugle_sdk, _fugle_available
+    global _fugle_client, _fugle_sdk, _fugle_available, _fugle_retry_at
+    _fugle_retry_at = None
     pid      = os.environ.get("FUBON_PERSONAL_ID")
     api_key  = os.environ.get("FUBON_API_KEY")
     cert_b64 = os.environ.get("FUBON_CERT_B64")
@@ -64,8 +67,10 @@ def _init_fugle():
         print(f"[Fubon] 套件未安裝，略過: {e}")
         _fugle_available = False
     except Exception as e:
-        print(f"[Fubon] 初始化失敗: {e}")
+        # 網路等暫時性錯誤：60 秒後允許重試，否則會一路失效到服務重啟
+        print(f"[Fubon] 初始化失敗，{_FUGLE_RETRY_SEC} 秒後重試: {e}")
         _fugle_available = False
+        _fugle_retry_at = time.time() + _FUGLE_RETRY_SEC
 
 
 def _get_fugle(force_refresh: bool = False):
@@ -74,9 +79,9 @@ def _get_fugle(force_refresh: bool = False):
     if force_refresh:
         with _fugle_lock:
             _fugle_available = None
-    if _fugle_available is None:
+    if _fugle_available is None or (_fugle_retry_at and time.time() >= _fugle_retry_at):
         with _fugle_lock:
-            if _fugle_available is None:
+            if _fugle_available is None or (_fugle_retry_at and time.time() >= _fugle_retry_at):
                 _init_fugle()
     return _fugle_client if _fugle_available else None
 

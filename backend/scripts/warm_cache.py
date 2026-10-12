@@ -19,7 +19,8 @@ import requests
 BASE = "http://localhost:8000"
 
 ENDPOINTS = [
-    ("大盤總覽（含全市場掃描/排行/期貨）", "/api/market/overview"),
+    # force=true：命中快取不會延長效期，要強制重算才能讓 5 分鐘快取不斷檔
+    ("大盤總覽（含全市場掃描/排行/期貨）", "/api/market/overview?force=true"),
     ("週轉率排行",                      "/api/stocks/ranking/turnover?limit=50"),
     ("成交值排行",                      "/api/stocks/ranking/trade-value?limit=50"),
 ]
