@@ -1085,6 +1085,27 @@ def _resample_candles(records: list, interval: str) -> list:
     ]
 
 
+def _backfill_older_candles(ticker: str, start: date) -> None:
+    """把 DB 裡這檔的日K往前補到 start，只補「目前最早一筆之前」的空缺。
+    不碰既有列：save_candles 是 INSERT OR REPLACE，覆蓋既有列會把算好的 ema60 洗掉。
+    補過一次之後 DB 就夠長，之後看月K不用再打 Fugle。
+    """
+    from app.db import _conn
+    with _conn() as conn:
+        first = conn.execute("SELECT MIN(date) FROM candles WHERE ticker=?", (ticker,)).fetchone()[0]
+    if not first:
+        return
+    end = date.fromisoformat(first) - timedelta(days=1)
+    # 前面差不到一週（可能剛好是假日）就不用補
+    while end > start + timedelta(days=7):
+        chunk_from = max(start, end - timedelta(days=359))   # Fugle 區間要少於一年
+        records = _fugle_candles(ticker, chunk_from.isoformat(), end.isoformat())
+        if not records:
+            break  # 更早沒資料（例如上市還沒滿 5 年）
+        save_candles(ticker, records)
+        end = chunk_from - timedelta(days=1)
+
+
 def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") -> list:
     """取得個股歷史日K。
     優先使用 Fugle historical candles，失敗則退回 TWSE/TPEx 月報，再退回 yfinance。
@@ -1123,14 +1144,23 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
     _load_tw_stock_names()
     all_records: list = []
 
-    # 0) SQLite K 線快取（日K/週K 且資料夠新、筆數足夠才回傳）
-    # 週K 也走 DB：Fugle 一次最多抓一年日K，只夠約 52 根週K，畫不出週 MA54；DB 已回補到約 600 天
-    if interval in ("1d", "1wk"):
+    # 0) SQLite K 線快取（日K/週K/月K 且資料夠新、筆數足夠才回傳）
+    # 週K、月K 也走 DB：Fugle 一次最多抓一年日K，只夠約 52 根週K、12 根月K；
+    # DB 已回補到約 600 天，月K 要 5 年就先把這檔不夠的部分往前補
+    if interval in ("1d", "1wk", "1mo"):
         days_needed_pre = _PERIOD_DAYS.get(period, 90)
+        if interval == "1mo":
+            try:
+                _backfill_older_candles(ticker, date.today() - timedelta(days=days_needed_pre))
+            except Exception as e:
+                # 例如 DB 被預熱整批讀鎖住，補不到就用 DB 現有的，不影響出圖
+                print(f"[history] 月K往前補 {ticker} 失敗: {e}")
         from_pre = (date.today() - timedelta(days=days_needed_pre)).strftime("%Y-%m-%d")
         to_pre   = date.today().strftime("%Y-%m-%d")
         # 預期交易日數：自然天數 × 5/7，至少要有 70% 才算資料足夠
         expected_bars = max(5, int(days_needed_pre * 5 / 7 * 0.7))
+        if interval == "1mo":
+            expected_bars = 20  # 上面已往前補到 Fugle 有的最早一天，上市未滿 5 年的筆數本來就不夠
         if is_candles_fresh(ticker, from_pre, to_pre):
             db_records = get_candles(ticker, from_pre, to_pre)
             if len(db_records) >= expected_bars:
@@ -1160,7 +1190,7 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
                             "close":  q["price"],
                             "volume": q.get("volume") or 0,
                         })
-                if interval == "1wk":
+                if interval in ("1wk", "1mo"):
                     # DB 列多了 ema60 欄，重採樣只吃 OHLCV
                     db_records = _resample_candles(
                         [{k: r[k] for k in ("date", "open", "high", "low", "close", "volume")} for r in db_records],
