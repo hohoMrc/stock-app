@@ -12,6 +12,7 @@ Fugle historical candles 限制：單次區間要「少於一年」、60 次/分
 import sys
 import os
 import time
+import sqlite3
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from dotenv import load_dotenv
@@ -23,6 +24,18 @@ from app.services.stock_data import _fugle_candles
 
 CHUNK_DAYS   = 360
 MIN_INTERVAL = 60 / 50   # 每次請求至少間隔 1.2 秒
+
+
+def _save_with_retry(ticker, records, tries=20):
+    """DB 是 rollback journal 模式，服務/預熱整批讀全市場時寫入會被擋（預設只等 5 秒），鎖住就等一下重試。"""
+    for n in range(tries):
+        try:
+            _save_with_retry(ticker, records)
+            return
+        except sqlite3.OperationalError as e:
+            if "locked" not in str(e) or n == tries - 1:
+                raise
+            time.sleep(3)
 
 
 def main():
