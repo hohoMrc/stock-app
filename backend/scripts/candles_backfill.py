@@ -30,7 +30,7 @@ def _save_with_retry(ticker, records, tries=20):
     """DB 是 rollback journal 模式，服務/預熱整批讀全市場時寫入會被擋（預設只等 5 秒），鎖住就等一下重試。"""
     for n in range(tries):
         try:
-            _save_with_retry(ticker, records)
+            save_candles(ticker, records)
             return
         except sqlite3.OperationalError as e:
             if "locked" not in str(e) or n == tries - 1:
@@ -64,7 +64,7 @@ def main():
             records = _fugle_candles(ticker, chunk_from.isoformat(), end.isoformat())
             if not records:
                 break
-            save_candles(ticker, records)
+            _save_with_retry(ticker, records)
             added += len(records)
             end = chunk_from - timedelta(days=1)
         added_total += added
