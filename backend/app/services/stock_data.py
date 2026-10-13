@@ -2108,6 +2108,114 @@ def scan_ma_squeeze(limit: int = 200, force: bool = False) -> list:
     return results
 
 
+def _to_weekly(records: list[dict]) -> list[dict]:
+    """日K → 週K（以 ISO 週分組，週一~週五為一根），當週還沒收完的也算一根，跟看盤軟體一致。"""
+    weeks: list[dict] = []
+    last_key = None
+    for r in records:
+        if r.get("close") is None:
+            continue
+        key = date.fromisoformat(r["date"]).isocalendar()[:2]
+        if key != last_key:
+            weeks.append({"date": r["date"], "open": r["open"], "high": r["high"],
+                          "low": r["low"], "close": r["close"], "volume": r["volume"] or 0})
+            last_key = key
+        else:
+            w = weeks[-1]
+            w["high"]    = max(w["high"], r["high"])
+            w["low"]     = min(w["low"], r["low"])
+            w["close"]   = r["close"]
+            w["volume"] += r["volume"] or 0
+    return weeks
+
+
+def _sma(values: list[float], n: int) -> list[float | None]:
+    out: list[float | None] = [None] * len(values)
+    total = 0.0
+    for i, v in enumerate(values):
+        total += v
+        if i >= n:
+            total -= values[i - n]
+        if i >= n - 1:
+            out[i] = total / n
+    return out
+
+
+def scan_weekly_pullback_ma54(limit: int = 500, force: bool = False) -> list:
+    """週K 漲多拉回 54MA：曾經強勢多頭排列、大漲後回檔到 54 週均線附近但還沒跌破。
+    均線用週收盤 SMA（跟看盤軟體的「均價」一致）。條件：
+      1. 54MA 上揚（比 4 週前高）
+      2. 10MA、18MA 都在 54MA 之上（回檔時 10 通常已跌破 18，所以不要求 10>18）
+      3. 近 26 週內曾出現 10MA > 18MA > 54MA
+      4. 近 26 週最高價 ≥ 54MA × 1.5（漲多）
+      5. 近 2 週最低價 ≤ 54MA × 1.08（拉回碰到/接近 54MA，用最低價因為常是下影線碰到）
+      6. 收盤 ≥ 54MA
+      7. 最新日量 ≥ 1000 張、股價 ≥ 10 元、非金融保險
+    需要約 80 週日K（54MA + 回看 26 週），資料靠 scripts/candles_backfill.py 補。
+    """
+    cache_key = f"weekly_pullback_ma54_{limit}"
+    if not force:
+        cached = _cache_get(_ranking_cache, cache_key, RANKING_TTL)
+        if cached is not None:
+            return cached
+
+    from app.db import get_all_db_tickers_with_meta, get_candles
+    from_date = (date.today() - timedelta(days=600)).strftime("%Y-%m-%d")
+    to_date   = date.today().strftime("%Y-%m-%d")
+
+    results = []
+    for row in get_all_db_tickers_with_meta():
+        ticker = row["ticker"]
+        if row.get("parent_industry") == "金融保險":
+            continue
+        records = get_candles(ticker, from_date, to_date)
+        if not records:
+            continue
+        last = records[-1]
+        vol_shares = last.get("volume") or 0
+        close = last.get("close")
+        if vol_shares < 1_000_000 or not close or close < 10:
+            continue
+        weeks = _to_weekly(records)
+        if len(weeks) < 54 + 25:
+            continue
+        closes = [w["close"] for w in weeks]
+        ma10, ma18, ma54 = _sma(closes, 10), _sma(closes, 18), _sma(closes, 54)
+        m54 = ma54[-1]
+        if not (m54 > ma54[-5]):
+            continue
+        if not (ma10[-1] > m54 and ma18[-1] > m54):
+            continue
+        if not any(ma10[i] > ma18[i] > ma54[i] for i in range(-26, 0)):
+            continue
+        peak = max(w["high"] for w in weeks[-26:])
+        if peak < m54 * 1.5:
+            continue
+        recent_low = min(w["low"] for w in weeks[-2:])
+        if recent_low > m54 * 1.08 or close < m54:
+            continue
+        prev_close = weeks[-2]["close"]
+        results.append({
+            "ticker":          ticker,
+            "name":            row.get("name") or "",
+            "exchange":        row.get("exchange") or "",
+            "close":           round(float(close), 2),
+            "week_change_pct": round((close - prev_close) / prev_close * 100, 2) if prev_close else None,
+            "volume_zhang":    round(vol_shares / 1000),
+            "ma10":            round(ma10[-1], 2),
+            "ma18":            round(ma18[-1], 2),
+            "ma54":            round(m54, 2),
+            "dev_pct":         round((close - m54) / m54 * 100, 2),        # 收盤距 54MA
+            "low_dev_pct":     round((recent_low - m54) / m54 * 100, 2),   # 近2週低點距 54MA
+            "peak":            round(float(peak), 2),
+            "pullback_pct":    round((close - peak) / peak * 100, 2),      # 距近26週高點
+        })
+        if len(results) >= limit:
+            break
+    _cache_set(_ranking_cache, cache_key, results)
+    return results
+
+
 def _check_technical_signals(ticker: str, db_only: bool = False) -> dict | None:
     """計算技術訊號（前日漲幅、MA20方向、收盤與MA5/MA60相對位置）。優先 DB → yfinance。"""
     # 1) DB（需 ≥65 筆，約 3 個月）
