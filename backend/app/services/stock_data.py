@@ -1123,8 +1123,9 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
     _load_tw_stock_names()
     all_records: list = []
 
-    # 0) SQLite K 線快取（日K 且資料夠新、筆數足夠才回傳）
-    if interval == "1d":
+    # 0) SQLite K 線快取（日K/週K 且資料夠新、筆數足夠才回傳）
+    # 週K 也走 DB：Fugle 一次最多抓一年日K，只夠約 52 根週K，畫不出週 MA54；DB 已回補到約 600 天
+    if interval in ("1d", "1wk"):
         days_needed_pre = _PERIOD_DAYS.get(period, 90)
         from_pre = (date.today() - timedelta(days=days_needed_pre)).strftime("%Y-%m-%d")
         to_pre   = date.today().strftime("%Y-%m-%d")
@@ -1159,6 +1160,12 @@ def get_stock_history(ticker: str, period: str = "3mo", interval: str = "1d") ->
                             "close":  q["price"],
                             "volume": q.get("volume") or 0,
                         })
+                if interval == "1wk":
+                    # DB 列多了 ema60 欄，重採樣只吃 OHLCV
+                    db_records = _resample_candles(
+                        [{k: r[k] for k in ("date", "open", "high", "low", "close", "volume")} for r in db_records],
+                        interval,
+                    )
                 _cache_set(_history_cache, cache_key, db_records)
                 return db_records
 

@@ -9,7 +9,13 @@ const MA_CONFIG = [
   { key: "ma60",  period: 60, label: "MA60",  color: "#34d399" },
   { key: "ema10", period: 10, label: "EMA10", color: "#fb923c", ema: true },
   { key: "ema60", period: 60, label: "EMA60", color: "#ef4444", ema: true },
+  // 只在週K顯示（搭配 MA10 看週線 10/18/54 排列）
+  { key: "ma18",  period: 18, label: "MA18",  color: "#f472b6", only: "1wk" },
+  { key: "ma54",  period: 54, label: "MA54",  color: "#e2e8f0", only: "1wk" },
 ];
+
+// 這個週期要顯示的均線
+const maForInterval = (interval) => MA_CONFIG.filter((m) => !m.only || m.only === interval);
 
 function calcMA(data, period) {
   const result = [];
@@ -165,7 +171,7 @@ const VOL_PANE_HEIGHT  = 80;
 const MACD_PANE_HEIGHT = 100;
 const KD_PANE_HEIGHT   = 100;
 
-const DEFAULT_ACTIVE_MA = { ma5: false, ma10: false, ma20: false, ma30: false, ma60: false, ema10: true, ema60: true };
+const DEFAULT_ACTIVE_MA = { ma5: false, ma10: false, ma20: false, ma30: false, ma60: false, ema10: true, ema60: true, ma18: true, ma54: true };
 
 export default function CandlestickChart({ data, period = "3mo", interval = "1d", height = 320, defaultMA = null, showMACD = true }) {
   const containerRef    = useRef(null);
@@ -193,7 +199,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const macdMapRef      = useRef(new Map());
   const kdMapRef        = useRef(new Map());
 
-  const [activeMA,    setActiveMA]    = useState(() => defaultMA ?? DEFAULT_ACTIVE_MA);
+  const [activeMA,    setActiveMA]    = useState(() => ({ ...DEFAULT_ACTIVE_MA, ...defaultMA }));
   const [showBOLL,    setShowBOLL]    = useState(false);
   const [hoveredBar,  setHoveredBar]  = useState(null);
   const [hoveredMACD, setHoveredMACD] = useState(null);
@@ -452,8 +458,9 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
 
     // MA + maMap
     const maMap = new Map();
-    MA_CONFIG.forEach(({ key, period: mp, ema }) => {
-      const arr = ema ? calcEMA(data, mp) : calcMA(data, mp);
+    MA_CONFIG.forEach(({ key, period: mp, ema, only }) => {
+      // 不屬於這個週期的均線清空，避免切回日K還留著週K的線
+      const arr = only && only !== interval ? [] : ema ? calcEMA(data, mp) : calcMA(data, mp);
       maSeriesRefs.current[key]?.setData(arr);
       arr.forEach((item) => {
         const k = String(item.time);
@@ -545,10 +552,10 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   useEffect(() => { applyVisibleRange(period); }, [period]);
 
   useEffect(() => {
-    MA_CONFIG.forEach(({ key }) => {
-      maSeriesRefs.current[key]?.applyOptions({ visible: activeMA[key] });
+    MA_CONFIG.forEach(({ key, only }) => {
+      maSeriesRefs.current[key]?.applyOptions({ visible: !!activeMA[key] && (!only || only === interval) });
     });
-  }, [activeMA]);
+  }, [activeMA, interval]);
 
   useEffect(() => {
     [bollUpperRef, bollMidRef, bollLowerRef].forEach((r) =>
@@ -573,7 +580,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
 
       {/* MA 切換列 */}
       <div className="ma-toggle-bar">
-        {MA_CONFIG.map(({ key, label, color }) => (
+        {maForInterval(interval).map(({ key, label, color }) => (
           <button key={key}
             className={`ma-toggle-btn ${activeMA[key] ? "active" : ""}`}
             style={{ "--ma-color": color }}
@@ -615,7 +622,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
         {/* 行 2: MA 值 */}
         <div className="chart-info-line">
           <span className="ci-label">MA(5,10,30,60)</span>
-          {bar?.ma && MA_CONFIG.map(({ key, label, color }) =>
+          {bar?.ma && maForInterval(interval).map(({ key, label, color }) =>
             bar.ma[key] != null ? (
               <span key={key} style={{ color }}>{label}: {bar.ma[key]}</span>
             ) : null
