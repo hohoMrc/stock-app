@@ -29,6 +29,7 @@ export const analyzeStock = (ticker) => api.get(`/api/stocks/${ticker}/analyze`)
 export const screenStocks = (filters) => api.post("/api/stocks/screen", filters);
 export const scanWeeklySurge = (params) => api.get("/api/stocks/scan/weekly-surge", { params });
 export const scanMaSqueeze   = (limit = 200) => api.get("/api/stocks/scan/ma-squeeze",  { params: { limit } });
+export const scanWeeklyPullbackMa54 = () => api.get("/api/stocks/scan/weekly-pullback-ma54");
 export const scanNearEma60   = (limit = 500) => api.get("/api/stocks/scan/near-ema60", { params: { limit } });
 export const getEma60Watchlist = () => api.get("/api/stocks/scan/near-ema60/watchlist");
 export const getEma60Breakouts = () => api.get("/api/stocks/scan/near-ema60/breakouts");

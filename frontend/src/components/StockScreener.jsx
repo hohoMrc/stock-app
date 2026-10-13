@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { screenStocks, scanWeeklySurge, scanMaSqueeze, scanNearEma60, scanVolumeBreakout, scanInstitutionalBuying, getEma60Watchlist, getEma60Breakouts } from "../api";
+import { screenStocks, scanWeeklySurge, scanMaSqueeze, scanWeeklyPullbackMa54, scanNearEma60, scanVolumeBreakout, scanInstitutionalBuying, getEma60Watchlist, getEma60Breakouts } from "../api";
 import { hasTodayCloseData } from "../marketHours";
 
 // 後端不同掃描來源回傳的交易所欄位有的是原始代碼（TW/TWO），有的已經是中文，統一轉成手機版卡片用的縮寫
@@ -84,6 +84,24 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
     setFilters({ ...EMPTY_FILTERS });
     try {
       const res = await scanNearEma60(500);
+      setResults(res.data.stocks);
+      setSearched(true);
+    } catch (e) {
+      setError(e?.response?.data?.detail || e.message || "掃描失敗");
+      setSearched(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleWeeklyPullbackMa54 = async () => {
+    setResultMode("weekly_pullback_ma54");
+    setLoading(true);
+    setError(null);
+    setResults([]);
+    setFilters({ ...EMPTY_FILTERS });
+    try {
+      const res = await scanWeeklyPullbackMa54();
       setResults(res.data.stocks);
       setSearched(true);
     } catch (e) {
@@ -263,13 +281,14 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
   const isEma60BreakoutMode = resultMode === "ema60_breakout";
   const isVolumeBreakoutMode = resultMode === "volume_breakout";
   const isInstitutionalBuyingMode = resultMode === "institutional_buying";
+  const isPullbackMa54Mode = resultMode === "weekly_pullback_ma54";
   const PATTERN_LABEL = { bird_beak: "⚡ 鳥嘴與分歧", divergence: "⚡ 鳥嘴與分歧" };
 
   return (
     <div className="page">
       <h2>選股篩選</h2>
       <p className="ranking-hint">
-        全市場類的篩選（週漲幅急漲／鳥嘴與分歧／EMA60近線／貼線觀察名單／量價突破／法人連買）都是讀資料庫收盤價，
+        全市場類的篩選（週漲幅急漲／鳥嘴與分歧／EMA60近線／週K拉回54MA／貼線觀察名單／量價突破／法人連買）都是讀資料庫收盤價，
         平日 15:30 排程更新，目前顯示的是{hasTodayCloseData() ? "今天" : "前一個交易日"}收盤的資料，不是即時股價。
       </p>
 
@@ -315,6 +334,15 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
           title="收盤在 EMA60 上方 0~3%，近一個月持續站上 EMA60，日量 ≥ 2000 張"
         >
           📈 EMA60近線
+        </button>
+        <button
+          className="preset-btn preset-btn--pattern"
+          onClick={handleWeeklyPullbackMa54}
+          disabled={loading}
+          title="週K漲多拉回54MA：54MA上揚、10MA與18MA都在54MA之上、近26週曾經10>18>54多頭排列、近26週高點 ≥ 54MA×1.5，近2週低點拉回到54MA -3%~+8%，收盤在54MA ~ +20%，日量 ≥ 1000 張"
+        >
+          🎯 週K拉回54MA
+          <span className="preset-btn-sub">週K 10／18／54MA</span>
         </button>
         <button
           className="preset-btn preset-btn--pattern"
@@ -574,6 +602,10 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                   {isEma60BreakoutMode && <th>5日報酬</th>}
                   {isEma60BreakoutMode && <th>10日報酬</th>}
                   {isEma60BreakoutMode && <th>20日報酬</th>}
+                  {isPullbackMa54Mode && <th>54MA</th>}
+                  {isPullbackMa54Mode && <th>收盤距54MA</th>}
+                  {isPullbackMa54Mode && <th>近2週低點距54MA</th>}
+                  {isPullbackMa54Mode && <th>距高點</th>}
                   {isVolumeBreakoutMode && <th>量比</th>}
                   {isInstitutionalBuyingMode && <th>連續買超天數</th>}
                   {isInstitutionalBuyingMode && <th>合計買超(張)</th>}
@@ -649,6 +681,18 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                     {isEma60BreakoutMode && (
                       <td className={s.return_20d > 0 ? "deviation-up" : s.return_20d < 0 ? "deviation-down" : ""}>
                         {s.return_20d != null ? `${s.return_20d > 0 ? "+" : ""}${s.return_20d}%` : "—"}
+                      </td>
+                    )}
+                    {isPullbackMa54Mode && <td>{s.ma54 ?? "—"}</td>}
+                    {isPullbackMa54Mode && <td>{s.dev_pct != null ? `+${s.dev_pct}%` : "—"}</td>}
+                    {isPullbackMa54Mode && (
+                      <td className={s.low_dev_pct < 0 ? "deviation-down" : ""}>
+                        {s.low_dev_pct != null ? `${s.low_dev_pct > 0 ? "+" : ""}${s.low_dev_pct}%` : "—"}
+                      </td>
+                    )}
+                    {isPullbackMa54Mode && (
+                      <td className="deviation-down" title={s.peak != null ? `近26週高點 ${s.peak}` : undefined}>
+                        {s.pullback_pct != null ? `${s.pullback_pct}%` : "—"}
                       </td>
                     )}
                     {isVolumeBreakoutMode && (

@@ -2,7 +2,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
-from app.services.stock_data import get_stock_info, get_stock_history, screen_stocks, get_stocks_by_industry, scan_all_weekly_surge, scan_ma_squeeze, scan_near_ema60, scan_volume_breakout, scan_institutional_buying, search_stocks, get_trade_value_ranking, get_turnover_ranking, get_movers_ranking, get_industry_performance, get_industry_top_stocks, get_upcoming_dividends, get_stock_orderbook, get_stock_trades, get_watchlist_quotes, get_institutional_trades_history, get_intraday_chart, get_stock_signals, get_intraday_candles, get_stock_live_quote
+from app.services.stock_data import get_stock_info, get_stock_history, screen_stocks, get_stocks_by_industry, scan_all_weekly_surge, scan_ma_squeeze, scan_weekly_pullback_ma54, scan_near_ema60, scan_volume_breakout, scan_institutional_buying, search_stocks, get_trade_value_ranking, get_turnover_ranking, get_movers_ranking, get_industry_performance, get_industry_top_stocks, get_upcoming_dividends, get_stock_orderbook, get_stock_trades, get_watchlist_quotes, get_institutional_trades_history, get_intraday_chart, get_stock_signals, get_intraday_candles, get_stock_live_quote
 from app.services.ai_analysis import analyze_stock
 
 router = APIRouter(prefix="/api/stocks", tags=["stocks"])
@@ -62,6 +62,15 @@ async def weekly_surge_scan(
 async def ma_squeeze_scan(limit: int = Query(default=200, le=500), force: bool = Query(default=False)):
     try:
         results = scan_ma_squeeze(limit, force=force)
+        return {"count": len(results), "stocks": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/scan/weekly-pullback-ma54")
+async def weekly_pullback_ma54_scan(limit: int = Query(default=500, le=500), force: bool = Query(default=False)):
+    try:
+        results = await run_in_threadpool(scan_weekly_pullback_ma54, limit, force)
         return {"count": len(results), "stocks": results}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

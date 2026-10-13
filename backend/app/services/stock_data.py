@@ -2148,18 +2148,23 @@ def scan_weekly_pullback_ma54(limit: int = 500, force: bool = False) -> list:
       2. 10MA、18MA 都在 54MA 之上（回檔時 10 通常已跌破 18，所以不要求 10>18）
       3. 近 26 週內曾出現 10MA > 18MA > 54MA
       4. 近 26 週最高價 ≥ 54MA × 1.5（漲多）
-      5. 近 2 週最低價 ≤ 54MA × 1.08（拉回碰到/接近 54MA，用最低價因為常是下影線碰到）
-      6. 收盤 ≥ 54MA
+      5. 近 2 週最低價在 54MA × 0.97 ~ 1.08（拉回碰到/接近 54MA，用最低價因為常是下影線碰到；
+         刺破超過 3% 視為跌破）
+      6. 收盤在 54MA ~ 54MA × 1.2（已經彈離太遠的算「已反彈」不算「正在拉回」）
       7. 最新日量 ≥ 1000 張、股價 ≥ 10 元、非金融保險
     需要約 80 週日K（54MA + 回看 26 週），資料靠 scripts/candles_backfill.py 補。
+    全市場掃一次約 18 秒，但結果只在 DB 進了新的收盤日K才會變，所以快取 key 帶最新日期、
+    效期拉長；warm_cache 每 4 分鐘打一次，換日後第一次就會在背景重算好。
     """
-    cache_key = f"weekly_pullback_ma54_{limit}"
+    from app.db import _conn, get_all_db_tickers_with_meta, get_candles
+    with _conn() as conn:
+        latest = conn.execute("SELECT MAX(date) AS d FROM candles").fetchone()["d"]
+    cache_key = f"weekly_pullback_ma54_{limit}_{latest}"
     if not force:
-        cached = _cache_get(_ranking_cache, cache_key, RANKING_TTL)
+        cached = _cache_get(_ranking_cache, cache_key, 12 * 3600)
         if cached is not None:
             return cached
 
-    from app.db import get_all_db_tickers_with_meta, get_candles
     from_date = (date.today() - timedelta(days=600)).strftime("%Y-%m-%d")
     to_date   = date.today().strftime("%Y-%m-%d")
 
@@ -2192,15 +2197,17 @@ def scan_weekly_pullback_ma54(limit: int = 500, force: bool = False) -> list:
         if peak < m54 * 1.5:
             continue
         recent_low = min(w["low"] for w in weeks[-2:])
-        if recent_low > m54 * 1.08 or close < m54:
+        if not (m54 * 0.97 <= recent_low <= m54 * 1.08):
             continue
-        prev_close = weeks[-2]["close"]
+        if not (m54 <= close <= m54 * 1.2):
+            continue
+        prev_close = records[-2]["close"] if len(records) >= 2 else None
         results.append({
             "ticker":          ticker,
             "name":            row.get("name") or "",
             "exchange":        row.get("exchange") or "",
             "close":           round(float(close), 2),
-            "week_change_pct": round((close - prev_close) / prev_close * 100, 2) if prev_close else None,
+            "change_pct":      round((close - prev_close) / prev_close * 100, 2) if prev_close else None,
             "volume_zhang":    round(vol_shares / 1000),
             "ma10":            round(ma10[-1], 2),
             "ma18":            round(ma18[-1], 2),

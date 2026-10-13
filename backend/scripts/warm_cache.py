@@ -23,6 +23,8 @@ ENDPOINTS = [
     ("大盤總覽（含全市場掃描/排行/期貨）", "/api/market/overview?force=true"),
     ("週轉率排行",                      "/api/stocks/ranking/turnover?limit=50"),
     ("成交值排行",                      "/api/stocks/ranking/trade-value?limit=50"),
+    # 只在 DB 換日後重算（約 18 秒），其餘時間命中快取
+    ("週K拉回54MA",                     "/api/stocks/scan/weekly-pullback-ma54"),
 ]
 
 if __name__ == "__main__":
