@@ -435,6 +435,8 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
     : listData[activeTab];
 
   const prevClose = orderbook.close != null && orderbook.change != null ? orderbook.close - orderbook.change : null;
+  // 開盤價：後端 quote 的 openPrice，沒有就用分時第一筆成交價
+  const openPrice = orderbook.open ?? intradayData[0]?.price ?? null;
   // 委買委賣/成交明細分頁：桌機放左下區塊、手機放個股行情頁，兩邊共用
   const orderbookTabs = (
     <>
@@ -485,7 +487,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
       {/* ── 手機：個股行情頁（上：當日走勢，下：委買委賣/成交明細）── */}
       {isMobile && mobileView === "quote" && selected && (
         <div className="terminal-mobile-quote">
-          <IntradayMiniChart data={intradayData} prevClose={prevClose} chartHeight={200} />
+          <IntradayMiniChart data={intradayData} prevClose={prevClose} openPrice={openPrice} chartHeight={200} />
           {orderbookTabs}
         </div>
       )}
@@ -624,7 +626,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
           <div className="terminal-orderbook">
             <div className="ob-panels">
               <div className="ob-left-col">{orderbookTabs}</div>
-              <IntradayMiniChart data={intradayData} prevClose={prevClose} />
+              <IntradayMiniChart data={intradayData} prevClose={prevClose} openPrice={openPrice} />
             </div>
           </div>
         )}
@@ -777,11 +779,12 @@ function OrderBook({ data, loading }) {
   );
 }
 
-function IntradayMiniChart({ data, prevClose, chartHeight = 110 }) {
+function IntradayMiniChart({ data, prevClose, openPrice = null, chartHeight = 110 }) {
   const yDomain = (() => {
     if (!data.length) return ["auto", "auto"];
     const values = data.flatMap((d) => [d.price, d.average]).filter((v) => v != null);
     if (prevClose != null) values.push(prevClose);
+    if (openPrice != null) values.push(openPrice);
     if (!values.length) return ["auto", "auto"];
     const min = Math.min(...values), max = Math.max(...values);
     const pad = Math.max((max - min) * 0.08, 0.5);
@@ -816,6 +819,10 @@ function IntradayMiniChart({ data, prevClose, chartHeight = 110 }) {
               <YAxis domain={yDomain} tick={{ fontSize: 9 }} width={42} tickFormatter={(v) => v.toFixed(2)} />
               <Tooltip formatter={(v, name) => [`${v} 元`, name === "average" ? "均價" : "成交價"]} />
               {prevClose != null && <ReferenceLine y={prevClose} stroke="#888" strokeDasharray="4 4" />}
+              {openPrice != null && (
+                <ReferenceLine y={openPrice} stroke="#f59e0b" strokeDasharray="2 3"
+                  label={{ value: `開 ${openPrice}`, position: "insideTopLeft", fill: "#f59e0b", fontSize: 9 }} />
+              )}
               <Line type="monotone" dataKey="average" stroke="#ccc" dot={false} strokeWidth={1} isAnimationActive={false} />
               <Line type="monotone" dataKey="price" stroke="url(#terminalIntradayColor)" dot={false} strokeWidth={1.5} isAnimationActive={false} />
             </LineChart>

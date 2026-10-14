@@ -3149,7 +3149,7 @@ _orderbook_snapshot: dict = {}  # ticker → (ts, bids, asks)
 
 def get_stock_orderbook(ticker: str) -> dict:
     """取得委買委賣五檔：盤中即時，盤後顯示最後快照（標記 is_realtime=False）。"""
-    empty = {"ticker": ticker, "close": None, "change": None, "change_pct": None,
+    empty = {"ticker": ticker, "close": None, "open": None, "change": None, "change_pct": None,
              "best_bids": [], "best_asks": [], "is_realtime": False}
     client = _get_fugle()
     if not client:
@@ -3191,6 +3191,7 @@ def get_stock_orderbook(ticker: str) -> dict:
         return {
             "ticker":      ticker,
             "close":       round(float(price), 2) if price else None,
+            "open":        round(float(data["openPrice"]), 2) if data.get("openPrice") else None,
             "change":      change,
             "change_pct":  change_pct,
             "best_bids":   bids,
