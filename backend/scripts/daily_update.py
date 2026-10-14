@@ -270,6 +270,17 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"[量價突破] 掃描失敗: {e}")
 
+        print("[週K拉回54MA] 開始掃描...")
+        try:
+            from app.services.stock_data import scan_weekly_pullback_ma54
+            from app.services.signal_tracking import record_signals
+            # 只記錄訊號供「訊號績效總覽」追蹤成效，不發 TG
+            pb_hits = scan_weekly_pullback_ma54(500, force=True)
+            record_signals("weekly_pullback_ma54", pb_hits)
+            print(f"[週K拉回54MA] 記錄 {len(pb_hits)} 支")
+        except Exception as e:
+            print(f"[週K拉回54MA] 掃描失敗: {e}")
+
         print("[三大法人] 抓取今日買賣超資料...")
         try:
             from app.services.stock_data import fetch_institutional_trades_today, scan_institutional_buying

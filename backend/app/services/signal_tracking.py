@@ -22,6 +22,7 @@ SCAN_LABELS = {
     "supertrend_short":       "SuperTrend 空單",
     "volume_breakout_loose":  "量價突破(寬鬆)",
     "rs_momentum":            "RS動能",
+    "weekly_pullback_ma54":   "週K拉回54MA",
     "tmf_ema126_touch":       "微台EMA126觸價",
     "tmf_15m_below_ema60":    "微台15分K跌破EMA60",
 }
