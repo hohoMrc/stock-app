@@ -13,6 +13,7 @@ SCAN_LABELS = {
     "weekly_surge":          "週漲幅急漲",
     "bird_beak":              "鳥嘴與分歧",
     "near_ema60":             "EMA60近線",
+    "near_ema60_refined":     "EMA60近線(精選)",
     "volume_breakout":        "量價突破",
     "institutional_buying":   "法人連買",
     "ema60_breakout":         "EMA60貼線噴出",

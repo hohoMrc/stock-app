@@ -220,6 +220,9 @@ if __name__ == "__main__":
             ema_hits = scan_near_ema60(500, force=True)
             _check_scan_alerts("near_ema60", ema_hits)
             record_signals("near_ema60", ema_hits)
+            # 精選版只記錄訊號跟原版比較成效，不發 TG、不進觀察名單
+            from app.services.stock_data import filter_near_ema60_refined
+            record_signals("near_ema60_refined", filter_near_ema60_refined(ema_hits))
             lines = [
                 _stock_link(s["ticker"], s.get("name", ""), scan="near_ema60")
                 for s in ema_hits

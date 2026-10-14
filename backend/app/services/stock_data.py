@@ -1624,11 +1624,20 @@ def scan_near_ema60(limit: int = 500, force: bool = False) -> list:
             "volume_zhang": round(vol_shares / 1000),
             "ema60":        round(float(ema), 2),
             "dev_pct":      round(dev * 100, 2),
+            "ret5_pct":     round((close / closes[-6] - 1) * 100, 2),  # 近5日漲跌幅，精選版篩選用
         })
         if len(results) >= limit:
             break
     _cache_set(_ranking_cache, cache_key, results)
     return results
+
+
+def filter_near_ema60_refined(hits: list) -> list:
+    """EMA60近線「精選版」：再加兩條——日量 ≥ 5000 張、近5日跌幅 < 2%（慢慢靠近 EMA60，不是急跌下來）。
+    2026-10 用 DB 日K回測 2025/9~2026/9 共 4040 筆：20日勝率 52.7% → 61.5%（前後半年 58.3%/64.1%），
+    訊號數約剩 1/4。先跟原版並行記錄比較實際成效，確定有效再考慮取代原版。
+    """
+    return [h for h in hits if h["volume_zhang"] >= 5000 and h.get("ret5_pct") is not None and h["ret5_pct"] > -2]
 
 
 def scan_volume_breakout(limit: int = 200, vol_mult: float = 3.0, force: bool = False) -> list:
