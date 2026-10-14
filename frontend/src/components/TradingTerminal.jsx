@@ -460,7 +460,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
   );
 
   return (
-    <div className="terminal-wrap" ref={wrapRef}>
+    <div className={`terminal-wrap ${mobileView === "list" ? "terminal-mobile-list" : ""}`} ref={wrapRef}>
       {/* ── 手機：個股頁頂部（返回名單 + 行情/K線 分頁）── */}
       {mobileView !== "list" && selected && (
         <div className="terminal-mobile-switcher">

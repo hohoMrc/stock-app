@@ -2330,6 +2330,16 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   .terminal-hide-mobile { display: none !important; }
   .terminal-left { width: 100% !important; min-width: 0 !important; border-right: none; border-bottom: 1px solid var(--border); }
   .terminal-wrap { flex-direction: column; height: auto; }
+  /* 名單頁：整頁高度剛好等於螢幕（扣掉 header 48px、底部導覽列 56px），頁面本身不捲動，
+     上方分頁列和表頭固定，只有清單在 .tl-table-wrap 裡捲。dvh 才會跟著手機網址列伸縮 */
+  .main-terminal:has(.terminal-mobile-list) { padding-bottom: calc(56px + env(safe-area-inset-bottom)) !important; }
+  .terminal-wrap.terminal-mobile-list {
+    height: calc(100dvh - 48px - 56px - env(safe-area-inset-bottom));
+    overflow: hidden;
+  }
+  .terminal-mobile-list .terminal-left { flex: 1; min-height: 0; border-bottom: none; }
+  .terminal-mobile-list .tl-table-wrap { min-height: 0; }
+
   /* 個股頁頂部：返回鍵 + 股名 + 行情/K線 分頁 */
   .terminal-mobile-switcher { align-items: center; }
   .terminal-mobile-switcher .tms-back { flex: 0 0 auto; padding: 8px 10px; }
