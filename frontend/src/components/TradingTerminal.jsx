@@ -161,9 +161,10 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
   }, [activeTab]);
 
   // 首次進來右側是空的，預設選成交值第一名，避免畫面一開始半邊空白
+  // 只選股、不切手機畫面：手機要停在名單頁，使用者自己點了才進個股頁
   useEffect(() => {
     if (!selected && listData.value.length > 0) {
-      handleSelect(listData.value[0]);
+      setSelected(listData.value[0]);
     }
   }, [listData.value]);
 
