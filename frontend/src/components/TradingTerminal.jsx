@@ -426,7 +426,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
     : listData[activeTab];
 
   return (
-    <div className="terminal-wrap" ref={wrapRef}>
+    <div className={`terminal-wrap ${mobileView === "list" ? "terminal-mobile-list" : ""}`} ref={wrapRef}>
       {/* ── 手機：頂部切換列 ── */}
       <div className="terminal-mobile-switcher">
         <button
