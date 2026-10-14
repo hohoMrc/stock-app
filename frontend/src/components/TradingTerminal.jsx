@@ -85,8 +85,16 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
   const [intradayData, setIntradayData] = useState([]);
   const intradayPollRef                 = useRef(null);
 
-  // 手機版：顯示哪個面板 ("list" | "chart")
+  // 手機版：顯示哪個面板 ("list" 名單 | "quote" 個股行情 | "kline" 個股K線)
   const [mobileView, setMobileView] = useState("list");
+  // 手機版行情頁另外排版（走勢在上、五檔在下），桌機維持原本左下區塊，用 JS 判斷才不會兩邊都 render
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 640px)").matches);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    const onChange = (e) => setIsMobile(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   // ── 可拖曳分隔線（控制右側寬度，左側 flex:1 自然伸縮）────────────────
   const [rightWidth, setRightWidth] = useState(560);
@@ -410,7 +418,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
 
   const handleSelect = (s) => {
     setSelected(s);
-    setMobileView("chart");
+    setMobileView("quote");
   };
 
   const stocks = activeTab === "watch"
@@ -425,24 +433,61 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
       }))
     : listData[activeTab];
 
-  return (
-    <div className={`terminal-wrap ${mobileView === "list" ? "terminal-mobile-list" : ""}`} ref={wrapRef}>
-      {/* ── 手機：頂部切換列 ── */}
-      <div className="terminal-mobile-switcher">
-        <button
-          className={mobileView === "list" ? "active" : ""}
-          onClick={() => setMobileView("list")}
-        >
-          名單
-        </button>
-        <button
-          className={mobileView === "chart" ? "active" : ""}
-          onClick={() => setMobileView("chart")}
-          disabled={!selected}
-        >
-          {selected ? `${selected.ticker} 圖表` : "圖表"}
-        </button>
+  const prevClose = orderbook.close != null && orderbook.change != null ? orderbook.close - orderbook.change : null;
+  // 委買委賣/成交明細分頁：桌機放左下區塊、手機放個股行情頁，兩邊共用
+  const orderbookTabs = (
+    <>
+      <div className="terminal-list-tabs ob-tabs">
+        {[
+          { key: "book",   label: "委買委賣" },
+          { key: "trades", label: "成交明細" },
+        ].map(({ key, label }) => (
+          <button
+            key={key}
+            className={obTab === key ? "active" : ""}
+            onClick={() => setObTab(key)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
+      {obTab === "book" ? (
+        <OrderBook data={orderbook} loading={obLoading} />
+      ) : (
+        <TradeList trades={trades} />
+      )}
+    </>
+  );
+
+  return (
+    <div className="terminal-wrap" ref={wrapRef}>
+      {/* ── 手機：個股頁頂部（返回名單 + 行情/K線 分頁）── */}
+      {mobileView !== "list" && selected && (
+        <div className="terminal-mobile-switcher">
+          <button className="tms-back" onClick={() => setMobileView("list")}>‹ 名單</button>
+          <span className="tms-title">{selected.ticker} {selected.name || ""}</span>
+          {[
+            { key: "quote", label: "行情" },
+            { key: "kline", label: "K線" },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              className={mobileView === key ? "active" : ""}
+              onClick={() => setMobileView(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── 手機：個股行情頁（上：當日走勢，下：委買委賣/成交明細）── */}
+      {isMobile && mobileView === "quote" && selected && (
+        <div className="terminal-mobile-quote">
+          <IntradayMiniChart data={intradayData} prevClose={prevClose} chartHeight={200} />
+          {orderbookTabs}
+        </div>
+      )}
 
       {/* ── 左側：股票清單 ── */}
       <div className={`terminal-left ${mobileView !== "list" ? "terminal-hide-mobile" : ""}`}>
@@ -573,35 +618,12 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
           )}
         </div>
 
-        {/* ── 委買委賣/成交明細（分頁切換）+ 當日走勢（選股後顯示）── */}
-        {selected && (
+        {/* ── 委買委賣/成交明細（分頁切換）+ 當日走勢（桌機，選股後顯示；手機放在個股行情頁）── */}
+        {selected && !isMobile && (
           <div className="terminal-orderbook">
             <div className="ob-panels">
-              <div className="ob-left-col">
-                <div className="terminal-list-tabs ob-tabs">
-                  {[
-                    { key: "book",   label: "委買委賣" },
-                    { key: "trades", label: "成交明細" },
-                  ].map(({ key, label }) => (
-                    <button
-                      key={key}
-                      className={obTab === key ? "active" : ""}
-                      onClick={() => setObTab(key)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {obTab === "book" ? (
-                  <OrderBook data={orderbook} loading={obLoading} />
-                ) : (
-                  <TradeList trades={trades} />
-                )}
-              </div>
-              <IntradayMiniChart
-                data={intradayData}
-                prevClose={orderbook.close != null && orderbook.change != null ? orderbook.close - orderbook.change : null}
-              />
+              <div className="ob-left-col">{orderbookTabs}</div>
+              <IntradayMiniChart data={intradayData} prevClose={prevClose} />
             </div>
           </div>
         )}
@@ -613,7 +635,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
       {/* ── 右側：圖表 ── */}
       <div
         ref={rightRef}
-        className={`terminal-right ${mobileView !== "chart" ? "terminal-hide-mobile" : ""}`}
+        className={`terminal-right ${mobileView !== "kline" ? "terminal-hide-mobile" : ""}`}
         style={{ width: rightWidth, minWidth: 0 }}
       >
         {selected ? (
@@ -754,7 +776,7 @@ function OrderBook({ data, loading }) {
   );
 }
 
-function IntradayMiniChart({ data, prevClose }) {
+function IntradayMiniChart({ data, prevClose, chartHeight = 110 }) {
   const yDomain = (() => {
     if (!data.length) return ["auto", "auto"];
     const values = data.flatMap((d) => [d.price, d.average]).filter((v) => v != null);
@@ -780,7 +802,7 @@ function IntradayMiniChart({ data, prevClose }) {
       <div className="ob-title" style={{ marginBottom: 6 }}>當日走勢</div>
       {data.length > 0 ? (
         <>
-          <ResponsiveContainer width="100%" height={110}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
             <LineChart data={displayData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="terminalIntradayColor" x1="0" y1="0" x2="0" y2="1">

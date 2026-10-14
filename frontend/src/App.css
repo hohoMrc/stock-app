@@ -2330,16 +2330,21 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   .terminal-hide-mobile { display: none !important; }
   .terminal-left { width: 100% !important; min-width: 0 !important; border-right: none; border-bottom: 1px solid var(--border); }
   .terminal-wrap { flex-direction: column; height: auto; }
-  /* 名單畫面：整頁剛好塞滿螢幕（扣掉 header 48px、底部導覽列 56px），頁面本身不捲動，
-     上方切換列/分頁和下方委買委賣＋當日走勢都固定，只有中間清單捲動。用 dvh 才會扣掉手機瀏覽器網址列 */
-  .main-terminal:has(.terminal-mobile-list) { padding-bottom: calc(56px + env(safe-area-inset-bottom)) !important; }
-  .terminal-wrap.terminal-mobile-list {
-    height: calc(100dvh - 48px - 56px - env(safe-area-inset-bottom));
-    overflow: hidden;
+  /* 個股頁頂部：返回鍵 + 股名 + 行情/K線 分頁 */
+  .terminal-mobile-switcher { align-items: center; }
+  .terminal-mobile-switcher .tms-back { flex: 0 0 auto; padding: 8px 10px; }
+  .terminal-mobile-switcher .tms-title {
+    flex: 1; min-width: 0; font-size: 14px; font-weight: 600; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .terminal-mobile-list .terminal-left { flex: 1; min-height: 0; border-bottom: none; }
-  .terminal-mobile-list .tl-table-wrap { min-height: 0; }
-  .terminal-mobile-list .terminal-orderbook { box-shadow: 0 -4px 12px rgba(0,0,0,0.25); }
+  .terminal-mobile-switcher button:not(.tms-back) { flex: 0 0 auto; padding: 8px 14px; }
+  /* 個股行情頁：五檔版面寬，委買委賣左右並排 */
+  .terminal-mobile-quote { background: var(--bg-card); }
+  .terminal-mobile-quote .intraday-mini-wrap { border-bottom: 1px solid var(--border); }
+  .terminal-mobile-quote .ob-grid { flex-direction: row; gap: 12px; }
+  .terminal-mobile-quote .ob-bid-col { border-bottom: none; }
+  /* 行情頁整頁可捲，成交明細不用再框在 150px 小格子裡 */
+  .terminal-mobile-quote .tradelist-scroll { max-height: 50vh; }
   .terminal-right { width: 100% !important; min-width: 0 !important; min-height: 0; }
   .terminal-chart-area { min-height: 200px; }
   .ob-grid { flex-direction: column; gap: 0; }
