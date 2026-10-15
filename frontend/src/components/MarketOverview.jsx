@@ -9,6 +9,8 @@ const SCAN_LABELS = {
   institutional_buying:  "🏦 法人連買",
 };
 
+const upDown = (v) => (v > 0 ? "up" : v < 0 ? "down" : "");
+
 function fmtSigned(v, suffix = "") {
   if (v == null) return "—";
   const sign = v > 0 ? "+" : "";
@@ -71,7 +73,9 @@ function BreadthAndInstitutional({ breadth, institutional }) {
           <div className="info-item" key={key}>
             <span className="info-label">{label}買賣超(億)</span>
             <span className={`info-value ${v > 0 ? "up" : v < 0 ? "down" : ""}`}>{fmtSigned(v)}</span>
-            <span className="info-label">上市 {fmtSigned(tw)}／上櫃 {fmtSigned(tp)}</span>
+            <span className="info-label">
+              上市 <span className={upDown(tw)}>{fmtSigned(tw)}</span>／上櫃 <span className={upDown(tp)}>{fmtSigned(tp)}</span>
+            </span>
           </div>
         );
       })}
