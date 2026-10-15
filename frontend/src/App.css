@@ -2571,6 +2571,9 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .paper-position-row { cursor: pointer; }
 .info-value.up   { color: var(--up); }
 .info-value.down { color: var(--down); }
+/* 三大法人格子下方「上市／上櫃」小字的數字 */
+.info-label .up   { color: var(--up); }
+.info-label .down { color: var(--down); }
 
 /* ── 台指期頁面：快速下單面板 ── */
 .quick-order-panel { margin: 10px 0 16px; }
