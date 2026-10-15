@@ -59,24 +59,22 @@ function BreadthAndInstitutional({ breadth, institutional }) {
         </span>
         <span className="info-label">平盤 {b.flat ?? "—"}</span>
       </div>
-      <div className="info-item">
-        <span className="info-label">外資買賣超(張)</span>
-        <span className={`info-value ${i.foreign_net_zhang > 0 ? "up" : i.foreign_net_zhang < 0 ? "down" : ""}`}>
-          {fmtSigned(i.foreign_net_zhang)}
-        </span>
-      </div>
-      <div className="info-item">
-        <span className="info-label">投信買賣超(張)</span>
-        <span className={`info-value ${i.trust_net_zhang > 0 ? "up" : i.trust_net_zhang < 0 ? "down" : ""}`}>
-          {fmtSigned(i.trust_net_zhang)}
-        </span>
-      </div>
-      <div className="info-item">
-        <span className="info-label">自營商買賣超(張)</span>
-        <span className={`info-value ${i.dealer_net_zhang > 0 ? "up" : i.dealer_net_zhang < 0 ? "down" : ""}`}>
-          {fmtSigned(i.dealer_net_zhang)}
-        </span>
-      </div>
+      {[
+        { key: "foreign", label: "外資" },
+        { key: "trust",   label: "投信" },
+        { key: "dealer",  label: "自營商" },
+      ].map(({ key, label }) => {
+        const v = i[`${key}_net_yi`];
+        const tw = i[`${key}_net_yi_twse`];
+        const tp = i[`${key}_net_yi_tpex`];
+        return (
+          <div className="info-item" key={key}>
+            <span className="info-label">{label}買賣超(億)</span>
+            <span className={`info-value ${v > 0 ? "up" : v < 0 ? "down" : ""}`}>{fmtSigned(v)}</span>
+            <span className="info-label">上市 {fmtSigned(tw)}／上櫃 {fmtSigned(tp)}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }

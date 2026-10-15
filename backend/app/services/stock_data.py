@@ -2986,21 +2986,65 @@ def get_taiex_quote() -> dict:
     return result
 
 
+def _institutional_amounts_twse(today: date) -> dict | None:
+    """上市三大法人買賣差額（元），TWSE BFI82U 官方統計，收盤後約 15:00 公布。"""
+    resp = requests.get(
+        "https://www.twse.com.tw/rwd/zh/fund/BFI82U",
+        params={"type": "day", "dayDate": today.strftime("%Y%m%d"), "response": "json"},
+        timeout=15, headers=_TWSE_HEADERS,
+    )
+    data = resp.json()
+    if data.get("stat") != "OK":
+        return None
+    net = {row[0]: _parse_num(row[3]) or 0 for row in data.get("data", [])}
+    return {
+        "foreign": net.get("外資及陸資(不含外資自營商)", 0) + net.get("外資自營商", 0),
+        "trust":   net.get("投信", 0),
+        "dealer":  net.get("自營商(自行買賣)", 0) + net.get("自營商(避險)", 0),
+    }
+
+
+def _institutional_amounts_tpex(today: date) -> dict | None:
+    """上櫃三大法人買賣差額（元），TPEx 官方統計。這支 API 只回最新一天，日期不是今天就當沒資料。"""
+    rows = _tpex_get("https://www.tpex.org.tw/openapi/v1/tpex_3insti_summary", timeout=15).json()
+    roc_today = f"{today.year - 1911}{today.strftime('%m%d')}"
+    # Investor 欄位子項目前面有全形空白縮排，要 strip 掉再比對
+    net = {r["Investor"].strip(): _parse_num(r["Net"]) or 0 for r in rows if r.get("Date") == roc_today}
+    if not net:
+        return None
+    return {
+        "foreign": net.get("外資及陸資合計", 0),
+        "trust":   net.get("投信", 0),
+        "dealer":  net.get("自營商合計", 0),
+    }
+
+
 def get_institutional_summary() -> dict:
-    """今日三大法人（外資/投信/自營商）全市場買賣超合計（張），供大盤狀態首頁使用。
-    盤中 TWSE T86 常常還沒公布當天資料，欄位會是 None，前端要處理缺值。5分鐘快取。
+    """今日三大法人（外資/投信/自營商）買賣超金額（億元），上市 + 上櫃，供大盤狀態首頁使用。
+    用交易所官方的金額統計（不是逐檔張數 × 股價估算），收盤後約 15:00 才公布，
+    之前欄位會是 None，前端要處理缺值。上市/上櫃任一邊還沒公布時合計也給 None，避免只加到一半。5分鐘快取。
     """
     cached = _cache_get(_ranking_cache, "institutional_summary", RANKING_TTL)
     if cached is not None:
         return cached
 
-    rows = fetch_institutional_trades_today()
-    result = {
-        "date":               date.today().strftime("%Y-%m-%d"),
-        "foreign_net_zhang":  round(sum(r["foreign_net"] for r in rows) / 1000) if rows else None,
-        "trust_net_zhang":    round(sum(r["trust_net"]   for r in rows) / 1000) if rows else None,
-        "dealer_net_zhang":   round(sum(r["dealer_net"]  for r in rows) / 1000) if rows else None,
-    }
+    today = date.today()
+    markets = {}
+    for key, fn in (("twse", _institutional_amounts_twse), ("tpex", _institutional_amounts_tpex)):
+        try:
+            markets[key] = fn(today)
+        except Exception as e:
+            print(f"[三大法人金額] {key} 失敗: {e}")
+            markets[key] = None
+
+    yi = lambda v: round(v / 1e8, 2)   # 元 → 億元
+    result = {"date": today.strftime("%Y-%m-%d")}
+    for who in ("foreign", "trust", "dealer"):
+        tw = markets["twse"][who] if markets["twse"] else None
+        tp = markets["tpex"][who] if markets["tpex"] else None
+        result[f"{who}_net_yi"]      = yi(tw + tp) if tw is not None and tp is not None else None
+        result[f"{who}_net_yi_twse"] = yi(tw) if tw is not None else None
+        result[f"{who}_net_yi_tpex"] = yi(tp) if tp is not None else None
     _cache_set(_ranking_cache, "institutional_summary", result)
     return result
 
