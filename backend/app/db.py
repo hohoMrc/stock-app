@@ -529,6 +529,17 @@ def get_ticker_revenue_history(ticker: str, limit: int = 12) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def get_ticker_revenue_series(ticker: str, since_ym: str) -> list[dict]:
+    """單一 ticker 從 since_ym 起的月營收（舊到新），給個股頁「月營收 vs 股價」圖用。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT ym, rev, mom_pct, yoy_pct, cum_yoy_pct FROM monthly_revenue "
+            "WHERE ticker=? AND ym>=? ORDER BY ym",
+            (ticker, since_ym),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_parent_industry(ticker: str) -> str | None:
     """回傳 ticker 在 stock_meta 裡的 parent_industry（TWSE 大分類）。"""
     with _conn() as conn:

@@ -230,3 +230,39 @@ def get_revenue_industry(ym: str | None = None, market: str | None = None) -> di
         out.append(a)
     out.sort(key=lambda x: (x["yoy_pct"] is not None, x["yoy_pct"] or 0), reverse=True)
     return {"ym": board["ym"], "industries": out}
+
+
+REVENUE_CHART_SINCE = "2016-01"   # 個股營收圖起始月（MOPS 歷史回補到這裡）
+_ticker_chart_cache: dict = {}
+TICKER_CHART_TTL = 3600
+
+
+def get_ticker_revenue_chart(ticker: str) -> dict:
+    """個股「月營收 vs 股價」：每月營收（千元）+ 當月最後一個交易日收盤價。
+    股價用 DB 日K；不夠早的先跟 Fugle 往前補（第一次看這檔會慢幾秒，之後直接讀 DB）。
+    """
+    cached = _ticker_chart_cache.get(ticker)
+    if cached and time.time() - cached[0] < TICKER_CHART_TTL:
+        return cached[1]
+
+    from datetime import date
+    from app.db import get_ticker_revenue_series, get_candles
+    from app.services.stock_data import _backfill_older_candles
+
+    revs = get_ticker_revenue_series(ticker, REVENUE_CHART_SINCE)
+    start = date.fromisoformat(f"{revs[0]['ym'] if revs else REVENUE_CHART_SINCE}-01")
+    try:
+        _backfill_older_candles(ticker, start)
+    except Exception as e:
+        # 補不到（例如 DB 被鎖）就用現有的，只是早期月份沒有股價
+        print(f"[營收圖] {ticker} 往前補日K失敗: {e}")
+
+    month_close: dict = {}
+    for c in get_candles(ticker, start.isoformat(), date.today().isoformat()):
+        if c.get("close") is not None:
+            month_close[c["date"][:7]] = c["close"]   # 依日期排序，最後覆蓋的就是月底收盤
+
+    rows = [{**r, "price": month_close.get(r["ym"])} for r in revs]
+    result = {"ticker": ticker, "rows": rows}
+    _ticker_chart_cache[ticker] = (time.time(), result)
+    return result

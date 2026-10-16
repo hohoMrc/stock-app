@@ -39,6 +39,7 @@ export const scanInstitutionalBuying = (minDays = 3, limit = 200, minTotalNetZha
 // 月營收佈告欄
 export const getRevenueBoard = (ym) => api.get("/api/revenue", { params: ym ? { ym } : {} });
 export const getRevenueMeta = () => api.get("/api/revenue/meta");
+export const getTickerRevenue = (ticker) => api.get(`/api/revenue/ticker/${ticker}`);
 export const getRevenueIndustry = (ym, market) => api.get("/api/revenue/industry", { params: { ...(ym ? { ym } : {}), ...(market ? { market } : {}) } });
 export const getIndustryStocks = (industry, exclude, useParent = false) =>
   api.get(`/api/stocks/industry/${encodeURIComponent(industry)}`, { params: { exclude, use_parent: useParent } });

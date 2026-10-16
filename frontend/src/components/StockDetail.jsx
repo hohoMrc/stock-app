@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, ReferenceDot } from "recharts";
+import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, ReferenceDot, ComposedChart, Legend } from "recharts";
 import CandlestickChart from "./CandlestickChart";
 import AlertModal from "./AlertModal";
-import { getStock, getStockLiveQuote, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart, getIntradayCandles } from "../api";
+import { getStock, getStockLiveQuote, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart, getIntradayCandles, getTickerRevenue } from "../api";
 import { isTradingHours } from "../marketHours";
 import { mergeLiveBar, mergeIntradayBars } from "../chartUtils";
 
@@ -62,6 +62,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   const pollRef = useRef(null);
   const lastTickerRef = useRef(null);
   const [instTrades, setInstTrades] = useState([]);
+  const [revenue, setRevenue] = useState(null);   // null = 載入中
   const [instLoading, setInstLoading] = useState(false);
   const [intradayData, setIntradayData] = useState([]);
   const [intradayLoading, setIntradayLoading] = useState(false);
@@ -135,10 +136,14 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
     return () => { alive = false; clearInterval(pollRef.current); };
   }, [ticker, interval]);
 
-  // 三大法人買賣超（近30天，只需在切換股票時抓一次，不用跟報價一樣輪詢）
+  // 三大法人買賣超（近30天）＋月營收，只需在切換股票時抓一次，不用跟報價一樣輪詢
   useEffect(() => {
     let alive = true;
     setInstLoading(true);
+    setRevenue(null);
+    getTickerRevenue(ticker)
+      .then((res) => { if (alive) setRevenue(res.data.rows); })
+      .catch(() => { if (alive) setRevenue([]); });
     getInstitutionalTrades(ticker, 30)
       .then((res) => { if (alive) setInstTrades(res.data.records); })
       .catch(() => { if (alive) setInstTrades([]); })
@@ -285,6 +290,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
           { key: "quote",   label: "行情" },
           { key: "kline",   label: "K線" },
           { key: "inst",    label: "法人" },
+          { key: "rev",     label: "營收" },
           { key: "ai",      label: "AI分析" },
         ].map(({ key, label }) => (
           <button key={key} className={mobileTab === key ? "active" : ""} onClick={() => setMobileTab(key)}>
@@ -548,6 +554,8 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         </div>
       )}
 
+      <RevenueSection rows={revenue} active={mobileTab === "rev"} />
+
       <div className={`analysis-section tab-ai ${mobileTab === "ai" ? "mobile-active" : ""}`}>
         <div className="analysis-header">
           <h3>AI 分析</h3>
@@ -616,5 +624,62 @@ function PriceBadge({ value, color, dy = 0, viewBox }) {
       <rect width={w} height={16} rx={3} fill={color} />
       <text x={w / 2} y={11} textAnchor="middle" fontSize={10} fontWeight={700} fill="#04202b">{label}</text>
     </g>
+  );
+}
+
+
+// 月營收 vs 股價：綠色柱是月營收（億，右軸）、橘線是月底收盤價（左軸），下方列近 12 個月明細
+function RevenueSection({ rows, active }) {
+  const data = useMemo(
+    () => (rows || []).map((r) => ({ ...r, revYi: r.rev != null ? Math.round(r.rev / 1000) / 100 : null })),  // 千元 → 億
+    [rows],
+  );
+  const recent = data.slice(-12).reverse();
+  const pctCls = (v) => (v > 0 ? "up" : v < 0 ? "down" : "");
+  const fmtPct = (v) => (v == null ? "—" : `${v > 0 ? "+" : ""}${v}%`);
+
+  return (
+    <div className={`institutional-section tab-rev ${active ? "mobile-active" : ""}`}>
+      <h3>月營收 vs 股價{data.length > 0 && `（${data[0].ym.replace("-", "/")} 起）`}</h3>
+      {rows == null ? (
+        <p className="no-data">載入中...（第一次看這檔要補歷史股價，可能要幾秒）</p>
+      ) : data.length === 0 ? (
+        <p className="no-data">沒有月營收資料（ETF、金融股或新上市可能沒有）</p>
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={280}>
+            <ComposedChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+              <XAxis dataKey="ym" tick={{ fontSize: 11 }} minTickGap={40} tickFormatter={(v) => v.replace("-", "/")} />
+              <YAxis yAxisId="price" tick={{ fontSize: 11 }} width={44} />
+              <YAxis yAxisId="rev" orientation="right" tick={{ fontSize: 11 }} width={44} tickFormatter={(v) => `${v}億`} />
+              <Tooltip
+                labelFormatter={(l) => l.replace("-", "/")}
+                formatter={(v, name) => (name === "月營收" ? [`${v} 億`, name] : [v, name])}
+              />
+              <Legend />
+              <Bar yAxisId="rev" dataKey="revYi" name="月營收" fill="#4ade80" />
+              <Line yAxisId="price" dataKey="price" name="月股價" stroke="#f59e0b" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+          <table className="inst-table">
+            <thead>
+              <tr><th>年月</th><th>營收(億)</th><th>月增</th><th>年增</th><th>累計年增</th></tr>
+            </thead>
+            <tbody>
+              {recent.map((r) => (
+                <tr key={r.ym}>
+                  <td>{r.ym.replace("-", "/")}</td>
+                  <td>{r.revYi ?? "—"}</td>
+                  <td className={pctCls(r.mom_pct)}>{fmtPct(r.mom_pct)}</td>
+                  <td className={pctCls(r.yoy_pct)}>{fmtPct(r.yoy_pct)}</td>
+                  <td className={pctCls(r.cum_yoy_pct)}>{fmtPct(r.cum_yoy_pct)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
   );
 }

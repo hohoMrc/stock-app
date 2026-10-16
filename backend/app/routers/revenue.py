@@ -5,6 +5,7 @@ from app.services.revenue_data import (
     get_revenue_board,
     get_revenue_industry,
     get_revenue_months,
+    get_ticker_revenue_chart,
 )
 
 router = APIRouter(prefix="/api/revenue", tags=["revenue"])
@@ -38,5 +39,14 @@ async def revenue_industry(
     """產業成長榜。"""
     try:
         return await run_in_threadpool(get_revenue_industry, ym, market)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ticker/{ticker}")
+async def revenue_ticker(ticker: str):
+    """個股月營收（2016 起）+ 每月收盤價，給個股頁「月營收 vs 股價」圖。"""
+    try:
+        return await run_in_threadpool(get_ticker_revenue_chart, ticker)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

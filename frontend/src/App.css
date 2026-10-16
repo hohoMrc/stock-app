@@ -2169,9 +2169,9 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
     color: #04202b;
   }
 
-  .tab-quote, .tab-kline, .tab-inst, .tab-ai { display: none; }
+  .tab-quote, .tab-kline, .tab-inst, .tab-rev, .tab-ai { display: none; }
   .tab-quote.mobile-active, .tab-kline.mobile-active, .tab-inst.mobile-active,
-  .tab-ai.mobile-active { display: block; }
+  .tab-rev.mobile-active, .tab-ai.mobile-active { display: block; }
   .info-grid.tab-quote.mobile-active { display: grid; }
 
   /* 開盤/最高/最低/振幅/成交量簡易統計列 */
