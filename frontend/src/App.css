@@ -2172,6 +2172,9 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   .tab-quote, .tab-kline, .tab-inst, .tab-rev, .tab-ai { display: none; }
   .tab-quote.mobile-active, .tab-kline.mobile-active, .tab-inst.mobile-active,
   .tab-rev.mobile-active, .tab-ai.mobile-active { display: block; }
+  /* 個股營收明細：手機欄位窄，整欄置中比靠右好讀 */
+  .rev-table th, .rev-table td,
+  .rev-table th:first-child, .rev-table td:first-child { text-align: center; padding: 6px 4px; }
   .info-grid.tab-quote.mobile-active { display: grid; }
 
   /* 開盤/最高/最低/振幅/成交量簡易統計列 */

@@ -662,7 +662,7 @@ function RevenueSection({ rows, active }) {
               <Line yAxisId="price" dataKey="price" name="月股價" stroke="#f59e0b" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
-          <table className="inst-table">
+          <table className="inst-table rev-table">
             <thead>
               <tr><th>年月</th><th>營收(億)</th><th>月增</th><th>年增</th><th>累計年增</th></tr>
             </thead>
