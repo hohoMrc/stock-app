@@ -25,13 +25,16 @@
 # 專案背景（台股分析工具）
 
 ## 架構概覽
-- **後端**：Python，跑在 AWS EC2（`hoho-stock.duckdns.org`，東京區，IP `13.231.218.149`）
+- **後端**：Python，跑在家用地端主機（內網 `192.168.10.120`，需 VPN 才連得到 SSH）
+  - 對外網址 `https://stock-api.holin.cc`，走 Cloudflare Tunnel（cloudflared → Caddy `127.0.0.1:8080`）
+  - 舊網址 `hoho-stock.duckdns.org:8443`（FortiGate 轉發）過渡期仍保留
+- **前端網址**：`https://stock.holin.cc`（Vercel）
 - **前端**：React (Vite)，部署在 Vercel，連到上面的 AWS 後端
 - **Git repo**：`hohoMrc/stock-app`，push 後 Vercel 自動更新前端；後端需 SSH 進 AWS 手動 git pull + restart
 
 ## 部署指令（後端）
 ```bash
-ssh -i ~/.ssh/stock-key ubuntu@13.231.218.149 "cd /home/ubuntu/stock-app && git pull && sudo systemctl restart stock-app"
+ssh -i ~/.ssh/stock-key hoholin@192.168.10.120 "cd ~/stock-app && git pull && sudo systemctl restart stock-app"
 ```
 
 ## EC2 主機環境
