@@ -44,7 +44,7 @@ def _tg_notify(text: str, html: bool = False):
             print(f"[TG] 通知失敗 (chat_id={chat_id}): {e}")
 
 
-SITE_URL = "https://stock-app-lilac-nine.vercel.app"
+SITE_URL = "https://stock.holin.cc"
 SIDE_LABEL = {"buy": "買進", "sell": "賣出"}
 
 

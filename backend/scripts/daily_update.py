@@ -14,7 +14,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "../.env"))
 
 import urllib.request, urllib.parse, json as _json
 
-SITE_URL = "https://stock-app-lilac-nine.vercel.app"
+SITE_URL = "https://stock.holin.cc"
 
 def _tg_chat_ids() -> list:
     """通知目標：個人 + 群組（TELEGRAM_GROUP_CHAT_ID 未設定時只發個人）。"""

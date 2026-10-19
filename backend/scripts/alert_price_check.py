@@ -14,7 +14,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "../.env"))
 import urllib.request
 import urllib.parse
 
-SITE_URL = "https://stock-app-lilac-nine.vercel.app"
+SITE_URL = "https://stock.holin.cc"
 
 
 def _tg_chat_ids() -> list:

@@ -13,7 +13,7 @@ import urllib.request
 import urllib.parse
 
 
-SITE_URL = "https://stock-app-lilac-nine.vercel.app"
+SITE_URL = "https://stock.holin.cc"
 
 def _tg_chat_ids() -> list:
     """通知目標：個人 + 群組（TELEGRAM_GROUP_CHAT_ID 未設定時只發個人）。"""
