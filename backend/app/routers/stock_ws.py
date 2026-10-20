@@ -69,3 +69,32 @@ async def stocks_ws(websocket: WebSocket, symbols: str):
     finally:
         for sym in added:
             remove_ws_listener(sym, queue)
+
+
+@router.websocket("/ws/index")
+async def index_ws(websocket: WebSocket, symbol: str = "IX0001"):
+    """指數即時推播（大盤狀態的加權指數，富邦約每 5 秒推一次）。"""
+    await websocket.accept()
+    loop  = asyncio.get_event_loop()
+    queue = asyncio.Queue()
+    queue._loop = loop
+    try:
+        await asyncio.to_thread(add_ws_listener, symbol, queue, ("indices",))
+    except Exception as e:
+        print(f"[WS] add_ws_listener 失敗（{symbol}）: {e}")
+    try:
+        while True:
+            try:
+                data = await asyncio.wait_for(queue.get(), timeout=25)
+                await websocket.send_json(data)
+            except asyncio.TimeoutError:
+                try:
+                    await websocket.send_json({"event": "keepalive"})
+                except Exception:
+                    break
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        remove_ws_listener(symbol, queue)

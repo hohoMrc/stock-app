@@ -3385,6 +3385,7 @@ import asyncio
 import json as _json
 
 _ws_queues: dict[str, set] = {}   # symbol → set of asyncio.Queue（每個連線一個 queue）
+_ws_channels: dict[str, tuple] = {}   # symbol → 訂閱的 channels（股票 trades+books、指數 indices）
 _ws_lock = threading.Lock()
 _ws_stock = None   # Fubon WS stock client（全域共用，訂閱 trades + books）
 
@@ -3446,16 +3447,17 @@ def _get_ws_stock():
     return _ws_stock
 
 
-def add_ws_listener(symbol: str, queue: "asyncio.Queue") -> None:
-    """前端 WebSocket 連線進來時，把 queue 登記到 symbol 訂閱（trades + books）。"""
+def add_ws_listener(symbol: str, queue: "asyncio.Queue", channels: tuple = ("trades", "books")) -> None:
+    """前端 WebSocket 連線進來時，把 queue 登記到 symbol 訂閱（預設 trades + books；指數用 indices）。"""
     stock = _get_ws_stock()
     with _ws_lock:
         if symbol not in _ws_queues:
             _ws_queues[symbol] = set()
+            _ws_channels[symbol] = channels
             for attempt in range(2):
                 try:
-                    stock.subscribe({"channel": "trades", "symbol": symbol})
-                    stock.subscribe({"channel": "books",  "symbol": symbol})
+                    for ch in channels:
+                        stock.subscribe({"channel": ch, "symbol": symbol})
                     print(f"[Fubon WS] 訂閱股票 {symbol} 成功")
                     break
                 except Exception as e:
@@ -3475,10 +3477,11 @@ def remove_ws_listener(symbol: str, queue: "asyncio.Queue") -> None:
         if listeners:
             return
         del _ws_queues[symbol]
+        channels = _ws_channels.pop(symbol, ("trades", "books"))
         stock = _ws_stock
     if stock is not None:
         try:
-            stock.unsubscribe({"channel": "trades", "symbol": symbol})
-            stock.unsubscribe({"channel": "books",  "symbol": symbol})
+            for ch in channels:
+                stock.unsubscribe({"channel": ch, "symbol": symbol})
         except Exception as e:
             print(f"[Fubon WS] unsubscribe {symbol} 失敗（略過）: {e}")
