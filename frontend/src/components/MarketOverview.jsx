@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { getMarketOverview, getIndustryTopMovers, getWeeklyCalendar, getPremarketNews, getTodayFocus, getTodayFocusSummary } from "../api";
 import { hasTodayCloseData } from "../marketHours";
 
+const WS_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000")
+  .replace(/^http/, "ws");
+
 const SCAN_LABELS = {
   near_ema60:            "📈 EMA60近線",
   volume_breakout:       "💥 量價突破",
@@ -42,6 +45,7 @@ function TaiexCard({ taiex }) {
       </div>
       <div className="futures-quote-detail">
         <span>昨收 <b>{taiex.prev_close?.toLocaleString() ?? "—"}</b></span>
+        {taiex.live_time && <span className="taiex-live">● 即時 {taiex.live_time}</span>}
       </div>
     </div>
   );
@@ -339,6 +343,38 @@ export default function MarketOverview({ onSelect, onSelectIndustry, onNavigate 
 
   useEffect(() => { load(); }, []);
 
+  // 加權指數 WebSocket 即時推播（富邦 indices，約 5 秒一筆）；只帶點位，漲跌用 REST 回來的昨收算
+  const [liveTaiex, setLiveTaiex] = useState(null);
+  const [wsKey, setWsKey] = useState(0);
+  useEffect(() => {
+    const ws = new WebSocket(`${WS_BASE}/ws/index?symbol=IX0001`);
+    ws.onmessage = (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        if (d.channel !== "indices" || d.index == null) return;
+        const time = d.time
+          ? new Date(d.time / 1000).toLocaleTimeString("zh-TW", { hour12: false, timeZone: "Asia/Taipei" })
+          : null;
+        setLiveTaiex({ price: d.index, time });
+      } catch (_) {}
+    };
+    ws.onclose = () => setTimeout(() => setWsKey((k) => k + 1), 3000);   // 斷線 3 秒後重連
+    return () => { ws.onclose = null; ws.close(); };
+  }, [wsKey]);
+
+  const taiex = (() => {
+    const base = data?.taiex;
+    if (!liveTaiex || !base?.prev_close) return base;
+    const change = Math.round((liveTaiex.price - base.prev_close) * 100) / 100;
+    return {
+      ...base,
+      price: liveTaiex.price,
+      change,
+      change_pct: Math.round(change / base.prev_close * 10000) / 100,
+      live_time: liveTaiex.time,
+    };
+  })();
+
   return (
     <div className="page market-overview-page">
       <div className="ranking-header">
@@ -353,7 +389,7 @@ export default function MarketOverview({ onSelect, onSelectIndustry, onNavigate 
 
       {data && (
         <>
-          <TaiexCard taiex={data.taiex} />
+          <TaiexCard taiex={taiex} />
           <BreadthAndInstitutional breadth={data.breadth} institutional={data.institutional} />
 
           <div className="market-overview-cols">

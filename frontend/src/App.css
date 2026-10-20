@@ -2378,6 +2378,7 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .futures-price.down, .futures-change.down { color: #22c55e; }
 .futures-quote-detail { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--text-muted); }
 .futures-quote-detail b { color: var(--text); }
+.futures-quote-detail .taiex-live { color: #60a5fa; font-size: 12px; }
 .futures-quote-detail b.up   { color: #ef4444; }
 .futures-quote-detail b.down { color: #22c55e; }
 .futures-quote-loading { padding: 16px; color: var(--text-muted); }
