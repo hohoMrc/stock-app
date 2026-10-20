@@ -172,6 +172,12 @@ const shiftTime = (t) => (typeof t === "number" ? t + TW_OFFSET : t);
 // 不能用 local getHours() 之類的（瀏覽器時區不是 UTC+8 時會算錯）。
 function fmtFuturesTime(shiftedSec, intraday) {
   if (shiftedSec == null) return "—";
+  // 日K 的 time 是 "YYYY-MM-DD" 字串（或 BusinessDay 物件），不是 unix 秒數
+  if (typeof shiftedSec === "string") return shiftedSec;
+  if (typeof shiftedSec === "object") {
+    const { year, month, day } = shiftedSec;
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
   const d   = new Date(shiftedSec * 1000);
   const pad = (n) => String(n).padStart(2, "0");
   const dateStr = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
