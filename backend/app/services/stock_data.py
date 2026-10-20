@@ -2962,27 +2962,50 @@ def get_market_breadth(force: bool = False) -> dict:
     return {"up": up, "down": down, "flat": flat, "total": len(quotes)}
 
 
+TAIEX_TTL = 30  # 加權指數盤中跳動快，快取只留 30 秒
+
+
 def get_taiex_quote() -> dict:
-    """加權指數（^TWII）即時報價，5分鐘快取。"""
-    cached = _cache_get(_ranking_cache, "taiex_quote", RANKING_TTL)
+    """加權指數即時報價：優先 Fugle IX0001（即時），失敗才退回 yfinance ^TWII（延遲且盤中常不準）。"""
+    cached = _cache_get(_ranking_cache, "taiex_quote", TAIEX_TTL)
     if cached is not None:
         return cached
 
     result = {"price": None, "prev_close": None, "change": None, "change_pct": None}
     try:
-        hist = yf.Ticker("^TWII").history(period="5d", interval="1d")
-        if hist.index.tz is not None:
-            hist.index = hist.index.tz_localize(None)
-        if len(hist) >= 1:
-            price      = round(float(hist.iloc[-1]["Close"]), 2)
-            prev_close = round(float(hist.iloc[-2]["Close"]), 2) if len(hist) >= 2 else None
-            change     = round(price - prev_close, 2) if prev_close else None
-            change_pct = round(change / prev_close * 100, 2) if change is not None and prev_close else None
-            result = {"price": price, "prev_close": prev_close, "change": change, "change_pct": change_pct}
+        if _get_fugle():
+            resp = _call_fugle(lambda c: c.stock.intraday.quote(symbol="IX0001"))
+            data = resp.get("data", resp) if isinstance(resp, dict) else {}
+            price = data.get("closePrice") or data.get("lastPrice")
+            prev_close = data.get("previousClose")
+            if price and prev_close:
+                change = round(price - prev_close, 2)
+                result = {
+                    "price": round(float(price), 2),
+                    "prev_close": round(float(prev_close), 2),
+                    "change": change,
+                    "change_pct": round(change / prev_close * 100, 2),
+                }
     except Exception as e:
-        print(f"[TAIEX] 抓取失敗: {e}")
+        print(f"[TAIEX] Fugle 抓取失敗，改用 yfinance: {e}")
 
-    _cache_set(_ranking_cache, "taiex_quote", result)
+    if result["price"] is None:
+        try:
+            hist = yf.Ticker("^TWII").history(period="5d", interval="1d")
+            if hist.index.tz is not None:
+                hist.index = hist.index.tz_localize(None)
+            if len(hist) >= 1:
+                price      = round(float(hist.iloc[-1]["Close"]), 2)
+                prev_close = round(float(hist.iloc[-2]["Close"]), 2) if len(hist) >= 2 else None
+                change     = round(price - prev_close, 2) if prev_close else None
+                change_pct = round(change / prev_close * 100, 2) if change is not None and prev_close else None
+                result = {"price": price, "prev_close": prev_close, "change": change, "change_pct": change_pct}
+        except Exception as e:
+            print(f"[TAIEX] yfinance 抓取失敗: {e}")
+
+    # 抓不到就不快取，下次重新整理會再試
+    if result["price"] is not None:
+        _cache_set(_ranking_cache, "taiex_quote", result)
     return result
 
 
