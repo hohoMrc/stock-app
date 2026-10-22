@@ -10,13 +10,14 @@ import pandas as pd
 from datetime import date, timedelta, datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.db import get_candles, save_candles, is_candles_fresh, get_stock_meta, save_stock_meta
+from app.services.fubon_ws_reconnect import connect_client, start_reconnect
 
 # ── Fugle / Fubon 行情客戶端（懶初始化）─────────────────────────────────────
 _fugle_client = None
 _fugle_sdk    = None
 _fugle_available = None  # None=尚未嘗試, True=可用, False=不可用
 _fugle_retry_at  = None  # 暫時性失敗（如開機時 DNS 未就緒）後，允許重試的時間點
-_fugle_lock   = threading.Lock()
+_fugle_lock   = threading.RLock()   # 可重入：_get_ws_stock 持鎖時會再呼叫 _get_fugle()
 _FUGLE_RETRY_SEC = 60
 
 _PERIOD_DAYS = {"5d": 5, "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825}
@@ -3390,17 +3391,33 @@ _ws_lock = threading.Lock()
 _ws_stock = None   # Fubon WS stock client（全域共用，訂閱 trades + books）
 
 
+_ws_stock_handlers_on = None   # 已註冊 callback 的 client；SDK 的 on() 會累加，同一個 client 只能註冊一次，否則重連後訊息重複
+
+
 def _reset_ws_stock():
-    """Fubon WS 斷線時重置，讓下次呼叫重新建立連線。"""
+    """Fubon WS 斷線時重置，有人在看就背景自動重連並補回訂閱。"""
     global _ws_stock
+    # 先不拿鎖判斷：重連過程中舊連線的 close 事件會在持鎖期間觸發，等鎖會在新連線建好後誤把它重置掉
+    if _ws_stock is None:
+        return   # 已重置過（disconnect/error/close 會連續觸發）或正在重連
     with _fugle_lock:
+        if _ws_stock is None:
+            return
         _ws_stock = None
-    print("[Fubon WS] 股票連線已重置，等待下次請求重新建立")
+    print("[Fubon WS] 股票連線已重置")
+    start_reconnect("股票", _reconnect_ws_stock)
+
+
+def _reconnect_ws_stock():
+    with _ws_lock:
+        if not _ws_queues:
+            return   # 沒人訂閱就不重連，等下次請求再建
+    _get_ws_stock()
 
 
 def _get_ws_stock():
     """取得 Fubon WebSocket stock client，確保已登入並連線（沿用 _get_fugle 的同一組登入）。"""
-    global _ws_stock
+    global _ws_stock, _ws_stock_handlers_on
     if _ws_stock is not None:
         return _ws_stock
     with _fugle_lock:
@@ -3434,16 +3451,27 @@ def _get_ws_stock():
             print(f"[Fubon WS] 股票連線斷線: {msg}")
             _reset_ws_stock()
 
-        stock.on("message", _on_message)
-        for evt in ("disconnect", "error", "close"):
-            try:
-                stock.on(evt, _on_disconnect)
-            except Exception:
-                pass
-        stock.connect()
+        if _ws_stock_handlers_on is not stock:   # token 過期重新登入後會換新 client
+            stock.on("message", _on_message)
+            for evt in ("disconnect", "error", "close"):
+                try:
+                    stock.on(evt, _on_disconnect)
+                except Exception:
+                    pass
+            _ws_stock_handlers_on = stock
+        connect_client(stock)
         time.sleep(2)   # 等連線建立後再 return（connect() 是非同步啟動）
+        # 重連時把原本有人在看的股票全部補訂閱回來
+        with _ws_lock:
+            resub = {sym: _ws_channels.get(sym, ("trades", "books")) for sym in _ws_queues}
+        for sym, channels in resub.items():
+            try:
+                for ch in channels:
+                    stock.subscribe({"channel": ch, "symbol": sym})
+            except Exception as e:
+                print(f"[Fubon WS] 重新訂閱 {sym} 失敗: {e}")
         _ws_stock = stock
-        print("[Fubon WS] 股票連線已建立")
+        print(f"[Fubon WS] 股票連線已建立（補訂閱 {len(resub)} 檔）")
     return _ws_stock
 
 

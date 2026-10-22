@@ -9,7 +9,7 @@ import requests
 
 _sdk         = None
 _rest_client = None
-_lock        = threading.Lock()
+_lock        = threading.RLock()   # 可重入：_get_ws_futopt 持鎖時會再呼叫 _get_client()
 
 MONTH_CODES = "ABCDEFGHIJKL"
 
@@ -390,23 +390,41 @@ def get_institutional_positions() -> list:
 import asyncio
 import json as _json
 
+from app.services.fubon_ws_reconnect import connect_client, start_reconnect
+
 # symbol → set of asyncio.Queue（每個連線一個 queue）
 _ws_queues: dict[str, set] = {}
 _ws_lock = threading.Lock()
 _ws_futopt = None   # Fubon WS futopt client（全域共用）
 
 
+_ws_futopt_handlers_on = None   # 已註冊 callback 的 client；SDK 的 on() 會累加，同一個 client 只能註冊一次
+
+
 def _reset_ws_futopt():
-    """Fubon WS 斷線時重置，讓下次呼叫重新建立連線。"""
+    """Fubon WS 斷線時重置，有人在看就背景自動重連並補回訂閱。"""
     global _ws_futopt
+    # 先不拿鎖判斷：重連過程中舊連線的 close 事件會在持鎖期間觸發，等鎖會在新連線建好後誤把它重置掉
+    if _ws_futopt is None:
+        return
     with _lock:
+        if _ws_futopt is None:
+            return
         _ws_futopt = None
-    print("[Fubon WS] 連線已重置，等待下次請求重新建立")
+    print("[Fubon WS] 期貨連線已重置")
+    start_reconnect("期貨", _reconnect_ws_futopt)
+
+
+def _reconnect_ws_futopt():
+    with _ws_lock:
+        if not any(_ws_queues.values()):
+            return   # 沒人訂閱就不重連，等下次請求再建
+    _get_ws_futopt()
 
 
 def _get_ws_futopt():
     """取得 Fubon WebSocket futopt client，確保已登入並連線。"""
-    global _ws_futopt
+    global _ws_futopt, _ws_futopt_handlers_on
     if _ws_futopt is not None:
         return _ws_futopt
     with _lock:
@@ -448,17 +466,28 @@ def _get_ws_futopt():
             print(f"[Fubon WS] 斷線: {msg}")
             _reset_ws_futopt()
 
-        futopt.on("message", _on_message)
-        # 有些版本提供 disconnect / error / close 事件
-        for evt in ("disconnect", "error", "close"):
-            try:
-                futopt.on(evt, _on_disconnect)
-            except Exception:
-                pass
-        futopt.connect()
+        if _ws_futopt_handlers_on is not futopt:   # token 過期重新登入後會換新 client
+            futopt.on("message", _on_message)
+            # 有些版本提供 disconnect / error / close 事件
+            for evt in ("disconnect", "error", "close"):
+                try:
+                    futopt.on(evt, _on_disconnect)
+                except Exception:
+                    pass
+            _ws_futopt_handlers_on = futopt
+        connect_client(futopt)
         time.sleep(2)   # 等連線建立後再 return（connect() 是非同步啟動）
+        # 重連時把訂閱過的商品全部補回來（期貨端離開不取消訂閱，空的也要補，之後有人進來才收得到）
+        with _ws_lock:
+            resub = list(_ws_queues)
+        for sym in resub:
+            try:
+                futopt.subscribe({"channel": "trades", "symbol": sym})
+                futopt.subscribe({"channel": "quote",  "symbol": sym})
+            except Exception as e:
+                print(f"[Fubon WS] 重新訂閱 {sym} 失敗: {e}")
         _ws_futopt = futopt
-        print("[Fubon WS] 連線已建立")
+        print(f"[Fubon WS] 期貨連線已建立（補訂閱 {len(resub)} 檔）")
     return _ws_futopt
 
 
