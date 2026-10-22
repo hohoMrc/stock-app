@@ -233,7 +233,7 @@ function QuoteHeader({ quote, loading, livePrice, priceFlash, lastClose }) {
         <span className="futures-live-dot" title="即時報價">●</span>
       </div>
       <div className="futures-quote-detail">
-        <span>昨收 <b>{quote.prev_close?.toLocaleString()}</b></span>
+        <span>{quote.session === "night" ? "日盤收" : "昨收"} <b>{quote.prev_close?.toLocaleString()}</b></span>
         <span>開盤 <b>{quote.open?.toLocaleString()}</b></span>
         <span>最高 <b className="up">{quote.high?.toLocaleString()}</b></span>
         <span>最低 <b className="down">{quote.low?.toLocaleString()}</b></span>

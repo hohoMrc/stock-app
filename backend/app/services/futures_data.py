@@ -158,12 +158,21 @@ def get_futures_quote(symbol: str | None = None) -> dict:
     """即時報價：日夜盤不分開顯示，自動依現在時間查目前實際在交易的那一段。"""
     symbol = symbol or _current_symbol()
     kwargs = {"symbol": symbol}
-    if _is_night_session_now():
+    night  = _is_night_session_now()
+    if night:
         kwargs["session"] = "afterhours"
     data   = _call_futopt(lambda c: c.futopt.intraday.quote(**kwargs))
     last_trade = data.get("lastTrade") or {}
     price  = data.get("closePrice") or last_trade.get("price")
     prev   = data.get("previousClose")
+    if night:
+        # 夜盤 quote 的 previousClose 是前一天的舊基準，不是剛收盤的日盤價；
+        # 夜盤漲跌要跟今天日盤收盤比，才是看盤軟體顯示的「新的一根」
+        try:
+            day = _call_futopt(lambda c: c.futopt.intraday.quote(symbol=symbol))
+            prev = day.get("closePrice") or prev
+        except Exception as e:
+            print(f"[futures] 取日盤收盤價失敗，沿用夜盤 previousClose: {e}")
     change = round(price - prev, 0) if price and prev else None
     chg_pct = round(change / prev * 100, 2) if change and prev else None
     return {
@@ -171,6 +180,7 @@ def get_futures_quote(symbol: str | None = None) -> dict:
         "name":       data.get("name", "台股期貨"),
         "price":      price,
         "prev_close": prev,
+        "session":    "night" if night else "day",
         "open":       data.get("openPrice"),
         "high":       data.get("highPrice"),
         "low":        data.get("lowPrice"),
