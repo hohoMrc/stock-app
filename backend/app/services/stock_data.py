@@ -3426,11 +3426,11 @@ def _get_ws_stock():
             for q in queues:
                 try:
                     loop = q._loop
-                    asyncio.run_coroutine_threadsafe(q.put(payload), loop)
+                    loop.call_soon_threadsafe(q.put_nowait, payload)
                 except Exception:
                     pass
 
-        def _on_disconnect(msg=None):
+        def _on_disconnect(*msg):   # SDK 會傳 (code, reason) 兩個參數
             print(f"[Fubon WS] 股票連線斷線: {msg}")
             _reset_ws_stock()
 

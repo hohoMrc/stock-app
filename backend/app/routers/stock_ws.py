@@ -55,13 +55,22 @@ async def stocks_ws(websocket: WebSocket, symbols: str):
     try:
         while True:
             try:
-                data = await asyncio.wait_for(queue.get(), timeout=25)
-                await websocket.send_json(data)
+                first = await asyncio.wait_for(queue.get(), timeout=25)
             except asyncio.TimeoutError:
                 try:
                     await websocket.send_json({"event": "keepalive"})
                 except Exception:
                     break
+                continue
+            # 開盤時 50 檔 books/trades 量很大，逐筆轉送會塞爆 event loop（2026-10-22 整個後端卡 12 分鐘）。
+            # 改成每秒一批，同一檔同一 channel 只送最新一筆（trades.volume 是累計值，丟中間筆不影響）
+            latest = {(first.get("symbol"), first.get("channel")): first}
+            while not queue.empty():
+                d = queue.get_nowait()
+                latest[(d.get("symbol"), d.get("channel"))] = d
+            for d in latest.values():
+                await websocket.send_json(d)
+            await asyncio.sleep(1)
     except WebSocketDisconnect:
         pass
     except Exception:
