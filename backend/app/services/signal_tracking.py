@@ -1,9 +1,11 @@
 """追蹤快速篩選訊號的後續表現（5/10/20 個交易日報酬率），評估各篩選條件是否真的有效。"""
+import time
+from bisect import bisect_right
 from datetime import date, timedelta
 
 from app.db import (
     save_scan_signals, get_signals_pending_evaluation, update_signal_returns,
-    get_scan_signal_stats, get_recent_scan_signals, get_candles,
+    get_scan_signal_stats, get_recent_scan_signals, get_candles, get_market_forward_returns,
     upsert_ema60_watch, get_ema60_watchlist, remove_ema60_watch, prune_stale_ema60_watch,
     log_ema60_watch_events, get_ema60_watch_events,
     mark_ema60_breakout_invalidated, get_ema60_breakout_invalidated,
@@ -409,6 +411,49 @@ def get_performance_summary(days: int = 90) -> list[dict]:
     return summary
 
 
+_market_cache: dict = {"at": 0.0, "since": None, "data": {}}
+_MARKET_CACHE_TTL = 3600  # 日K一天才更新一次，掃全市場 K 棒很花時間，1 小時內共用結果
+
+
+def _market_baseline(since: str) -> dict[str, dict]:
+    if _market_cache["since"] == since and time.time() - _market_cache["at"] < _MARKET_CACHE_TTL:
+        return _market_cache["data"]
+    data = get_market_forward_returns(since)
+    _market_cache.update(at=time.time(), since=since, data=data)
+    return data
+
+
+def _baseline_on(market: dict[str, dict], dates: list[str], d: str) -> dict:
+    """取訊號日當天的大盤基準；週漲幅這類週末跑的掃描訊號日落在假日，改用之前最近一個交易日
+    （訊號價本來就是那天的收盤價，往後第 N 個交易日的位移也一致）。"""
+    i = bisect_right(dates, d)
+    return market[dates[i - 1]] if i else {}
+
+
+def _median(vals: list) -> float | None:
+    vals = sorted(v for v in vals if v is not None)
+    if not vals:
+        return None
+    mid = len(vals) // 2
+    return round(vals[mid] if len(vals) % 2 else (vals[mid - 1] + vals[mid]) / 2, 2)
+
+
+MIN_MATURE_FOR_VERDICT = 30  # 已滿20日的訊號少於這個數，統計還不可信，先不下判定
+
+
+def _verdict(mature_count: int, excess_20d: float | None) -> str | None:
+    """依 20 日平均超額報酬給判定。門檻是經驗值：+2% 以上才算扣掉交易成本後還有肉。"""
+    if mature_count < MIN_MATURE_FOR_VERDICT:
+        return "樣本不足"
+    if excess_20d is None:
+        return None
+    if excess_20d >= 2:
+        return "有效"
+    if excess_20d >= 0.5:
+        return "普通"
+    return "無效"
+
+
 def get_signal_overview(days: int = 180) -> list[dict]:
     """給「訊號績效總覽」頁用：每個篩選類型目前累積了多少訊號、各期報酬率目前算得出來的
     部分平均值。跟 get_performance_summary 不同的地方是不用等 20 日報酬率全部到齊才顯示
@@ -417,16 +462,37 @@ def get_signal_overview(days: int = 180) -> list[dict]:
     """
     from datetime import timedelta
     since = (date.today() - timedelta(days=days)).strftime("%Y-%m-%d")
+    market = _market_baseline(since)
+    market_dates = sorted(market)
     summary = []
     for scan_type, label in SCAN_LABELS.items():
-        rows = get_recent_scan_signals(scan_type, since, limit=2000)
+        rows = get_recent_scan_signals(scan_type, since, limit=5000)
         if not rows:
             continue
         direction = SCAN_DIRECTION.get(scan_type, 1)
         flip = lambda v: v * direction if v is not None else None
         mature = [r for r in rows if r["return_20d"] is not None]
         win = sum(1 for r in mature if flip(r["return_20d"]) > 0)
+
+        # 跟大盤比：同一天全市場平均之後 20 日漲多少，訊號多賺（或少賺）的部分才是真正的優勢。
+        # 期貨訊號沒有對應的「全市場」，不算。
+        excess = []   # (訊號月份, 超額報酬)
+        if scan_type not in FUTURES_SCAN_TYPES:
+            for r in mature:
+                m20 = _baseline_on(market, market_dates, r["signal_date"]).get("m20")
+                if m20 is not None:
+                    excess.append((r["signal_date"][:7], flip(r["return_20d"]) - m20))
+        excess_20d = _avg([e for _, e in excess])
+        monthly = {}
+        for month, e in excess:
+            monthly.setdefault(month, []).append(e)
+
         summary.append({
+            "excess_20d":       excess_20d,
+            "beat_market_rate": round(sum(1 for _, e in excess if e > 0) / len(excess) * 100, 1) if excess else None,
+            "median_return_20d": _median([flip(r["return_20d"]) for r in mature]),
+            "verdict":          _verdict(len(mature), excess_20d),
+            "monthly_excess":   [{"month": m, "count": len(v), "excess_20d": _avg(v)} for m, v in sorted(monthly.items())],
             "scan_type":      scan_type,
             "label":          label,
             "count":          len(rows),
@@ -436,5 +502,6 @@ def get_signal_overview(days: int = 180) -> list[dict]:
             "avg_return_10d": _avg([flip(r["return_10d"]) for r in rows if r["return_10d"] is not None]),
             "avg_return_20d": _avg([flip(r["return_20d"]) for r in rows if r["return_20d"] is not None]),
         })
-    summary.sort(key=lambda x: x["count"], reverse=True)
+    # 成績好的排前面；還算不出超額報酬的（期貨、累積中）排到最後
+    summary.sort(key=lambda x: (x["excess_20d"] is not None, x["excess_20d"] or 0, x["count"]), reverse=True)
     return summary

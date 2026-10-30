@@ -863,6 +863,34 @@ def get_recent_scan_signals(scan_type: str, since_date: str, limit: int = 100) -
     return [dict(r) for r in rows]
 
 
+def get_market_forward_returns(since_date: str) -> dict[str, dict]:
+    """全市場等權平均的「之後第5/10/20個交易日」報酬率（%），依日期回傳，當訊號成效的大盤基準。
+    LEAD 位移跟 signal_tracking.evaluate_pending_signals 取樣一致（第N個交易日收盤）。
+    檔數太少的日期（資料還沒補齊）不算，避免基準被少數股票帶偏。
+    """
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT date, COUNT(f20) AS n,
+                   AVG(f5) * 100 AS m5, AVG(f10) * 100 AS m10, AVG(f20) * 100 AS m20
+            FROM (
+                SELECT date,
+                       LEAD(close, 5)  OVER w / close - 1 AS f5,
+                       LEAD(close, 10) OVER w / close - 1 AS f10,
+                       LEAD(close, 20) OVER w / close - 1 AS f20
+                FROM candles
+                WHERE date >= ? AND close > 0
+                WINDOW w AS (PARTITION BY ticker ORDER BY date)
+            )
+            GROUP BY date
+            HAVING COUNT(f5) >= 500
+            """,
+            (since_date,)
+        ).fetchall()
+    return {r["date"]: {"m5": r["m5"], "m10": r["m10"], "m20": r["m20"] if r["n"] >= 500 else None}
+            for r in rows}
+
+
 def get_scan_signal_daily_counts(days: int = 14) -> list[dict]:
     """近N天每日 MA黏合/週漲幅急漲 訊號筆數，缺的日期補0，方便畫圖時看出斷更。"""
     scan_types = ["bird_beak", "weekly_surge"]

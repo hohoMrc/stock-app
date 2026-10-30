@@ -1064,6 +1064,12 @@
 .exchange-badge.listed { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
 .exchange-badge.otc    { background: rgba(16, 185, 129, 0.15); color: #34d399; }
 
+/* 訊號成績單判定：台股紅漲綠跌，這裡刻意不用紅綠，避免跟漲跌色混淆 */
+.verdict-badge.good    { background: rgba(59, 130, 246, 0.15);  color: #60a5fa; }
+.verdict-badge.fair    { background: rgba(234, 179, 8, 0.15);   color: #fbbf24; }
+.verdict-badge.bad     { background: rgba(107, 114, 128, 0.15); color: #9ca3af; }
+.verdict-badge.pending { background: transparent; color: #6b7280; border: 1px dashed rgba(107, 114, 128, 0.5); }
+
 /* 排行表列漲跌配色：代號(.col-ticker)、名稱(.col-name) 維持白色 */
 tr.row-up   td:not(.col-ticker):not(.col-name) { color: var(--up)   !important; }
 tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; }

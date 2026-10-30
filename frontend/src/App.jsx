@@ -420,7 +420,7 @@ export default function App() {
                   className={activePage === "signal-overview" ? "active" : ""}
                   onClick={() => { setActivePage("signal-overview"); setMoreMenuOpen(false); }}
                 >
-                  訊號績效總覽
+                  策略成績單
                 </button>
                 <button
                   className={activePage === "revenue" ? "active" : ""}
@@ -510,7 +510,7 @@ export default function App() {
             <button
               className={activePage === "signal-overview" ? "active" : ""}
               onClick={() => setActivePage("signal-overview")}
-            >訊號績效總覽</button>
+            >策略成績單</button>
             <button
               className={activePage === "revenue" ? "active" : ""}
               onClick={() => setActivePage("revenue")}
