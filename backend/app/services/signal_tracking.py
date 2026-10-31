@@ -454,6 +454,30 @@ def _verdict(mature_count: int, excess_20d: float | None) -> str | None:
     return "無效"
 
 
+def _excess_returns(scan_type: str, mature: list[dict], since: str) -> list[tuple[str, float]]:
+    """已滿20日的訊號逐筆跟同一天全市場平均之後 20 日報酬比，回傳 [(訊號月份, 超額報酬)]。
+    訊號多賺（或少賺）大盤的部分才是真正的優勢；期貨訊號沒有對應的「全市場」，回傳空的。"""
+    if scan_type in FUTURES_SCAN_TYPES:
+        return []
+    direction = SCAN_DIRECTION.get(scan_type, 1)
+    market = _market_baseline(since)
+    market_dates = sorted(market)
+    result = []
+    for r in mature:
+        m20 = _baseline_on(market, market_dates, r["signal_date"]).get("m20")
+        if m20 is not None:
+            result.append((r["signal_date"][:7], r["return_20d"] * direction - m20))
+    return result
+
+
+def get_scan_verdict(scan_type: str, since: str) -> dict:
+    """某訊號從 since 起已滿20日訊號的超額報酬與判定，跟策略成績單同一套標準
+    （給 Claude 短期交易每月調權重用，避免兩邊各用一套標準互相矛盾）。"""
+    mature = get_scan_signal_stats(scan_type, since)
+    excess_20d = _avg([e for _, e in _excess_returns(scan_type, mature, since)])
+    return {"count": len(mature), "excess_20d": excess_20d, "verdict": _verdict(len(mature), excess_20d)}
+
+
 def get_signal_overview(days: int = 180) -> list[dict]:
     """給「訊號績效總覽」頁用：每個篩選類型目前累積了多少訊號、各期報酬率目前算得出來的
     部分平均值。跟 get_performance_summary 不同的地方是不用等 20 日報酬率全部到齊才顯示
@@ -462,8 +486,6 @@ def get_signal_overview(days: int = 180) -> list[dict]:
     """
     from datetime import timedelta
     since = (date.today() - timedelta(days=days)).strftime("%Y-%m-%d")
-    market = _market_baseline(since)
-    market_dates = sorted(market)
     summary = []
     for scan_type, label in SCAN_LABELS.items():
         rows = get_recent_scan_signals(scan_type, since, limit=5000)
@@ -474,14 +496,7 @@ def get_signal_overview(days: int = 180) -> list[dict]:
         mature = [r for r in rows if r["return_20d"] is not None]
         win = sum(1 for r in mature if flip(r["return_20d"]) > 0)
 
-        # 跟大盤比：同一天全市場平均之後 20 日漲多少，訊號多賺（或少賺）的部分才是真正的優勢。
-        # 期貨訊號沒有對應的「全市場」，不算。
-        excess = []   # (訊號月份, 超額報酬)
-        if scan_type not in FUTURES_SCAN_TYPES:
-            for r in mature:
-                m20 = _baseline_on(market, market_dates, r["signal_date"]).get("m20")
-                if m20 is not None:
-                    excess.append((r["signal_date"][:7], flip(r["return_20d"]) - m20))
+        excess = _excess_returns(scan_type, mature, since)
         excess_20d = _avg([e for _, e in excess])
         monthly = {}
         for month, e in excess:

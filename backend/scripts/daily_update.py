@@ -367,7 +367,7 @@ if __name__ == "__main__":
             )
             review = run_shortterm_monthly_review()
             if review:
-                lines = [f'{SCAN_SOURCE_LABEL.get(k, k)}：{v["count"]}筆、勝率{v["win_rate"]}%、權重調整為{v["weight"]}'
+                lines = [f'{SCAN_SOURCE_LABEL.get(k, k)}：{v["count"]}筆、20日超額報酬{v["excess_20d"]:+}%（{v["verdict"]}）、權重調整為{v["weight"]}'
                          for k, v in review.items()]
                 _tg_notify_lines("🤖 [Claude短期策略回顧] 依近90天訊號績效調整下單權重", lines, "")
             q_review = run_longterm_quarterly_review()

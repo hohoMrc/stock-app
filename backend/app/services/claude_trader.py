@@ -15,7 +15,7 @@ from app.services.paper_trading import (
     place_market_order, get_positions_with_price, get_order_history,
     get_account_summary, get_performance_stats,
 )
-from app.services.signal_tracking import get_scan_signal_stats
+from app.services.signal_tracking import get_scan_verdict
 
 LONGTERM_USERNAME  = "claude_longterm"
 SHORTTERM_USERNAME = "claude_shortterm"
@@ -221,10 +221,15 @@ def run_shortterm_exits() -> list[dict]:
     return exits
 
 
+# 策略成績單判定 → 下單權重。0＝暫停該來源，0.5＝縮小倉位，1.5＝加碼
+REVIEW_WEIGHT_BY_VERDICT = {"有效": 1.5, "普通": 0.5, "無效": 0.0}
+
+
 def run_shortterm_monthly_review() -> dict | None:
     """每月第一次執行 daily_update 時跑一次：用近90天各訊號來源、已滿20個交易日可評估的
-    訊號，統計勝率，調整下個月的下單權重。0＝暫停該來源，0.5＝縮小倉位，1.5＝加碼。
-    樣本數太少（<5筆）就維持原權重，避免用太少資料亂調。
+    訊號，依「策略成績單」同一套標準（20日超額報酬 vs 全市場平均）判定，調整下個月的下單權重。
+    不看原始勝率：大盤一起漲的時候隨便買都容易「贏」，勝率高不代表訊號本身有優勢。
+    樣本不足就維持原權重，避免用太少資料亂調。
     """
     this_month = date.today().strftime("%Y-%m")
     cfg = _get_config()
@@ -235,15 +240,13 @@ def run_shortterm_monthly_review() -> dict | None:
     new_weights = {}
     summary = {}
     for scan_type in SCAN_SOURCE_LABEL:
-        rows = get_scan_signal_stats(scan_type, since)
-        if len(rows) < 5:
+        stats = get_scan_verdict(scan_type, since)
+        weight = REVIEW_WEIGHT_BY_VERDICT.get(stats["verdict"])
+        if weight is None:
             new_weights[scan_type] = cfg["st_scan_weights"].get(scan_type, 1.0)
             continue
-        win = sum(1 for r in rows if r["return_20d"] is not None and r["return_20d"] > 0)
-        win_rate = win / len(rows) * 100
-        weight = 0.0 if win_rate < 40 else (0.5 if win_rate < 55 else 1.5)
         new_weights[scan_type] = weight
-        summary[scan_type] = {"count": len(rows), "win_rate": round(win_rate, 1), "weight": weight}
+        summary[scan_type] = {**stats, "weight": weight}
 
     cfg["st_scan_weights"] = new_weights
     cfg["last_shortterm_review_month"] = this_month
