@@ -904,6 +904,8 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
       try {
         const data  = JSON.parse(e.data);
         if (data.event === "keepalive") return;   // 忽略心跳
+        // 非交易時段不會有新成交；連線當下富邦送的快照是日盤最後一筆，會把夜盤收盤價蓋掉
+        if (!isFuturesTradingHours()) return;
         const trades = data.trades || [];
         if (!trades.length) return;
         const price = trades[trades.length - 1].price;

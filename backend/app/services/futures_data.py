@@ -18,15 +18,15 @@ _SYMBOL_CACHE_TTL = 3600  # 近月合約一天最多換一次，1 小時內重�
 
 
 def _is_night_session_now() -> bool:
-    """判斷現在是否為台指期夜盤交易時段（15:00–隔日05:00），決定即時報價要查日盤還夜盤。"""
+    """決定即時報價要查日盤還夜盤：查「最近一段有在交易」的盤別。
+    只有平日 08:45–15:00（日盤進行中、或剛收盤還沒進夜盤）查日盤，其餘都查夜盤——
+    包含夜盤 05:00 收盤後到下個日盤開盤前（平日清晨、整個週末），這段時間最新的收盤是夜盤的，
+    查日盤會顯示成好幾個小時前的日盤收盤價。
+    """
     now = datetime.now(tz=TZ_TAIPEI)
-    day  = now.weekday()   # 0=一 ... 6=日
     mins = now.hour * 60 + now.minute
-    if 0 <= day <= 4 and mins >= 15 * 60:   # 週一到週五 15:00 之後
-        return True
-    if 1 <= day <= 5 and mins < 5 * 60:     # 週二到週六 05:00 前（延續前一晚）
-        return True
-    return False
+    in_day_window = now.weekday() <= 4 and 8 * 60 + 45 <= mins < 15 * 60
+    return not in_day_window
 
 
 def _next_trading_date(d: date) -> date:
