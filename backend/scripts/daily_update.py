@@ -76,9 +76,6 @@ def _tg_notify_lines(title: str, lines: list[str], empty_text: str):
 
 SCAN_LABEL = {
     "bird_beak": "鳥嘴與分歧",
-    "near_ema60": "EMA60近線",
-    "volume_breakout": "量價突破",
-    "institutional_buying": "法人連買",
 }
 
 def _check_scan_alerts(scan_type: str, hits: list):
@@ -218,20 +215,13 @@ if __name__ == "__main__":
             from app.services.stock_data import scan_near_ema60
             from app.services.signal_tracking import record_signals, update_ema60_watchlist, check_ema60_breakouts
             ema_hits = scan_near_ema60(500, force=True)
-            _check_scan_alerts("near_ema60", ema_hits)
+            # 策略成績單判定無效（20日超額報酬≈0），不再發 TG／訊號提醒；
+            # 仍要掃描：貼線觀察名單（→ 貼線噴出）靠它，也繼續記錄成效追蹤
             record_signals("near_ema60", ema_hits)
             # 精選版只記錄訊號跟原版比較成效，不發 TG、不進觀察名單
             from app.services.stock_data import filter_near_ema60_refined
             record_signals("near_ema60_refined", filter_near_ema60_refined(ema_hits))
-            lines = [
-                _stock_link(s["ticker"], s.get("name", ""), scan="near_ema60")
-                for s in ema_hits
-            ]
-            _tg_notify_lines(
-                f"[EMA60近線] 今日找到 {len(ema_hits)} 支",
-                lines,
-                "[EMA60近線] 今日無符合條件的股票",
-            )
+            print(f"[EMA60近線] 記錄 {len(ema_hits)} 支")
 
             # 貼線觀察名單：今天掃到的加進去（已存在的只刷新最後出現日），
             # 再檢查名單裡的股票今天有沒有噴出（爆量或站回EMA10），有的話發通知並從名單移除。
@@ -259,17 +249,9 @@ if __name__ == "__main__":
             from app.services.stock_data import scan_volume_breakout
             from app.services.signal_tracking import record_signals
             vb_hits = scan_volume_breakout(200, force=True)
-            _check_scan_alerts("volume_breakout", vb_hits)
+            # 策略成績單判定無效，只記錄訊號繼續追蹤成效，不發 TG
             record_signals("volume_breakout", vb_hits)
-            lines = [
-                _stock_link(s["ticker"], s.get("name", ""))
-                for s in vb_hits
-            ]
-            _tg_notify_lines(
-                f"[量價突破] 爆量創20日新高，今日找到 {len(vb_hits)} 支",
-                lines,
-                "[量價突破] 今日無符合條件的股票",
-            )
+            print(f"[量價突破] 記錄 {len(vb_hits)} 支")
         except Exception as e:
             print(f"[量價突破] 掃描失敗: {e}")
 
@@ -294,19 +276,10 @@ if __name__ == "__main__":
 
             print("[法人連買] 開始掃描...")
             buy_hits = scan_institutional_buying(min_days=3, limit=200, min_total_net_zhang=5000)
-            _check_scan_alerts("institutional_buying", buy_hits)
+            # 策略成績單判定無效，不發 TG；仍掃描是因為 Claude 短期交易拿它當進場來源，也繼續記錄成效
             from app.services.signal_tracking import record_signals
             record_signals("institutional_buying", buy_hits)
-            lines = [
-                f'{i}. ' + _stock_link(s["ticker"], s.get("name", "")) +
-                f'　連{s["streak_days"]}天・合計 {s["total_net_zhang"]:,}張'
-                for i, s in enumerate(buy_hits, 1)
-            ]
-            _tg_notify_lines(
-                f"[法人連買] 外資+投信連續買超≥3天且合計≥5000張，今日找到 {len(buy_hits)} 支",
-                lines,
-                "[法人連買] 今日無符合條件的股票（連續買超≥3天且合計≥5000張）",
-            )
+            print(f"[法人連買] 記錄 {len(buy_hits)} 支")
         except Exception as e:
             print(f"[三大法人/法人連買] 失敗: {e}")
 

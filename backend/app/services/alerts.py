@@ -3,7 +3,7 @@ from app.db import (
 )
 
 VALID_ALERT_TYPES = {"price_above", "price_below", "scan_signal"}
-VALID_SCAN_TYPES = {"bird_beak", "near_ema60", "volume_breakout", "institutional_buying"}
+VALID_SCAN_TYPES = {"bird_beak"}   # 其餘掃描經策略成績單判定無效，已不再提供提醒
 
 
 class AlertError(Exception):

@@ -3,9 +3,6 @@ import { createAlert, updateAlert } from "../api";
 
 const SCAN_OPTIONS = [
   { key: "bird_beak", label: "鳥嘴與分歧" },
-  { key: "near_ema60", label: "EMA60近線" },
-  { key: "volume_breakout", label: "量價突破" },
-  { key: "institutional_buying", label: "法人連買" },
 ];
 
 export default function AlertModal({ ticker, name, editAlert = null, onClose, onSuccess }) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { screenStocks, scanWeeklySurge, scanMaSqueeze, scanWeeklyPullbackMa54, scanNearEma60, scanVolumeBreakout, scanInstitutionalBuying, getEma60Watchlist, getEma60Breakouts } from "../api";
+import { screenStocks, scanWeeklySurge, scanMaSqueeze, scanWeeklyPullbackMa54, getEma60Watchlist, getEma60Breakouts } from "../api";
 import { hasTodayCloseData } from "../marketHours";
 
 // 後端不同掃描來源回傳的交易所欄位有的是原始代碼（TW/TWO），有的已經是中文，統一轉成手機版卡片用的縮寫
@@ -76,24 +76,6 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
     }
   };
 
-  const handleNearEma60 = async () => {
-    setResultMode("near_ema60");
-    setLoading(true);
-    setError(null);
-    setResults([]);
-    setFilters({ ...EMPTY_FILTERS });
-    try {
-      const res = await scanNearEma60(500);
-      setResults(res.data.stocks);
-      setSearched(true);
-    } catch (e) {
-      setError(e?.response?.data?.detail || e.message || "掃描失敗");
-      setSearched(true);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleWeeklyPullbackMa54 = async () => {
     setResultMode("weekly_pullback_ma54");
     setLoading(true);
@@ -148,40 +130,6 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
     }
   };
 
-  const handleVolumeBreakout = async () => {
-    setResultMode("volume_breakout");
-    setLoading(true);
-    setError(null);
-    setResults([]);
-    try {
-      const res = await scanVolumeBreakout(200);
-      setResults(res.data.stocks);
-      setSearched(true);
-    } catch (e) {
-      setError(e?.response?.data?.detail || e.message || "掃描失敗");
-      setSearched(true);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleInstitutionalBuying = async () => {
-    setResultMode("institutional_buying");
-    setLoading(true);
-    setError(null);
-    setResults([]);
-    try {
-      const res = await scanInstitutionalBuying(3, 200, 2000);
-      setResults(res.data.stocks);
-      setSearched(true);
-    } catch (e) {
-      setError(e?.response?.data?.detail || e.message || "掃描失敗");
-      setSearched(true);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handlePattern = async (pattern) => {
     const newFilters = { ...EMPTY_FILTERS, pattern, custom_tickers: filters.custom_tickers };
     setFilters(newFilters);
@@ -212,9 +160,6 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
   useEffect(() => {
     if (!autoScan) return;
     const runners = {
-      near_ema60:            handleNearEma60,
-      volume_breakout:       handleVolumeBreakout,
-      institutional_buying:  handleInstitutionalBuying,
       ma_squeeze:            () => handlePattern("bird_beak"),
     };
     runners[autoScan]?.();
@@ -276,11 +221,8 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
 
   const hasMA = !!filters.near_ma;
   const hasPattern = !!filters.pattern;
-  const isEma60Mode = resultMode === "near_ema60";
   const isEma60WatchlistMode = resultMode === "ema60_watchlist";
   const isEma60BreakoutMode = resultMode === "ema60_breakout";
-  const isVolumeBreakoutMode = resultMode === "volume_breakout";
-  const isInstitutionalBuyingMode = resultMode === "institutional_buying";
   const isPullbackMa54Mode = resultMode === "weekly_pullback_ma54";
   const PATTERN_LABEL = { bird_beak: "⚡ 鳥嘴與分歧", divergence: "⚡ 鳥嘴與分歧" };
 
@@ -288,7 +230,7 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
     <div className="page">
       <h2>選股篩選</h2>
       <p className="ranking-hint">
-        全市場類的篩選（週漲幅急漲／鳥嘴與分歧／EMA60近線／週K拉回54MA／貼線觀察名單／量價突破／法人連買）都是讀資料庫收盤價，
+        全市場類的篩選（週漲幅急漲／鳥嘴與分歧／週K拉回54MA／貼線觀察名單）都是讀資料庫收盤價，
         平日 15:30 排程更新，目前顯示的是{hasTodayCloseData() ? "今天" : "前一個交易日"}收盤的資料，不是即時股價。
       </p>
 
@@ -329,14 +271,6 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
         </button>
         <button
           className="preset-btn preset-btn--pattern"
-          onClick={handleNearEma60}
-          disabled={loading}
-          title="收盤在 EMA60 上方 0~3%，近一個月持續站上 EMA60，日量 ≥ 2000 張"
-        >
-          📈 EMA60近線
-        </button>
-        <button
-          className="preset-btn preset-btn--pattern"
           onClick={handleWeeklyPullbackMa54}
           disabled={loading}
           title="週K漲多拉回54MA：54MA上揚、10MA與18MA都在54MA之上、近26週曾經10>18>54多頭排列、近26週高點 ≥ 54MA×1.5，近2週低點拉回到54MA -3%~+8%，收盤在54MA ~ +20%，日量 ≥ 1000 張"
@@ -359,22 +293,6 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
           title="最近30天內從貼線觀察名單噴出的股票，噴出後不會消失，繼續放這裡讓你追蹤後續表現。累計漲幅＝(目前股價－觸發價)÷觸發價，即時計算、每次打開頁面都會用最新報價更新；5日/10日/20日報酬＝觸發日之後第5/10/20個交易日的收盤價相對觸發價的漲跌幅，是固定值，交易日數一累積夠就自動算好存起來，之後不會再變動"
         >
           🚀 貼線噴出追蹤
-        </button>
-        <button
-          className="preset-btn preset-btn--pattern"
-          onClick={handleVolumeBreakout}
-          disabled={loading}
-          title="今日成交量 ≥ 近5日均量3倍，且收盤價創近20日新高，日量 ≥ 2000 張"
-        >
-          💥 量價突破
-        </button>
-        <button
-          className="preset-btn preset-btn--pattern"
-          onClick={handleInstitutionalBuying}
-          disabled={loading}
-          title="外資＋投信合計買超連續 3 個交易日以上（不含自營商），合計買超 ≥ 2000 張"
-        >
-          🏦 法人連買
         </button>
       </div>
       )}
@@ -591,8 +509,6 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                   <th>漲跌幅</th>
                   {resultMode === "weekly_surge" && <th>週漲幅</th>}
                   {!isEma60WatchlistMode && !isEma60BreakoutMode && <th>成交量(張)</th>}
-                  {isEma60Mode && <th>EMA60</th>}
-                  {isEma60Mode && <th>偏離</th>}
                   {isEma60WatchlistMode && <th>貼線日期</th>}
                   {isEma60WatchlistMode && <th>進場價</th>}
                   {isEma60WatchlistMode && <th>累計漲幅</th>}
@@ -606,9 +522,6 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                   {isPullbackMa54Mode && <th>收盤距54MA</th>}
                   {isPullbackMa54Mode && <th>近2週低點距54MA</th>}
                   {isPullbackMa54Mode && <th>距高點</th>}
-                  {isVolumeBreakoutMode && <th>量比</th>}
-                  {isInstitutionalBuyingMode && <th>連續買超天數</th>}
-                  {isInstitutionalBuyingMode && <th>合計買超(張)</th>}
                   {hasMA && <th>{MA_OPTIONS.find(o => o.value === filters.near_ma)?.label}</th>}
                   {hasMA && <th>偏離</th>}
                   {hasPattern && <th>型態</th>}
@@ -647,12 +560,6 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                     )}
                     {!isEma60WatchlistMode && !isEma60BreakoutMode && (
                       <td>{s.volume_zhang != null ? s.volume_zhang.toLocaleString() : "—"}</td>
-                    )}
-                    {isEma60Mode && <td>{s.ema60 ?? "—"}</td>}
-                    {isEma60Mode && (
-                      <td className="deviation-up">
-                        {s.dev_pct != null ? `+${s.dev_pct}%` : "—"}
-                      </td>
                     )}
                     {isEma60WatchlistMode && <td>{s.first_seen_date ?? "—"}</td>}
                     {isEma60WatchlistMode && <td>{s.entry_price ?? "—"}</td>}
@@ -693,15 +600,6 @@ export default function StockScreener({ onSelect, filters, setFilters, results, 
                     {isPullbackMa54Mode && (
                       <td className="deviation-down" title={s.peak != null ? `近26週高點 ${s.peak}` : undefined}>
                         {s.pullback_pct != null ? `${s.pullback_pct}%` : "—"}
-                      </td>
-                    )}
-                    {isVolumeBreakoutMode && (
-                      <td className="deviation-up">{s.vol_ratio != null ? `${s.vol_ratio}x` : "—"}</td>
-                    )}
-                    {isInstitutionalBuyingMode && <td>{s.streak_days ?? "—"}</td>}
-                    {isInstitutionalBuyingMode && (
-                      <td className="deviation-up">
-                        {s.total_net_zhang != null ? s.total_net_zhang.toLocaleString() : "—"}
                       </td>
                     )}
                     {hasMA && <td>{s.ma_value ?? "—"}</td>}

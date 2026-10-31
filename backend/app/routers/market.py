@@ -5,7 +5,7 @@ from fastapi.concurrency import run_in_threadpool
 from app.services.stock_data import (
     get_taiex_quote, get_market_breadth, get_institutional_summary,
     get_industry_performance, get_movers_ranking, get_weekly_calendar,
-    scan_ma_squeeze, scan_near_ema60, scan_volume_breakout, scan_institutional_buying,
+    scan_ma_squeeze,
 )
 from app.services.futures_data import get_futures_quote, get_institutional_positions
 from app.services.news_feed import get_premarket_news, get_today_focus, get_today_focus_summary
@@ -27,9 +27,6 @@ def _build_overview(force: bool = False) -> dict:
         "movers_up":            lambda: get_movers_ranking("up", 5, force),
         "movers_down":          lambda: get_movers_ranking("down", 5, force),
         "ma_squeeze":           lambda: scan_ma_squeeze(500, force),
-        "near_ema60":           lambda: scan_near_ema60(500, force),
-        "volume_breakout":      lambda: scan_volume_breakout(500, force=force),
-        "institutional_buying": lambda: scan_institutional_buying(3, 500, 2000),
         "futures_quote":        get_futures_quote,
         "futures_positions":    get_institutional_positions,
     }
@@ -57,9 +54,6 @@ def _build_overview(force: bool = False) -> dict:
         },
         "scan_counts": {
             "ma_squeeze":           len(results.get("ma_squeeze") or []),
-            "near_ema60":           len(results.get("near_ema60") or []),
-            "volume_breakout":      len(results.get("volume_breakout") or []),
-            "institutional_buying": len(results.get("institutional_buying") or []),
         },
         "industry_top5":    industry[:5],
         "industry_bottom5": industry[-5:][::-1] if len(industry) > 5 else [],

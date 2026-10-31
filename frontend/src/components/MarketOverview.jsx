@@ -6,10 +6,7 @@ const WS_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000")
   .replace(/^http/, "ws");
 
 const SCAN_LABELS = {
-  near_ema60:            "📈 EMA60近線",
-  volume_breakout:       "💥 量價突破",
   ma_squeeze:            "⚡ 鳥嘴與分歧",
-  institutional_buying:  "🏦 法人連買",
 };
 
 const upDown = (v) => (v > 0 ? "up" : v < 0 ? "down" : "");
