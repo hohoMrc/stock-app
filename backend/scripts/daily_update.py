@@ -189,21 +189,21 @@ if __name__ == "__main__":
     # 全量模式不跑 MA 黏合（資料剛回填，不具參考性）
     if not FULL_MODE:
         # 先初始化好，避免對應的掃描失敗時，後面 Claude 自動交易那段拿不到變數
-        vb_hits, buy_hits, breakout_hits = [], [], []
+        bird_beak_hits, breakout_hits = [], []
 
         print("[鳥嘴與分歧] 開始掃描（日K 5MA/20MA）...")
         try:
             from app.services.stock_data import scan_ma_squeeze
             from app.services.signal_tracking import record_signals
-            hits = scan_ma_squeeze(500, force=True)
-            _check_scan_alerts("bird_beak", hits)
-            record_signals("bird_beak", hits)
+            bird_beak_hits = scan_ma_squeeze(500, force=True)
+            _check_scan_alerts("bird_beak", bird_beak_hits)
+            record_signals("bird_beak", bird_beak_hits)
             lines = [
                 _stock_link(s["ticker"], s.get("name", ""), scan="bird_beak")
-                for s in hits
+                for s in bird_beak_hits
             ]
             _tg_notify_lines(
-                f"[鳥嘴與分歧] 日K 5MA/20MA，今日找到 {len(hits)} 支",
+                f"[鳥嘴與分歧] 日K 5MA/20MA，今日找到 {len(bird_beak_hits)} 支",
                 lines,
                 "[鳥嘴與分歧] 日K 5MA/20MA，今日無符合條件的股票",
             )
@@ -276,7 +276,7 @@ if __name__ == "__main__":
 
             print("[法人連買] 開始掃描...")
             buy_hits = scan_institutional_buying(min_days=3, limit=200, min_total_net_zhang=5000)
-            # 策略成績單判定無效，不發 TG；仍掃描是因為 Claude 短期交易拿它當進場來源，也繼續記錄成效
+            # 策略成績單判定無效，不發 TG，只記錄訊號繼續追蹤成效
             from app.services.signal_tracking import record_signals
             record_signals("institutional_buying", buy_hits)
             print(f"[法人連買] 記錄 {len(buy_hits)} 支")
@@ -323,7 +323,7 @@ if __name__ == "__main__":
                 pl_note = f'　已實現損益 {x["realized_pl"]:,.0f}' if x.get("realized_pl") is not None else ""
                 _tg_notify(f'🤖 [Claude短期出場] {x["ticker"]} {x.get("name","")}　{x["reason"]}{pl_note}')
             st_entries = run_shortterm_daily({
-                "volume_breakout_loose": vb_loose_hits, "institutional_buying": buy_hits,
+                "volume_breakout_loose": vb_loose_hits, "bird_beak": bird_beak_hits,
                 "ema60_breakout": breakout_hits, "rs_momentum": rs_momentum_hits,
             })
             for e_ in st_entries:

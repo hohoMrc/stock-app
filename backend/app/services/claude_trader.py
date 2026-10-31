@@ -26,7 +26,7 @@ LT_MIN_VOLUME_ZHANG = 500   # 長期投資流動性門檻：最近一天成交�
 
 SCAN_SOURCE_LABEL = {
     "volume_breakout_loose": "量價突破(寬鬆)",
-    "institutional_buying":  "法人連買",
+    "bird_beak":             "鳥嘴與分歧",
     "ema60_breakout":        "EMA60貼線噴出",
     "rs_momentum":           "RS動能",
 }
@@ -43,7 +43,8 @@ DEFAULT_CONFIG = {
     "st_max_hold_days":   20,
     "st_max_positions":   12,
     "st_scan_weights":    {
-        "volume_breakout_loose": 1.0, "institutional_buying": 1.0,
+        # 法人連買在策略成績單判定無效（20日超額報酬≈0）已移除，換成超額報酬最高的鳥嘴與分歧
+        "volume_breakout_loose": 1.0, "bird_beak": 1.0,
         "ema60_breakout": 1.0, "rs_momentum": 1.0,
     },
     "dt_candidate_pool":          30,     # 從成交值排行前N檔挑候選
@@ -108,8 +109,8 @@ def _shortterm_reason(scan_type: str, hit: dict) -> str:
     label = SCAN_SOURCE_LABEL.get(scan_type, scan_type)
     if scan_type == "volume_breakout_loose":
         return f"{label}：今日量為近5日均量 {hit.get('vol_ratio')} 倍，收盤創20日新高"
-    if scan_type == "institutional_buying":
-        return f"{label}：外資+投信連續 {hit.get('streak_days')} 天買超，合計 {hit.get('total_net_zhang')} 張"
+    if scan_type == "bird_beak":
+        return f"{label}：日K 5MA／20MA 黏合後發散，MA5 站上 MA20 且收盤在 MA5 之上"
     if scan_type == "ema60_breakout":
         return f"{label}：{'、'.join(hit.get('reasons', []))}"
     if scan_type == "rs_momentum":
@@ -119,7 +120,7 @@ def _shortterm_reason(scan_type: str, hit: dict) -> str:
 
 def run_shortterm_daily(scan_hits: dict[str, list]) -> list[dict]:
     """每天排程呼叫：scan_hits 是當天已經跑過的掃描結果
-    {"volume_breakout_loose": [...], "institutional_buying": [...], "ema60_breakout": [...],
+    {"volume_breakout_loose": [...], "bird_beak": [...], "ema60_breakout": [...],
     "rs_momentum": [...]}，不用重新掃一次。依訊號來源目前的權重決定要不要進場
     （權重0＝該來源暫停使用），已持有的不重複買，短期倉位數達上限就不再開新倉。
 
