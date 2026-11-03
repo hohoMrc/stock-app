@@ -35,7 +35,7 @@ def _tg_notify(text: str, html: bool = False):
 
 def main():
     from app.db import init_db
-    from app.services.revenue_data import fetch_monthly_revenue, get_revenue_by_month
+    from app.services.revenue_data import fetch_monthly_revenue
 
     init_db()
     result = fetch_monthly_revenue()
@@ -45,9 +45,14 @@ def main():
 
     if not ym:
         return
+    notify_top_yoy(ym, result["saved"])
 
-    # 年增率前 5 名當通知摘要。排除去年同月營收不到 3 千萬（千元）的分母太小公司，
-    # 以及交屋才認列營收的建材營造業——不然榜首全是 +百萬% 的建設公司（跟前端年增榜同規則）
+
+def notify_top_yoy(ym: str, saved: int, title_suffix: str = ""):
+    """年增率前 5 名當通知摘要。排除去年同月營收不到 3 千萬（千元）的分母太小公司，
+    以及交屋才認列營收的建材營造業——不然榜首全是 +百萬% 的建設公司（跟前端年增榜同規則）。
+    獨立出來是為了能只重發某個月的通知、不重新抓資料。"""
+    from app.services.revenue_data import get_revenue_by_month
     rows = get_revenue_by_month(ym)
     ranked = sorted(
         (r for r in rows
@@ -55,7 +60,7 @@ def main():
          and (r.get("rev_ly") or 0) >= 30000 and r.get("industry") != "建材營造"),
         key=lambda r: r["yoy_pct"], reverse=True,
     )[:5]
-    lines = [f"📊 <b>{ym} 月營收已更新</b>（{result['saved']} 檔）", "",
+    lines = [f"📊 <b>{ym} 月營收已更新{title_suffix}</b>（{saved} 檔）", "",
              "年增率前 5 名（排除建材營造、去年同月營收 &lt; 3 千萬）："]
     for r in ranked:
         lines.append(f"・{r['ticker']} {r['name']}　+{r['yoy_pct']:.1f}%")
