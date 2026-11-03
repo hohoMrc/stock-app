@@ -72,15 +72,18 @@ def evaluate_pending_signals():
     用交易日根數（而非日曆天數）取樣，才不會被假日拖累。
     """
     today_str = date.today().strftime("%Y-%m-%d")
+    futures_candles: dict[str, list] = {}   # 期貨日K要打外部 API，同一輪同商品只抓一次
     for sig in get_signals_pending_evaluation():
         if not sig.get("signal_price"):
             continue
         if sig["scan_type"] in FUTURES_SCAN_TYPES:
-            try:
-                candles = _futures_daily_candles(sig["ticker"])
-            except Exception as e:
-                print(f"[篩選成效] 取得 {sig['ticker']} 期貨日K失敗: {e}")
-                continue
+            if sig["ticker"] not in futures_candles:
+                try:
+                    futures_candles[sig["ticker"]] = _futures_daily_candles(sig["ticker"])
+                except Exception as e:
+                    print(f"[篩選成效] 取得 {sig['ticker']} 期貨日K失敗: {e}")
+                    continue
+            candles = futures_candles[sig["ticker"]]
         else:
             candles = get_candles(sig["ticker"], sig["signal_date"], today_str)
         after = [c for c in candles if c["date"] > sig["signal_date"] and c.get("close") is not None]

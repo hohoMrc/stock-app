@@ -813,13 +813,15 @@ def save_scan_signals(records: list[dict]):
         )
 
 
-def get_signals_pending_evaluation(limit: int = 500) -> list[dict]:
-    """撈還沒算出 20 日報酬率的訊號（不論訊號日多久以前，實際夠不夠交易日由呼叫端用K棒數判斷）。"""
+def get_signals_pending_evaluation() -> list[dict]:
+    """撈還沒算出 20 日報酬率的訊號（不論訊號日多久以前，實際夠不夠交易日由呼叫端用K棒數判斷）。
+    不能加筆數上限：每天新增上百筆、每筆要滿 20 個交易日才離開名單，曾經 LIMIT 500 被最舊
+    幾天的訊號佔滿，較新的訊號連 5 日報酬都輪不到算。
+    """
     with _conn() as conn:
         rows = conn.execute(
             "SELECT id, ticker, scan_type, signal_date, signal_price FROM scan_signals "
-            "WHERE return_20d IS NULL ORDER BY signal_date LIMIT ?",
-            (limit,)
+            "WHERE return_20d IS NULL ORDER BY signal_date"
         ).fetchall()
     return [dict(r) for r in rows]
 
