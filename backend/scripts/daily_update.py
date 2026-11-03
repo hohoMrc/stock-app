@@ -130,6 +130,10 @@ def get_all_tickers() -> list[str]:
     tickers = list(_tw_stock_names.keys())
     # 補上不在 TWSE 清單的 ETF / 上櫃股
     extras = ["0056", "00878", "006208", "00881", "00713", "00900", "4904", "3045"]
+    # 證交所/櫃買的名單只有「公司」，ETF 不在裡面：DB 裡已經有 K 線的 ETF（00 開頭，
+    # 使用者看過或被掃描到過）也要每天更新，不然只有剛好有人點開頁面時才補，K 線斷斷續續
+    with _conn() as conn:
+        extras += [r[0] for r in conn.execute("SELECT DISTINCT ticker FROM candles WHERE ticker LIKE '00%'")]
     for t in extras:
         if t not in tickers:
             tickers.append(t)
