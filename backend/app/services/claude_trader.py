@@ -423,8 +423,13 @@ def run_day_trading_check() -> dict:
     """
     from app.services.stock_data import (
         get_watchlist_quotes, get_trade_value_ranking, _enrich_with_intraday,
-        get_stock_info, get_intraday_candles,
+        get_stock_info, get_intraday_candles, is_market_open_today,
     )
+
+    # 排程週一到週五都會跑，國定假日／颱風假要自己擋：曾經在 9/25、9/28 休市日用舊報價買賣
+    if not is_market_open_today():
+        print("[Claude當沖] 今天休市（報價日期不是今天），不交易")
+        return {"exits": [], "entries": []}
 
     cfg = _get_config()
     user_id = ensure_claude_accounts()[2]

@@ -250,6 +250,10 @@ def check_and_execute_conditional_orders() -> list[dict]:
     pending = get_pending_stock_conditional_orders()
     if not pending:
         return []
+    # 排程週一到週五都會跑，國定假日／颱風假股價是上一個交易日的，不能拿來觸發成交
+    from app.services.stock_data import is_market_open_today
+    if not is_market_open_today():
+        return []
 
     price_cache: dict[str, float | None] = {}
     results = []

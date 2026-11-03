@@ -167,6 +167,16 @@ def update_ticker(ticker: str, days: int = 7, retries: int = 3) -> int:
 
 
 if __name__ == "__main__":
+    # crontab 週一到週五都會跑，國定假日／颱風假要自己擋：休市日沒有新 K 線，照跑的話會用前一個
+    # 交易日的資料重掃一次，訊號被重複記錄（灌水策略成績單），Claude 短期交易也會用舊價格下單。
+    # 全量回填（--full）不受影響，假日手動補資料也要能跑。
+    from app.services.stock_data import is_market_open_today
+    if not FULL_MODE and not is_market_open_today():
+        msg = "[股票更新] 今天休市，略過每日更新、掃描與 Claude 交易"
+        print(msg)
+        _tg_notify(msg)
+        sys.exit(0)
+
     tickers = get_all_tickers()
     days    = 90 if FULL_MODE else 7
     mode    = "回填 3 個月" if FULL_MODE else "更新 7 天"

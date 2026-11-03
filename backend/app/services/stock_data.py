@@ -163,6 +163,14 @@ def _fugle_quote(ticker: str) -> dict:
         return {}
 
 
+def is_market_open_today() -> bool:
+    """台股今天有沒有開盤：用台積電報價的所屬日期判斷，國定假日、颱風假時 Fugle 給的還是
+    上一個交易日的報價。週一到週五跑的盤中排程（如 Claude 當沖）要先檢查，不然會拿舊報價
+    在休市日照樣下單。查不到報價也當作沒開盤：寧可少做一輪，也不要用舊價格成交。
+    """
+    return _fugle_quote("2330").get("quote_date") == date.today().strftime("%Y-%m-%d")
+
+
 def get_stock_live_quote(ticker: str) -> dict:
     """輕量版即時報價，只回傳K線校正需要的欄位（開高低收量+報價日期）。
     get_stock_info() 整包快取5分鐘（那個TTL是為了PE/殖利率/融資融券這些
