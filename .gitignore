@@ -5,6 +5,7 @@
 *.p12
 *.pfx
 backend/log/
+backend/backtest_cache.db
 backend/fubon_mac.zip
 backend/fubon_neo-*-macosx*.whl
 backend/scripts/.futures_ema_alert_state.json
