@@ -46,13 +46,17 @@ def main():
     if not ym:
         return
 
-    # 年增率前 5 名當通知摘要
+    # 年增率前 5 名當通知摘要。排除去年同月營收不到 3 千萬（千元）的分母太小公司，
+    # 以及交屋才認列營收的建材營造業——不然榜首全是 +百萬% 的建設公司（跟前端年增榜同規則）
     rows = get_revenue_by_month(ym)
     ranked = sorted(
-        (r for r in rows if r.get("yoy_pct") is not None and r.get("rev")),
+        (r for r in rows
+         if r.get("yoy_pct") is not None and r.get("rev")
+         and (r.get("rev_ly") or 0) >= 30000 and r.get("industry") != "建材營造"),
         key=lambda r: r["yoy_pct"], reverse=True,
     )[:5]
-    lines = [f"📊 <b>{ym} 月營收已更新</b>（{result['saved']} 檔）", "", "年增率前 5 名："]
+    lines = [f"📊 <b>{ym} 月營收已更新</b>（{result['saved']} 檔）", "",
+             "年增率前 5 名（排除建材營造、去年同月營收 &lt; 3 千萬）："]
     for r in ranked:
         lines.append(f"・{r['ticker']} {r['name']}　+{r['yoy_pct']:.1f}%")
     _tg_notify("\n".join(lines), html=True)

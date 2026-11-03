@@ -2,16 +2,23 @@ import { useState, useEffect, useMemo } from "react";
 import { getRevenueBoard, getRevenueIndustry } from "../api";
 
 // 榜單定義：sortKey / dir 決定預設排序，另附過濾條件
+// baseKey：成長率榜的比較基準欄位，基準太小的會被排除（見 GROWTH_BASE_MIN）
 const RANKS = [
   { id: "latest",   label: "最新公布",   sortKey: "rev",         dir: "desc" },
-  { id: "yoy",      label: "年增榜",     sortKey: "yoy_pct",     dir: "desc" },
-  { id: "mom",      label: "月增榜",     sortKey: "mom_pct",     dir: "desc" },
-  { id: "cum_yoy",  label: "累計年增榜", sortKey: "cum_yoy_pct", dir: "desc" },
+  { id: "yoy",      label: "年增榜",     sortKey: "yoy_pct",     dir: "desc", baseKey: "rev_ly" },
+  { id: "mom",      label: "月增榜",     sortKey: "mom_pct",     dir: "desc", baseKey: "rev_prev" },
+  { id: "cum_yoy",  label: "累計年增榜", sortKey: "cum_yoy_pct", dir: "desc", baseKey: "cum_ly" },
   { id: "scale",    label: "營收規模榜", sortKey: "rev",         dir: "desc" },
   { id: "high12",   label: "近12月新高", sortKey: "rev",         dir: "desc", only12mHigh: true },
-  { id: "yoy_drop", label: "年減最多",   sortKey: "yoy_pct",     dir: "asc" },
+  { id: "yoy_drop", label: "年減最多",   sortKey: "yoy_pct",     dir: "asc",  baseKey: "rev_ly" },
   { id: "mine",     label: "我的自選",   sortKey: "yoy_pct",     dir: "desc", onlyWatch: true },
 ];
+
+// 成長率榜排除「分母太小」的公司：基準期營收不到 3 千萬（千元），成長率動輒上萬 %，
+// 會霸佔榜首卻不代表真的成長。建材營造業交屋才一次認列營收、天生大起大落，預設也排除
+// （使用者自己選了建材營造產業時就不排除）。跟後端 revenue_update.py 的通知同一套規則。
+const GROWTH_BASE_MIN = 30000;
+const LUMPY_INDUSTRY = "建材營造";
 
 // 月營收規模門檻（單位：千元；1 億 = 100,000 千元）
 const SCALE_FILTERS = [
@@ -122,6 +129,10 @@ export default function RevenuePage({ watchlist = [], onSelect }) {
       if (industry !== "all" && r.industry !== industry) return false;
       if (rankDef.only12mHigh && r.is_12m_high !== true) return false;
       if (rankDef.onlyWatch && !watchSet.has(r.ticker)) return false;
+      if (rankDef.baseKey) {
+        if ((r[rankDef.baseKey] ?? 0) < GROWTH_BASE_MIN) return false;
+        if (industry === "all" && r.industry === LUMPY_INDUSTRY) return false;
+      }
       if (q && !(r.name?.toLowerCase().includes(q) || r.ticker?.toLowerCase().includes(q))) return false;
       return true;
     });
@@ -262,6 +273,13 @@ export default function RevenuePage({ watchlist = [], onSelect }) {
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
+
+      {rankDef.baseKey && (
+        <p className="ranking-hint">
+          已排除比較基準營收不到 3 千萬的公司{industry === "all" ? "，以及交屋才認列營收、成長率大起大落的建材營造業" : ""}，
+          避免分母太小造成上萬 % 的失真數字。
+        </p>
+      )}
 
       {loading && <p className="loading-hint">營收資料載入中…</p>}
 
