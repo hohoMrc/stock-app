@@ -308,11 +308,14 @@ def run():
         for take in takes:
             for tm in (None, 30):
                 configs.append(("S0", {"stop": stop, "take": take, "time": tm}, {}))
+    # 開盤 5 分鐘量 ÷ 近 5 日日均量：實測中位數約 7.7%、前 25% 約 10%、前 10% 約 14%，
+    # 門檻要明顯高於常態才算「爆量」，測 12% 與 20% 兩檔（S1 不看量，只跑一次）
     for strat in ("S1", "S2", "S3"):
-        for stop in (-2, -3, "or_low"):
-            for take in takes:
-                for tm in (None, 30):
-                    configs.append((strat, {"stop": stop, "take": take, "time": tm}, {"vol_ratio": 0.08}))
+        for vol_ratio in ((None,) if strat == "S1" else (0.12, 0.20)):
+            for stop in (-2, -3, "or_low"):
+                for take in takes:
+                    for tm in (None, 30):
+                        configs.append((strat, {"stop": stop, "take": take, "time": tm}, {"vol_ratio": vol_ratio}))
 
     results = defaultdict(lambda: {"in": [], "out": [], "by_month": defaultdict(list)})
     days = sorted(uni)
@@ -326,15 +329,16 @@ def run():
         if n_day % 20 == 0:
             print(f"  已跑 {n_day}/{len(days)} 天", flush=True)
 
-    def label(strat, ex):
+    def label(strat, ex, params):
         take = ex["take"]
         take_s = f"移動停利{take[1]}/{take[2]}" if take[0] == "trail" else f"停利+{take[1]}%"
         stop_s = "停損開盤區間低" if ex["stop"] == "or_low" else f"停損{ex['stop']}%"
-        return f"{strat} {stop_s} {take_s}{' 時間停損30分' if ex['time'] else ''}"
+        vol_s = f" 量比≥{int(params['vol_ratio'] * 100)}%" if params.get("vol_ratio") else ""
+        return f"{strat}{vol_s} {stop_s} {take_s}{' 時間停損30分' if ex['time'] else ''}"
 
     rows = []
     for i, (strat, ex, params) in enumerate(configs):
-        rows.append((label(strat, ex), summarize(results[i]["in"]), summarize(results[i]["out"]), i))
+        rows.append((label(strat, ex, params), summarize(results[i]["in"]), summarize(results[i]["out"]), i))
 
     print(f"\n股票池：每天前一交易日成交值前 {UNIVERSE_SIZE} 名；樣本內 {START}~{SPLIT}，樣本外 {SPLIT}~{END}")
     print("\n== 現行規則（基準）==")
