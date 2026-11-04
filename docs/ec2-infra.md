@@ -53,4 +53,8 @@ ssh -i ~/.ssh/stock-key ubuntu@13.231.218.149 "crontab -l"
 ssh -i ~/.ssh/stock-key ubuntu@13.231.218.149 "crontab -e"   # 互動編輯，改完記得回來更新這份文件
 ```
 
+## 外部監控（Cloudflare Worker）
+
+`monitor/`（2026-11-04 起）：Cloudflare Worker `stock-api-monitor` 每 5 分鐘打 `https://stock-api.holin.cc/`，連續 2 次失敗發 🔴、恢復發 🟢 到個人 Telegram（狀態存 KV `STATE`）。跑在 Cloudflare 上，所以主機斷網／當機時也通知得到。部署：`cd monitor && npx wrangler@4 deploy`；Telegram token／chat ID 是 Worker secret，不在 repo。
+
 這些排程腳本本身不寫執行紀錄到 DB（只印 stdout + 發 Telegram），若懷疑排程斷更，用系統監控頁（前端「監控」分頁，`/api/system/status`）看各資料表最新日期反推，或直接 `tail /home/ubuntu/logs/<script>.log`。

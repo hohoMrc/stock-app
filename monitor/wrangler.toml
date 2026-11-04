@@ -1,0 +1,17 @@
+# 外部監控 Worker：每 5 分鐘檢查 stock-api.holin.cc，斷線／恢復時發 Telegram（只發個人，不發群組）
+# 部署：cd monitor && npx wrangler@4 deploy
+# 機密（不進版控）：npx wrangler@4 secret put TELEGRAM_BOT_TOKEN ／ TELEGRAM_CHAT_ID
+name = "stock-api-monitor"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+workers_dev = false   # 只靠排程觸發，不需要對外網址
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+TARGET_URL = "https://stock-api.holin.cc/"
+
+[[kv_namespaces]]
+binding = "STATE"
+id = "99d3c41017e7412b88235751f9975e5b"
