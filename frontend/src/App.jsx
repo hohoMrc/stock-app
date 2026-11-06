@@ -106,6 +106,11 @@ function buildUrlFromState(s) {
   return qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
 }
 
+// 滑鼠中鍵點股票/產業列時設成 true：handleSelectStock/handleSelectIndustry 看到就改開新分頁，不在原頁跳轉
+let openInNewTabPending = false;
+// 中鍵點到這些元素不處理，避免誤觸「移除」之類的動作
+const INTERACTIVE_SELECTOR = "button, a, input, select, textarea, label, [role=button]";
+
 export default function App() {
   const initialNavState = parseStateFromLocation();
   const [activePage, setActivePage] = useState(initialNavState.activePage);
@@ -296,7 +301,38 @@ export default function App() {
     });
   };
 
+  // 中鍵開新分頁：各列表只綁 onClick（中鍵不會觸發 click），所以在這裡攔 auxclick，
+  // 標記後對同一個元素補發一次 click，讓原本的 onClick → onSelect 流程照跑，最後在 handleSelect* 分流
+  useEffect(() => {
+    const isPlainTarget = (e) => e.button === 1 && e.target instanceof Element && !e.target.closest(INTERACTIVE_SELECTOR);
+    const onMouseDown = (e) => { if (isPlainTarget(e)) e.preventDefault(); };   // 擋掉 Windows 中鍵自動捲動
+    const onAuxClick = (e) => {
+      if (!isPlainTarget(e)) return;
+      e.preventDefault();
+      openInNewTabPending = true;
+      try {
+        e.target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      } finally {
+        openInNewTabPending = false;
+      }
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("auxclick", onAuxClick);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("auxclick", onAuxClick);
+    };
+  }, []);
+
+  const openInNewTab = (navState) => {
+    window.open(buildUrlFromState(navState), "_blank", "noopener");
+  };
+
   const handleSelectStock = (ticker, context = null) => {
+    if (openInNewTabPending) {
+      openInNewTab({ activePage: "detail", selectedTicker: ticker, selectedTickerContext: context });
+      return;
+    }
     setSelectedTicker(ticker);
     setSelectedTickerContext(context);
     setPageHistory((prev) => [...prev, activePage]);
@@ -304,6 +340,10 @@ export default function App() {
   };
 
   const handleSelectIndustry = (industry, fromTicker, useParent = false) => {
+    if (openInNewTabPending) {
+      openInNewTab({ activePage: "industry", selectedIndustry: { name: industry, excludeTicker: fromTicker, useParent } });
+      return;
+    }
     setSelectedIndustry({ name: industry, excludeTicker: fromTicker, useParent });
     setPageHistory((prev) => [...prev, activePage]);
     setActivePage("industry");
