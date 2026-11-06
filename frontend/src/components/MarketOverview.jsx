@@ -56,9 +56,9 @@ function BreadthAndInstitutional({ breadth, institutional }) {
       <div className="info-item">
         <span className="info-label">漲跌家數</span>
         <span className="info-value">
-          <span className="up">{b.up ?? "—"}</span>
+          <span className="up"><span className="breadth-tag">漲</span>{b.up ?? "—"}</span>
           {" / "}
-          <span className="down">{b.down ?? "—"}</span>
+          <span className="down"><span className="breadth-tag">跌</span>{b.down ?? "—"}</span>
         </span>
         <span className="info-label">平盤 {b.flat ?? "—"}</span>
         <span className="info-label">
