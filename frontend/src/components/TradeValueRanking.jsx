@@ -227,7 +227,7 @@ function ValueTable({ stocks, onSelect, showVolume = false }) {
                 <td>{s.trade_volume_zhang != null ? s.trade_volume_zhang.toLocaleString() : "—"}</td>
               )}
               <ExchangeBadge exchange={s.exchange} />
-              <td><button className="view-btn" onClick={() => onSelect(s.ticker)}>查看</button></td>
+              <td><button className="view-btn" data-open-tab onClick={() => onSelect(s.ticker)}>查看</button></td>
             </RowWrapper>
           ))}
         </tbody>
@@ -291,7 +291,7 @@ function TurnoverTable({ stocks, onSelect }) {
               <td className="trade-value-cell">{s.turnover_pct != null ? `${s.turnover_pct}%` : "—"}</td>
               <td>{s.trade_volume_zhang != null ? s.trade_volume_zhang.toLocaleString() : "—"}</td>
               <ExchangeBadge exchange={s.exchange} />
-              <td><button className="view-btn" onClick={() => onSelect(s.ticker)}>查看</button></td>
+              <td><button className="view-btn" data-open-tab onClick={() => onSelect(s.ticker)}>查看</button></td>
             </RowWrapper>
           ))}
         </tbody>

@@ -108,8 +108,10 @@ function buildUrlFromState(s) {
 
 // 滑鼠中鍵點股票/產業列時設成 true：handleSelectStock/handleSelectIndustry 看到就改開新分頁，不在原頁跳轉
 let openInNewTabPending = false;
-// 中鍵點到這些元素不處理，避免誤觸「移除」之類的動作
+// 中鍵點到這些元素不處理，避免誤觸「移除」「取消委託」之類的動作；
+// 純粹進個股頁的按鈕（如排行榜「查看」）加 data-open-tab 屬性放行
 const INTERACTIVE_SELECTOR = "button, a, input, select, textarea, label, [role=button]";
+const OPEN_TAB_SELECTOR = "[data-open-tab]";
 
 export default function App() {
   const initialNavState = parseStateFromLocation();
@@ -304,7 +306,8 @@ export default function App() {
   // 中鍵開新分頁：各列表只綁 onClick（中鍵不會觸發 click），所以在這裡攔 auxclick，
   // 標記後對同一個元素補發一次 click，讓原本的 onClick → onSelect 流程照跑，最後在 handleSelect* 分流
   useEffect(() => {
-    const isPlainTarget = (e) => e.button === 1 && e.target instanceof Element && !e.target.closest(INTERACTIVE_SELECTOR);
+    const isPlainTarget = (e) => e.button === 1 && e.target instanceof Element
+      && (!e.target.closest(INTERACTIVE_SELECTOR) || e.target.closest(OPEN_TAB_SELECTOR));
     const onMouseDown = (e) => { if (isPlainTarget(e)) e.preventDefault(); };   // 擋掉 Windows 中鍵自動捲動
     const onAuxClick = (e) => {
       if (!isPlainTarget(e)) return;

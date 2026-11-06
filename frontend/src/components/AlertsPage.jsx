@@ -87,7 +87,7 @@ export default function AlertsPage({ username, onRequireLogin, onSelect }) {
                     : `已於 ${new Date(a.triggered_at * 1000).toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} 觸發`}
                 </td>
                 <td className="watchlist-actions">
-                  {onSelect && <button className="view-btn" onClick={() => onSelect(a.ticker)}>查看</button>}
+                  {onSelect && <button className="view-btn" data-open-tab onClick={() => onSelect(a.ticker)}>查看</button>}
                   <button className="view-btn" onClick={() => setEditingAlert(a)}>編輯</button>
                   <button className="remove-btn" onClick={() => handleDelete(a.id)}>移除</button>
                 </td>
