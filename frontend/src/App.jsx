@@ -354,14 +354,27 @@ export default function App() {
 
   // ticker 為 null 時代表從導覽列直接進入，不帶入任何股票
   const goToPaperTrading = (ticker = null) => {
+    if (openInNewTabPending) {
+      openInNewTab({ activePage: "paper", paperPrefillTicker: ticker });
+      return;
+    }
     setPaperPrefillTicker(ticker);
     setActivePage("paper");
+  };
+
+  // 導覽列切頁：中鍵點擊時改開新分頁
+  const goPage = (page) => {
+    if (openInNewTabPending) {
+      openInNewTab({ activePage: page });
+      return;
+    }
+    setActivePage(page);
   };
 
   return (
     <div className="app">
       <header className="header">
-        <h1 onClick={() => setActivePage("dashboard")}>台股分析工具</h1>
+        <h1 onClick={() => goPage("dashboard")}>台股分析工具</h1>
 
         {/* 桌機版：帳號區 + 導覽 */}
         <div className="header-right desktop-only">
@@ -377,43 +390,43 @@ export default function App() {
         <nav className="top-nav desktop-only">
           <button
             className={activePage === "dashboard" ? "active" : ""}
-            onClick={() => setActivePage("dashboard")}
+            data-open-tab onClick={() => goPage("dashboard")}
           >
             大盤狀態
           </button>
           <button
             className={activePage === "terminal" ? "active" : ""}
-            onClick={() => setActivePage("terminal")}
+            data-open-tab onClick={() => goPage("terminal")}
           >
             看盤
           </button>
           <button
             className={activePage === "futures" ? "active" : ""}
-            onClick={() => setActivePage("futures")}
+            data-open-tab onClick={() => goPage("futures")}
           >
             台指期
           </button>
           <button
             className={activePage === "ranking" ? "active" : ""}
-            onClick={() => setActivePage("ranking")}
+            data-open-tab onClick={() => goPage("ranking")}
           >
             排行榜
           </button>
           <button
             className={["search", "detail", "industry"].includes(activePage) ? "active" : ""}
-            onClick={() => setActivePage("search")}
+            data-open-tab onClick={() => goPage("search")}
           >
             個股查詢
           </button>
           <button
             className={activePage === "screener" ? "active" : ""}
-            onClick={() => setActivePage("screener")}
+            data-open-tab onClick={() => goPage("screener")}
           >
             選股篩選
           </button>
           <button
             className={activePage === "watchlist" ? "active" : ""}
-            onClick={() => setActivePage("watchlist")}
+            data-open-tab onClick={() => goPage("watchlist")}
           >
             自選清單
             {watchlist.length > 0 && (
@@ -422,7 +435,7 @@ export default function App() {
           </button>
           <button
             className={activePage === "paper" ? "active" : ""}
-            onClick={() => goToPaperTrading()}
+            data-open-tab onClick={() => goToPaperTrading()}
           >
             模擬下單
           </button>
@@ -437,37 +450,37 @@ export default function App() {
               <div className="nav-more-menu">
                 <button
                   className={activePage === "alerts" ? "active" : ""}
-                  onClick={() => { setActivePage("alerts"); setMoreMenuOpen(false); }}
+                  data-open-tab onClick={() => { goPage("alerts"); setMoreMenuOpen(false); }}
                 >
                   提醒
                 </button>
                 <button
                   className={activePage === "dividends" ? "active" : ""}
-                  onClick={() => { setActivePage("dividends"); setMoreMenuOpen(false); }}
+                  data-open-tab onClick={() => { goPage("dividends"); setMoreMenuOpen(false); }}
                 >
                   除權息
                 </button>
                 <button
                   className={activePage === "news" ? "active" : ""}
-                  onClick={() => { setActivePage("news"); setMoreMenuOpen(false); }}
+                  data-open-tab onClick={() => { goPage("news"); setMoreMenuOpen(false); }}
                 >
                   新聞
                 </button>
                 <button
                   className={activePage === "claude-trader" ? "active" : ""}
-                  onClick={() => { setActivePage("claude-trader"); setMoreMenuOpen(false); }}
+                  data-open-tab onClick={() => { goPage("claude-trader"); setMoreMenuOpen(false); }}
                 >
                   Claude自動交易
                 </button>
                 <button
                   className={activePage === "signal-overview" ? "active" : ""}
-                  onClick={() => { setActivePage("signal-overview"); setMoreMenuOpen(false); }}
+                  data-open-tab onClick={() => { goPage("signal-overview"); setMoreMenuOpen(false); }}
                 >
                   策略成績單
                 </button>
                 <button
                   className={activePage === "revenue" ? "active" : ""}
-                  onClick={() => { setActivePage("revenue"); setMoreMenuOpen(false); }}
+                  data-open-tab onClick={() => { goPage("revenue"); setMoreMenuOpen(false); }}
                 >
                   月營收佈告欄
                 </button>
@@ -477,7 +490,7 @@ export default function App() {
           {username === ADMIN_USERNAME && (
             <button
               className={activePage === "admin" ? "active" : ""}
-              onClick={() => setActivePage("admin")}
+              data-open-tab onClick={() => goPage("admin")}
             >
               管理
             </button>
@@ -485,7 +498,7 @@ export default function App() {
           {username === ADMIN_USERNAME && (
             <button
               className={activePage === "monitor" ? "active" : ""}
-              onClick={() => setActivePage("monitor")}
+              data-open-tab onClick={() => goPage("monitor")}
             >
               監控
             </button>
