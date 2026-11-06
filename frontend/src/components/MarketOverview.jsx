@@ -61,6 +61,9 @@ function BreadthAndInstitutional({ breadth, institutional }) {
           <span className="down">{b.down ?? "—"}</span>
         </span>
         <span className="info-label">平盤 {b.flat ?? "—"}</span>
+        <span className="info-label">
+          漲停 <span className="up">{b.limit_up ?? "—"}</span>／跌停 <span className="down">{b.limit_down ?? "—"}</span>
+        </span>
       </div>
       {[
         { key: "foreign", label: "外資" },

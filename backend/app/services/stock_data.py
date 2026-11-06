@@ -1,4 +1,5 @@
 import os
+import math
 import base64
 import tempfile
 import threading
@@ -2954,7 +2955,8 @@ def _get_all_market_quotes(force: bool = False) -> dict[str, dict]:
                     chg_pct = item.get("changePercent")
                     tv      = item.get("tradeValue")
                     if symbol and chg_pct is not None:
-                        quotes[symbol] = {"change_pct": float(chg_pct), "trade_value": float(tv or 0)}
+                        quotes[symbol] = {"change_pct": float(chg_pct), "trade_value": float(tv or 0),
+                                          "close": item.get("closePrice"), "change": item.get("change")}
             except Exception as e:
                 print(f"[Fugle] snapshot quotes {market} 失敗: {e}")
 
@@ -2962,13 +2964,43 @@ def _get_all_market_quotes(force: bool = False) -> dict[str, dict]:
     return quotes
 
 
+def _tick_size(price: float) -> float:
+    """台股一般股票升降單位"""
+    for limit, tick in ((10, 0.01), (50, 0.05), (100, 0.1), (500, 0.5), (1000, 1)):
+        if price < limit:
+            return tick
+    return 5
+
+
+def _limit_prices(prev_close: float) -> tuple[float, float]:
+    """漲停價（昨收×1.1 往下取到升降單位）、跌停價（昨收×0.9 往上取）"""
+    up_raw, down_raw = prev_close * 1.1, prev_close * 0.9
+    t_up, t_down = _tick_size(up_raw), _tick_size(down_raw)
+    up = math.floor(up_raw / t_up + 1e-6) * t_up      # 1e-6 避免浮點誤差把剛好整除的價格多扣一檔
+    down = math.ceil(down_raw / t_down - 1e-6) * t_down
+    return round(up, 2), round(down, 2)
+
+
 def get_market_breadth(force: bool = False) -> dict:
-    """今日全市場漲跌家數（上漲/下跌/平盤），供大盤狀態首頁使用。"""
+    """今日全市場漲跌家數（上漲/下跌/平盤），以及漲停/跌停家數，供大盤狀態首頁使用。"""
     quotes = _get_all_market_quotes(force)
     up   = sum(1 for q in quotes.values() if q["change_pct"] > 0)
     down = sum(1 for q in quotes.values() if q["change_pct"] < 0)
     flat = sum(1 for q in quotes.values() if q["change_pct"] == 0)
-    return {"up": up, "down": down, "flat": flat, "total": len(quotes)}
+
+    # 漲跌停只算 4 碼一般股票：ETF（槓桿/海外 ETF 沒有 10% 限制）、可轉債等規則不同
+    limit_up = limit_down = 0
+    for sym, q in quotes.items():
+        close, chg = q.get("close"), q.get("change")
+        if not (len(sym) == 4 and sym.isdigit() and not sym.startswith("0") and close and chg is not None):
+            continue
+        up_px, down_px = _limit_prices(close - chg)
+        if close >= up_px - 1e-6:
+            limit_up += 1
+        elif close <= down_px + 1e-6:
+            limit_down += 1
+    return {"up": up, "down": down, "flat": flat, "total": len(quotes),
+            "limit_up": limit_up, "limit_down": limit_down}
 
 
 TAIEX_TTL = 30  # 加權指數盤中跳動快，快取只留 30 秒
