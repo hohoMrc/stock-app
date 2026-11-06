@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { getStock } from "../api";
+import { getWatchlistQuotes } from "../api";
 import { isTradingHours } from "../marketHours";
 
 // 後端不同來源回傳的交易所欄位有的是原始代碼（TW/TWO），有的已經是中文，統一轉成手機版卡片用的縮寫
@@ -25,12 +25,14 @@ export default function WatchList({
   const fetchAll = async (silent = false) => {
     if (!watchlist.length) { setStocks([]); return; }
     if (!silent) setLoading(true);
-    const results = await Promise.allSettled(watchlist.map((t) => getStock(t)));
-    setStocks(
-      results
-        .map((r, i) => r.status === "fulfilled" ? r.value.data : { ticker: watchlist[i], name: "—", price: null })
-        .filter(Boolean)
-    );
+    // 用輕量的批次報價 API（一次請求、後端平行打即時報價），不要每檔各打一次完整個股資料：
+    // 個股 API 會連本益比/融資/K線一起算，25 檔冷快取要 20 秒以上，這頁只需要價格和漲跌
+    try {
+      const res = await getWatchlistQuotes(watchlist);
+      setStocks(res.data.stocks.map((s) => ({ ...s, price: s.close ?? null })));
+    } catch {
+      if (!silent) setStocks(watchlist.map((t) => ({ ticker: t, name: "—", price: null })));
+    }
     setUpdatedAt(new Date().toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
     if (!silent) setLoading(false);
   };

@@ -2601,7 +2601,10 @@ def get_watchlist_quotes(tickers: list[str]) -> list[dict]:
     _load_tw_stock_names()
     merged_names: dict[str, str] = {**COMMON_STOCK_NAMES, **ETF_NAMES}
     merged_names.update(_tw_stock_names)
-    stocks = [{"ticker": t, "name": _resolve_stock_name(t, merged_names)} for t in tickers]
+    stocks = []
+    for t in tickers:
+        meta = get_stock_meta(t, max_age_hours=1e9) or {}   # 上市/上櫃幾乎不會變，舊資料也可用
+        stocks.append({"ticker": t, "name": _resolve_stock_name(t, merged_names), "exchange": meta.get("exchange")})
 
     client = _get_fugle()
     if not client or not stocks:
