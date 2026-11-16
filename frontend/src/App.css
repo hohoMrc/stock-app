@@ -2881,15 +2881,25 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   padding: 6px 14px;
 }
 .search-suggestions li.sug-history-header:hover { background: transparent; }
-.sug-history-clear,
-.sug-history-remove {
+.search-bar .sug-history-clear,
+.search-bar .sug-history-remove {
   background: none;
   border: none;
+  border-radius: 4px;
+  box-shadow: none;
+  transform: none;
+  font-weight: 400;
+  letter-spacing: 0;
   color: var(--text-secondary);
   cursor: pointer;
   font-size: 12px;
   padding: 0 4px;
 }
-.sug-history-remove { margin-left: auto; font-size: 16px; line-height: 1; }
-.sug-history-clear:hover,
-.sug-history-remove:hover { color: var(--accent); }
+.search-bar .sug-history-remove { margin-left: auto; font-size: 16px; line-height: 1; }
+.search-bar .sug-history-clear:hover,
+.search-bar .sug-history-remove:hover {
+  background: none;
+  box-shadow: none;
+  transform: none;
+  color: var(--accent);
+}
