@@ -1813,58 +1813,82 @@ def fetch_twse_institutional(day: date, retries: int = 3) -> list[dict] | None:
     return None
 
 
-def backfill_twse_institutional(days: int = 14) -> int:
-    """補抓最近幾天缺漏的上市三大法人資料，回傳補進幾筆。
+def fetch_tpex_institutional(day: date, retries: int = 3) -> list[dict] | None:
+    """抓指定日期的上櫃三大法人買賣超（TPEx 網站端點，可查歷史）。
 
-    判斷方式：DB 裡有上櫃資料（代表是交易日）但總筆數明顯不足（上市約 1200 檔、上櫃約 800 檔），
-    就是當天上市 T86 沒抓到。上櫃 OpenAPI 只給最新一天，無法補，所以只補上市。
+    不用 OpenAPI tpex_3insti_daily_trading：它只給最新一天，且外資欄位名稱中間有空格
+    （"ForeignInvestorsInclude MainlandAreaInvestors-Difference"），之前讀錯導致上櫃外資一律存成 0。
+    欄位：[10] 外資及陸資合計買賣超、[13] 投信、[22] 自營商合計、[23] 三大法人合計（單位：股）。
     """
-    from app.db import get_institutional_date_counts, save_institutional_trades
-    since = (date.today() - timedelta(days=days)).isoformat()
-    total = 0
-    for day_iso, cnt in sorted(get_institutional_date_counts(since).items()):
-        if cnt >= 1500:
+    day_iso = day.strftime("%Y-%m-%d")
+    for attempt in range(1, retries + 1):
+        try:
+            resp = _tpex_get(
+                "https://www.tpex.org.tw/www/zh-tw/insti/dailyTrade",
+                params={"type": "Daily", "sect": "EW", "date": day.strftime("%Y/%m/%d"), "response": "json"},
+                timeout=40,
+            )
+            tables = resp.json().get("tables") or []
+        except Exception as e:
+            print(f"[TPEx] 三大法人 {day_iso} 第 {attempt} 次失敗: {e}")
+            if attempt < retries:
+                time.sleep(20 * attempt)
             continue
-        records = fetch_twse_institutional(date.fromisoformat(day_iso))
-        if records:
-            save_institutional_trades(records)
-            total += len(records)
-            print(f"[三大法人補抓] {day_iso} 補進上市 {len(records)} 筆")
-        time.sleep(3)  # 證交所對連續請求有頻率限制
+        rows = tables[0].get("data", []) if tables else []
+        results = []
+        for row in rows:
+            code = str(row[0]).strip()
+            if not code.isdigit() or not (4 <= len(code) <= 5) or len(row) < 24:
+                continue
+            results.append({
+                "ticker": code, "date": day_iso,
+                "foreign_net": int(_parse_num(row[10]) or 0), "trust_net": int(_parse_num(row[13]) or 0),
+                "dealer_net": int(_parse_num(row[22]) or 0), "total_net": int(_parse_num(row[23]) or 0),
+            })
+        if not results:
+            print(f"[TPEx] 三大法人 {day_iso} 無資料（可能非交易日或尚未公布）")
+        return results
+    return None
+
+
+def backfill_institutional(days: int = 14, since: str | None = None, force: bool = False) -> int:
+    """補抓缺漏的三大法人資料（上市、上櫃分開判斷），回傳補進幾筆。
+
+    判斷方式：DB 裡有該日資料（代表是交易日），但某個市場筆數明顯不足（上市約 1100 檔、上櫃約 780 檔），
+    就重抓那個市場。force=True 時不管筆數，兩個市場都重抓（用來修正歷史資料）。
+    """
+    from app.db import get_institutional_market_counts, save_institutional_trades, get_candles
+    since = since or (date.today() - timedelta(days=days)).isoformat()
+    counts = get_institutional_market_counts(since)
+    # 用台積電日K當交易日曆，整天都沒抓到的交易日也補（今天的交易交給 daily_update 本身抓）
+    for c in get_candles("2330", since, (date.today() - timedelta(days=1)).isoformat()):
+        counts.setdefault(c["date"], (0, 0))
+    total = 0
+    for day_iso, (tw, two) in sorted(counts.items()):
+        day = date.fromisoformat(day_iso)
+        for name, cnt, threshold, fetcher in (("上市", tw, 900, fetch_twse_institutional),
+                                              ("上櫃", two, 600, fetch_tpex_institutional)):
+            if cnt >= threshold and not force:
+                continue
+            records = fetcher(day)
+            if records:
+                save_institutional_trades(records)
+                total += len(records)
+                print(f"[三大法人補抓] {day_iso} {name} {len(records)} 筆")
+            time.sleep(3)  # 證交所/櫃買對連續請求有頻率限制
     return total
 
 
 def fetch_institutional_trades_today() -> list[dict]:
-    """抓當天全市場三大法人買賣超（上市 TWSE T86 + 上櫃 TPEx），供 daily_update.py 存 DB 用。"""
-    today_iso = date.today().strftime("%Y-%m-%d")
+    """抓當天全市場三大法人買賣超（上市 TWSE T86 + 上櫃 TPEx），供 daily_update.py 存 DB 用。
+    任一市場失敗都只印訊息，之後由 backfill_institutional 補抓。"""
     results: list[dict] = []
-
-    # 上市（TWSE T86）；失敗的話晚上 night_update 會再補抓
-    twse = fetch_twse_institutional(date.today())
-    if twse is None:
-        print("[TWSE] T86 三大法人重試後仍失敗，待之後補抓")
-    else:
-        results.extend(twse)
-
-    # 上櫃（TPEx）
-    try:
-        resp = _tpex_get("https://www.tpex.org.tw/openapi/v1/tpex_3insti_daily_trading", timeout=15)
-        for row in resp.json():
-            code = str(row.get("SecuritiesCompanyCode", "")).strip()
-            if not code.isdigit() or not (4 <= len(code) <= 5):
-                continue
-            foreign_net = _parse_num(row.get("ForeignInvestorsIncludeMainlandAreaInvestors-Difference")) or 0
-            trust_net   = _parse_num(row.get("SecuritiesInvestmentTrustCompanies-Difference")) or 0
-            dealer_net  = _parse_num(row.get("Dealers-Difference")) or 0
-            total_net   = _parse_num(row.get("TotalDifference")) or 0
-            results.append({
-                "ticker": code, "date": today_iso,
-                "foreign_net": int(foreign_net), "trust_net": int(trust_net),
-                "dealer_net": int(dealer_net), "total_net": int(total_net),
-            })
-    except Exception as e:
-        print(f"[TPEx] 三大法人失敗: {e}")
-
+    for name, fetcher in (("上市", fetch_twse_institutional), ("上櫃", fetch_tpex_institutional)):
+        records = fetcher(date.today())
+        if records is None:
+            print(f"[三大法人] {name}重試後仍失敗，待之後補抓")
+        else:
+            results.extend(records)
     return results
 
 
@@ -2080,19 +2104,21 @@ def get_stock_signals(ticker: str, info: dict) -> dict:
     }
 
 
-def scan_institutional_buying(min_days: int = 3, limit: int = 200, min_total_net_zhang: int = 0) -> list:
-    """掃全市場，回傳外資+投信合計連續買超 ≥ min_days 個交易日，且合計買超 ≥ min_total_net_zhang 張的股票。"""
+def scan_institutional_buying(min_days: int = 3, limit: int = 200, min_total_net_zhang: int = 0,
+                              as_of: date | None = None) -> list:
+    """掃全市場，回傳外資+投信合計連續買超 ≥ min_days 個交易日，且合計買超 ≥ min_total_net_zhang 張的股票。
+    as_of 指定以哪一天收盤為基準（重掃歷史訊號用），預設今天。"""
     from app.db import get_all_db_tickers_with_meta, get_all_institutional_trades_in_range, get_candles
-    from datetime import date, timedelta
 
+    base = as_of or date.today()
     lookback_days = min_days + 15  # 留緩衝扣掉假日
-    from_date = (date.today() - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
-    to_date   = date.today().strftime("%Y-%m-%d")
+    from_date = (base - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+    to_date   = base.strftime("%Y-%m-%d")
 
     trades_map = get_all_institutional_trades_in_range(from_date, to_date)
     meta_map   = {row["ticker"]: row for row in get_all_db_tickers_with_meta()}
 
-    candle_from = (date.today() - timedelta(days=10)).strftime("%Y-%m-%d")
+    candle_from = (base - timedelta(days=10)).strftime("%Y-%m-%d")
 
     results = []
     for ticker, records in trades_map.items():

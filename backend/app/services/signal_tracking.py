@@ -47,9 +47,10 @@ def _futures_daily_candles(product: str) -> list[dict]:
     return [{"date": r["date"], "close": r["close"]} for r in rows]
 
 
-def record_signals(scan_type: str, hits: list):
-    """每次排程掃描出結果時呼叫，把當天命中的股票存一筆快照（同股票同天同類型只存一次）。"""
-    today = date.today().strftime("%Y-%m-%d")
+def record_signals(scan_type: str, hits: list, signal_date: str | None = None):
+    """每次排程掃描出結果時呼叫，把當天命中的股票存一筆快照（同股票同天同類型只存一次）。
+    signal_date 預設今天；重掃歷史訊號時指定。"""
+    today = signal_date or date.today().strftime("%Y-%m-%d")
     records = [
         {
             "ticker": h["ticker"],

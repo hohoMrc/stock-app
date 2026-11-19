@@ -48,8 +48,8 @@ for product in ["TXF", "TMF"]:
 
 # 下午 daily_update 抓上市三大法人常因證交所逾時失敗，這裡凌晨再補抓一次缺漏的日期
 try:
-    from app.services.stock_data import backfill_twse_institutional
-    n = backfill_twse_institutional()
+    from app.services.stock_data import backfill_institutional
+    n = backfill_institutional()
     print(f"[三大法人補抓] 共補 {n} 筆")
 except Exception as e:
     print(f"[三大法人補抓] 失敗: {e}")
