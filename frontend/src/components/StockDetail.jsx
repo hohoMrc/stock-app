@@ -107,6 +107,21 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   const [intradayData, setIntradayData] = useState([]);
   const [intradayLoading, setIntradayLoading] = useState(false);
   const intradayPollRef = useRef(null);
+  // 前 5 個完整交易日的平均成交量（張），給當日走勢標題列比較今天量能用
+  const [avgVol5, setAvgVol5] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    setAvgVol5(null);
+    const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Taipei" }); // YYYY-MM-DD
+    getHistory(ticker, "1mo", "1d")
+      .then((res) => {
+        // 排除今天（盤中只是累計量），日K 的 volume 單位是股，換成張
+        const days = (res.data.data || []).filter((d) => d.date < today && d.volume).slice(-5);
+        if (alive && days.length) setAvgVol5(Math.round(days.reduce((s, d) => s + d.volume, 0) / days.length / 1000));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [ticker]);
   // useMemo 固定陣列參照，避免每次 render 都產生新陣列讓 recharts 的 ResponsiveContainer
   // 尺寸量測跟資料變化偵測互相觸發，導致無窮迴圈（看盤頁已實際踩到這個問題）。
   // 必須放在任何 early return 之前，不然 hooks 呼叫順序在不同 render 之間會不一致。
@@ -350,9 +365,24 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
       <div className={`chart-section intraday-section tab-quote ${mobileTab === "quote" ? "mobile-active" : ""}`}>
         <div className="chart-header">
           <h3>當日走勢</h3>
-          {intradayData.length > 0 && intradayData[intradayData.length - 1].average != null && (
-            <span className="intraday-avg">均價 {intradayData[intradayData.length - 1].average}</span>
-          )}
+          <div className="intraday-header-stats">
+            {info.volume_zhang != null && (
+              <span className="intraday-avg" title="盤中為目前累計量，跟前 5 日完整一天的均量比">
+                總量 <b>{info.volume_zhang.toLocaleString()}</b> 張
+                {avgVol5 ? (
+                  <>
+                    <span className="intraday-sep">·</span>5日均量 {avgVol5.toLocaleString()} 張
+                    <span className={`intraday-vol-ratio ${info.volume_zhang >= avgVol5 ? "up" : ""}`}>
+                      （{(info.volume_zhang / avgVol5).toFixed(2)} 倍）
+                    </span>
+                  </>
+                ) : null}
+              </span>
+            )}
+            {intradayData.length > 0 && intradayData[intradayData.length - 1].average != null && (
+              <span className="intraday-avg">均價 {intradayData[intradayData.length - 1].average}</span>
+            )}
+          </div>
         </div>
 
         <div className="intraday-split">

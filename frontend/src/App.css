@@ -435,6 +435,10 @@
   font-size: 13px;
   color: var(--text-secondary);
 }
+.intraday-avg b { color: var(--text-primary); font-weight: 600; }
+.intraday-header-stats { display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: flex-end; }
+.intraday-sep { margin: 0 6px; }
+.intraday-vol-ratio.up { color: var(--up); }
 
 /* Chart type 按鈕群 */
 .chart-type-btns {
