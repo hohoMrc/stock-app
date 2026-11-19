@@ -596,7 +596,7 @@ export default function App() {
         )}
       </header>
 
-      <main className={`main${activePage === "terminal" ? " main-terminal" : ""}`}>
+      <main className={`main${activePage === "terminal" ? " main-terminal" : ""}${activePage === "futures" ? " main-wide" : ""}`}>
         {activePage === "dashboard" && (
           <MarketOverview
             onSelect={(t) => handleSelectStock(t)}

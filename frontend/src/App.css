@@ -2372,7 +2372,7 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 }
 
 /* ── 台指期 ─────────────────────────────────── */
-.futures-page { padding: 16px; max-width: 1000px; margin: 0 auto; }
+.futures-page { padding: 16px; margin: 0 auto; }
 
 .futures-quote { background: var(--card); border-radius: 10px; padding: 16px 20px; margin-bottom: 16px; }
 .futures-quote-main { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -2903,6 +2903,9 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   transform: none;
   color: var(--accent);
 }
+
+/* 台指期頁面放寬，K 線圖才不會被 960px 主欄位限制住 */
+.main-wide { max-width: 1400px; }
 
 /* 台指期 K 線桌機放大（跟 FuturesPage.jsx 的 chart height 同步） */
 @media (min-width: 768px) {
