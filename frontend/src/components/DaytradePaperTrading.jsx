@@ -188,6 +188,68 @@ const DaytradePaperTrading = forwardRef(function DaytradePaperTrading(
         </div>
       )}
 
+      <h3 className="paper-section-title">交易績效</h3>
+      {!performance || performance.total_trades === 0 ? (
+        <p className="no-data">尚無已平倉交易，賣出後才會累積績效統計</p>
+      ) : (
+        <>
+          <div className="info-grid paper-summary">
+            <div className="info-item">
+              <span className="info-label">已平倉交易次數</span>
+              <span className="info-value">{performance.total_trades}</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">勝率</span>
+              <span className="info-value">{performance.win_rate}%（{performance.win_count}勝{performance.loss_count}敗）</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">平均獲利</span>
+              <span className="info-value up">{performance.avg_win != null ? performance.avg_win.toLocaleString() : "—"}</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">平均虧損</span>
+              <span className="info-value down">{performance.avg_loss != null ? performance.avg_loss.toLocaleString() : "—"}</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">損益比</span>
+              <span className="info-value">{performance.profit_factor ?? "—"}</span>
+            </div>
+            <div className="info-item">
+              <span className="info-label">累計已實現損益</span>
+              <span className={`info-value ${performance.total_realized_pl > 0 ? "up" : performance.total_realized_pl < 0 ? "down" : ""}`}>
+                {performance.total_realized_pl.toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          {performance.curve.length > 1 && (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={performance.curve}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(v) => {
+                    const [, m, d] = v.split("-");
+                    return `${parseInt(m)}/${parseInt(d)}`;
+                  }}
+                  interval="preserveStartEnd"
+                />
+                <YAxis tick={{ fontSize: 11 }} width={60} />
+                <Tooltip
+                  formatter={(v) => [v.toLocaleString(), "累計已實現損益"]}
+                  labelFormatter={(l) => {
+                    const [y, m, d] = l.split("-");
+                    return `${y}年${parseInt(m)}月${parseInt(d)}日`;
+                  }}
+                />
+                <Line type="monotone" dataKey="cumulative_pl" stroke="#2563eb" dot={false} strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </>
+      )}
+
       <h3 className="paper-section-title">持股</h3>
       {positions.length === 0 ? (
         <p className="no-data">{loading ? "載入中..." : "目前無持股"}</p>
@@ -293,68 +355,6 @@ const DaytradePaperTrading = forwardRef(function DaytradePaperTrading(
         {formError && <p className="error">{formError}</p>}
         {formMsg && <p className="paper-form-msg">{formMsg}</p>}
       </div>
-
-      <h3 className="paper-section-title">交易績效</h3>
-      {!performance || performance.total_trades === 0 ? (
-        <p className="no-data">尚無已平倉交易，賣出後才會累積績效統計</p>
-      ) : (
-        <>
-          <div className="info-grid paper-summary">
-            <div className="info-item">
-              <span className="info-label">已平倉交易次數</span>
-              <span className="info-value">{performance.total_trades}</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">勝率</span>
-              <span className="info-value">{performance.win_rate}%（{performance.win_count}勝{performance.loss_count}敗）</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">平均獲利</span>
-              <span className="info-value up">{performance.avg_win != null ? performance.avg_win.toLocaleString() : "—"}</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">平均虧損</span>
-              <span className="info-value down">{performance.avg_loss != null ? performance.avg_loss.toLocaleString() : "—"}</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">損益比</span>
-              <span className="info-value">{performance.profit_factor ?? "—"}</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">累計已實現損益</span>
-              <span className={`info-value ${performance.total_realized_pl > 0 ? "up" : performance.total_realized_pl < 0 ? "down" : ""}`}>
-                {performance.total_realized_pl.toLocaleString()}
-              </span>
-            </div>
-          </div>
-
-          {performance.curve.length > 1 && (
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart data={performance.curve}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 11 }}
-                  tickFormatter={(v) => {
-                    const [, m, d] = v.split("-");
-                    return `${parseInt(m)}/${parseInt(d)}`;
-                  }}
-                  interval="preserveStartEnd"
-                />
-                <YAxis tick={{ fontSize: 11 }} width={60} />
-                <Tooltip
-                  formatter={(v) => [v.toLocaleString(), "累計已實現損益"]}
-                  labelFormatter={(l) => {
-                    const [y, m, d] = l.split("-");
-                    return `${y}年${parseInt(m)}月${parseInt(d)}日`;
-                  }}
-                />
-                <Line type="monotone" dataKey="cumulative_pl" stroke="#2563eb" dot={false} strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </>
-      )}
 
       <h3 className="paper-section-title">歷史成交紀錄</h3>
       {orders.length === 0 ? (
