@@ -2903,3 +2903,9 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   transform: none;
   color: var(--accent);
 }
+
+/* 台指期 K 線桌機放大（跟 FuturesPage.jsx 的 chart height 同步） */
+@media (min-width: 768px) {
+  .futures-chart-loading,
+  .futures-chart-empty { height: 560px; }
+}
