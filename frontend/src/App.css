@@ -2912,3 +2912,14 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   .futures-chart-loading,
   .futures-chart-empty { height: 560px; }
 }
+
+/* 個股頁：當日走勢縮成左半，右半放五檔/成交明細 */
+.intraday-split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.intraday-main { min-width: 0; }
+.intraday-side { min-width: 0; border-left: 1px solid var(--border); padding-left: 12px; }
+.intraday-side .ob-tabs { padding: 0 0 4px; }
+.intraday-side .tradelist-scroll { max-height: 210px; }
+@media (max-width: 767px) {
+  .intraday-split { grid-template-columns: 1fr; }
+  .intraday-side { border-left: none; padding-left: 0; border-top: 1px solid var(--border); padding-top: 8px; }
+}

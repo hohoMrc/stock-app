@@ -690,7 +690,7 @@ export default function TradingTerminal({ watchlist = [], onToggleWatch, usernam
   );
 }
 
-function OrderBook({ data, loading }) {
+export function OrderBook({ data, loading }) {
   const bids = (data.best_bids || []).slice(0, 5);
   const asks = (data.best_asks || []).slice(0, 5);
   const isRealtime = data.is_realtime;
@@ -846,7 +846,7 @@ function IntradayMiniChart({ data, prevClose, openPrice = null, chartHeight = 11
   );
 }
 
-function TradeList({ trades }) {
+export function TradeList({ trades }) {
   if (!trades || trades.length === 0) {
     return <div className="tradelist-wrap"><p className="tl-empty">暫無成交明細</p></div>;
   }

@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, ReferenceDot, ComposedChart, Legend } from "recharts";
 import CandlestickChart from "./CandlestickChart";
 import AlertModal from "./AlertModal";
-import { getStock, getStockLiveQuote, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart, getIntradayCandles, getTickerRevenue } from "../api";
+import { getStock, getStockLiveQuote, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart, getIntradayCandles, getTickerRevenue, getOrderbook, getTrades } from "../api";
+import { OrderBook, TradeList } from "./TradingTerminal";
 import { isTradingHours } from "../marketHours";
 import { mergeLiveBar, mergeIntradayBars } from "../chartUtils";
 
@@ -43,6 +44,45 @@ function padIntradayToFullDay(intradayData) {
     }
   }
   return result;
+}
+
+// 當日走勢右側：委買委賣五檔 / 成交明細（沿用看盤頁的元件），盤中每 10 秒刷新，盤後只抓一次最後快照
+function QuoteSidePanel({ ticker }) {
+  const [tab, setTab] = useState("book");
+  const [orderbook, setOrderbook] = useState({ best_bids: [], best_asks: [] });
+  const [trades, setTrades] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setOrderbook({ best_bids: [], best_asks: [] });
+    setTrades([]);
+    const fetchAll = () => {
+      setLoading(true);
+      Promise.all([getOrderbook(ticker), getTrades(ticker, 30)])
+        .then(([ob, tr]) => {
+          if (!alive) return;
+          setOrderbook(ob.data);
+          setTrades(tr.data.trades || []);
+        })
+        .catch(() => {})
+        .finally(() => { if (alive) setLoading(false); });
+    };
+    fetchAll();
+    const timer = setInterval(() => { if (isTradingHours()) fetchAll(); }, 10000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [ticker]);
+
+  return (
+    <div className="intraday-side">
+      <div className="terminal-list-tabs ob-tabs">
+        {[{ key: "book", label: "委買委賣" }, { key: "trades", label: "成交明細" }].map(({ key, label }) => (
+          <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>{label}</button>
+        ))}
+      </div>
+      {tab === "book" ? <OrderBook data={orderbook} loading={loading} /> : <TradeList trades={trades} />}
+    </div>
+  );
 }
 
 export default function StockDetail({ ticker, scanContext = null, onBack, onIndustry, watchlist = [], onToggleWatch, onPaperTrade, username, onRequireLogin }) {
@@ -315,6 +355,8 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
           )}
         </div>
 
+        <div className="intraday-split">
+        <div className="intraday-main">
         {intradayLoading && intradayData.length === 0 ? (
           <p className="loading-hint">載入中...</p>
         ) : intradayData.length > 0 ? (
@@ -377,6 +419,9 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         ) : (
           <p className="no-data">今日尚無分時資料</p>
         )}
+        </div>
+        <QuoteSidePanel ticker={ticker} />
+        </div>
       </div>
 
       <div className={`chart-section tab-kline ${mobileTab === "kline" ? "mobile-active" : ""}`}>
