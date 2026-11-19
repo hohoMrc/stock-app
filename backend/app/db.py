@@ -700,6 +700,16 @@ def save_institutional_trades(records: list[dict]):
         )
 
 
+def get_institutional_date_counts(since: str) -> dict[str, int]:
+    """回傳 since（含）之後每個日期的三大法人筆數，用來判斷哪天上市資料缺漏。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT date, COUNT(*) FROM institutional_trades WHERE date>=? GROUP BY date",
+            (since,)
+        ).fetchall()
+    return {r[0]: r[1] for r in rows}
+
+
 def get_all_institutional_trades_in_range(from_date: str, to_date: str) -> dict[str, list[dict]]:
     """一次取出所有 ticker 在日期範圍內的三大法人買賣超，回傳 {ticker: [record,...]}（依日期由舊到新）。"""
     with _conn() as conn:

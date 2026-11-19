@@ -290,6 +290,8 @@ if __name__ == "__main__":
             inst_records = fetch_institutional_trades_today()
             save_institutional_trades(inst_records)
             print(f"[三大法人] 存入 {len(inst_records)} 筆")
+            from app.services.stock_data import backfill_twse_institutional
+            backfill_twse_institutional()
 
             print("[法人連買] 開始掃描...")
             buy_hits = scan_institutional_buying(min_days=3, limit=200, min_total_net_zhang=5000)

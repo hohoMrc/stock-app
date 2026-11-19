@@ -1771,38 +1771,80 @@ def scan_rs_momentum(limit: int = 200, min_ret20: float = 25.0, vol_mult: float 
     return results[:limit]
 
 
+def fetch_twse_institutional(day: date, retries: int = 3) -> list[dict] | None:
+    """抓指定日期的上市（TWSE T86）三大法人買賣超。
+
+    回傳 list（非交易日為空 list）；連續重試都失敗回傳 None，讓呼叫端知道要之後補抓。
+    證交所 15:30 前後常常回應很慢（2026-11-12 起連續一週 15 秒逾時），所以拉長逾時並重試。
+    """
+    day_str = day.strftime("%Y%m%d")
+    day_iso = day.strftime("%Y-%m-%d")
+    for attempt in range(1, retries + 1):
+        try:
+            resp = requests.get(
+                "https://www.twse.com.tw/rwd/zh/fund/T86",
+                params={"response": "json", "date": day_str, "selectType": "ALLBUT0999"},
+                timeout=40, headers=_TWSE_HEADERS,
+            )
+            data = resp.json()
+        except Exception as e:
+            print(f"[TWSE] T86 {day_iso} 第 {attempt} 次失敗: {e}")
+            if attempt < retries:
+                time.sleep(20 * attempt)
+            continue
+        if data.get("stat") != "OK":
+            print(f"[TWSE] T86 {day_iso} 無資料（可能非交易日或尚未公布）: {data.get('stat')}")
+            return []
+        results = []
+        for row in data.get("data", []):
+            code = str(row[0]).strip()
+            if not code.isdigit() or not (4 <= len(code) <= 5):
+                continue
+            foreign_net = (_parse_num(row[4]) or 0) + (_parse_num(row[7]) or 0)
+            trust_net   = _parse_num(row[10]) or 0
+            dealer_net  = _parse_num(row[11]) or 0
+            total_net   = _parse_num(row[18]) or 0
+            results.append({
+                "ticker": code, "date": day_iso,
+                "foreign_net": int(foreign_net), "trust_net": int(trust_net),
+                "dealer_net": int(dealer_net), "total_net": int(total_net),
+            })
+        return results
+    return None
+
+
+def backfill_twse_institutional(days: int = 14) -> int:
+    """補抓最近幾天缺漏的上市三大法人資料，回傳補進幾筆。
+
+    判斷方式：DB 裡有上櫃資料（代表是交易日）但總筆數明顯不足（上市約 1200 檔、上櫃約 800 檔），
+    就是當天上市 T86 沒抓到。上櫃 OpenAPI 只給最新一天，無法補，所以只補上市。
+    """
+    from app.db import get_institutional_date_counts, save_institutional_trades
+    since = (date.today() - timedelta(days=days)).isoformat()
+    total = 0
+    for day_iso, cnt in sorted(get_institutional_date_counts(since).items()):
+        if cnt >= 1500:
+            continue
+        records = fetch_twse_institutional(date.fromisoformat(day_iso))
+        if records:
+            save_institutional_trades(records)
+            total += len(records)
+            print(f"[三大法人補抓] {day_iso} 補進上市 {len(records)} 筆")
+        time.sleep(3)  # 證交所對連續請求有頻率限制
+    return total
+
+
 def fetch_institutional_trades_today() -> list[dict]:
     """抓當天全市場三大法人買賣超（上市 TWSE T86 + 上櫃 TPEx），供 daily_update.py 存 DB 用。"""
-    today_str = date.today().strftime("%Y%m%d")
     today_iso = date.today().strftime("%Y-%m-%d")
     results: list[dict] = []
 
-    # 上市（TWSE T86）
-    try:
-        resp = requests.get(
-            "https://www.twse.com.tw/fund/T86",
-            params={"response": "json", "date": today_str, "selectType": "ALLBUT0999"},
-            timeout=15, headers=_TWSE_HEADERS,
-        )
-        data = resp.json()
-        if data.get("stat") == "OK":
-            for row in data.get("data", []):
-                code = str(row[0]).strip()
-                if not code.isdigit() or not (4 <= len(code) <= 5):
-                    continue
-                foreign_net = (_parse_num(row[4]) or 0) + (_parse_num(row[7]) or 0)
-                trust_net   = _parse_num(row[10]) or 0
-                dealer_net  = _parse_num(row[11]) or 0
-                total_net   = _parse_num(row[18]) or 0
-                results.append({
-                    "ticker": code, "date": today_iso,
-                    "foreign_net": int(foreign_net), "trust_net": int(trust_net),
-                    "dealer_net": int(dealer_net), "total_net": int(total_net),
-                })
-        else:
-            print(f"[TWSE] T86 無資料（可能非交易日）: {data.get('stat')}")
-    except Exception as e:
-        print(f"[TWSE] T86 三大法人失敗: {e}")
+    # 上市（TWSE T86）；失敗的話晚上 night_update 會再補抓
+    twse = fetch_twse_institutional(date.today())
+    if twse is None:
+        print("[TWSE] T86 三大法人重試後仍失敗，待之後補抓")
+    else:
+        results.extend(twse)
 
     # 上櫃（TPEx）
     try:

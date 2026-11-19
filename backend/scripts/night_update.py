@@ -46,9 +46,18 @@ for product in ["TXF", "TMF"]:
         except Exception as e:
             print(f"[夜盤K線] {product} {tf}min 失敗: {e}")
 
+# 下午 daily_update 抓上市三大法人常因證交所逾時失敗，這裡凌晨再補抓一次缺漏的日期
+try:
+    from app.services.stock_data import backfill_twse_institutional
+    n = backfill_twse_institutional()
+    print(f"[三大法人補抓] 共補 {n} 筆")
+except Exception as e:
+    print(f"[三大法人補抓] 失敗: {e}")
+
 # SDK 的 init_realtime() 會啟動背景連線元件，短命腳本結束前要主動收尾，
 # 不然直譯器關閉時背景執行緒還活著會噴 Fatal Python error（gilstate_tss_set）。
 try:
     shutdown_sdk()
 except Exception as e:
     print(f"[futures] shutdown_sdk 失敗: {e}")
+
