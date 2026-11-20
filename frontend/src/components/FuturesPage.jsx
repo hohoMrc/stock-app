@@ -855,30 +855,14 @@ function QuickOrderPanel({ product, username, onRequireLogin, onGoFull }) {
 export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
   const [product,      setProduct]      = useState("TXF");
   const [timeframe,    setTimeframe]    = useState("60");
-  // K 線全螢幕：包住週期/指標按鈕和圖表，切週期時圖表元件會重建，所以狀態放在這層才不會被重置
-  const chartWrapRef = useRef(null);
+  // K 線佔滿瀏覽器畫面：包住週期/指標按鈕和圖表，切週期時圖表元件會重建，所以狀態放在這層才不會被重置。
+  // 只用 CSS 蓋滿視窗，不呼叫瀏覽器的 Fullscreen API（網址列、分頁列保留）
   const [fullscreen, setFullscreen] = useState(false);
-  // 用 CSS 讓外框蓋滿視窗（iPhone Safari 不支援一般元素的 Fullscreen API），瀏覽器支援的話再呼叫
-  // requestFullscreen 把網址列等也藏起來
-  const toggleFullscreen = () => {
-    if (fullscreen) {
-      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-      setFullscreen(false);
-    } else {
-      setFullscreen(true);
-      chartWrapRef.current?.requestFullscreen?.().catch(() => {});
-    }
-  };
+  const toggleFullscreen = () => setFullscreen((v) => !v);
   useEffect(() => {
-    // 按 Esc 離開瀏覽器全螢幕時，同步把 CSS 全螢幕也關掉
-    const onFsChange = () => { if (!document.fullscreenElement) setFullscreen(false); };
     const onKey = (e) => { if (e.key === "Escape") setFullscreen(false); };
-    document.addEventListener("fullscreenchange", onFsChange);
     document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("fullscreenchange", onFsChange);
-      document.removeEventListener("keydown", onKey);
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, []);
   const [quote,        setQuote]        = useState(null);
   const [candles,      setCandles]      = useState([]);
@@ -1042,7 +1026,7 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
 
       {error && <p className="error">❌ {error}</p>}
 
-      <div ref={chartWrapRef} className={`futures-chart-wrap ${fullscreen ? "is-fullscreen" : ""}`}>
+      <div className={`futures-chart-wrap ${fullscreen ? "is-fullscreen" : ""}`}>
       <div className="futures-tf-ma-row">
         <div className="futures-tf-bar">
           {TIMEFRAMES.map(tf => (
@@ -1092,8 +1076,8 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
           <button
             className="futures-fullscreen-btn"
             onClick={toggleFullscreen}
-            title={fullscreen ? "離開全螢幕（Esc）" : "全螢幕"}
-            aria-label={fullscreen ? "離開全螢幕" : "全螢幕"}
+            title={fullscreen ? "還原（Esc）" : "佔滿畫面"}
+            aria-label={fullscreen ? "還原" : "佔滿畫面"}
           >
             <FullscreenIcon exit={fullscreen} />
           </button>
