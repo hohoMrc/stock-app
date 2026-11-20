@@ -2914,7 +2914,7 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 /* 台指期 K 線桌機放大（跟 FuturesPage.jsx 的 chart height 同步） */
 @media (min-width: 768px) {
   .futures-chart-loading,
-  .futures-chart-empty { height: 560px; }
+  .futures-chart-empty { height: 720px; }
 }
 
 /* 個股頁：當日走勢縮成左半，右半放五檔/成交明細 */

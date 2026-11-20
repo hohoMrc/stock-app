@@ -385,7 +385,7 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
     const chart = createChart(containerRef.current, {
       width:  containerRef.current.clientWidth,
       // 桌機放大方便看盤，手機維持原高度避免一個畫面塞不下
-      height: window.innerWidth < 768 ? 380 : 560,
+      height: window.innerWidth < 768 ? 380 : 720,
       layout: { background: { color: "#1a1a2e" }, textColor: "#ccc" },
       grid:   { vertLines: { color: "#2a2a3e" }, horzLines: { color: "#2a2a3e" } },
       timeScale: {
