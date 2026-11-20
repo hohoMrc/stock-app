@@ -2947,3 +2947,13 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .futures-chart-wrap.is-fullscreen .futures-chart { flex: 1; min-height: 0; }
 .futures-chart-wrap.is-fullscreen .futures-chart-loading,
 .futures-chart-wrap.is-fullscreen .futures-chart-empty { flex: 1; height: auto; }
+
+/* 個股 K 線佔滿畫面（沿用台指期的按鈕樣式） */
+.chart-section.tab-kline.is-fullscreen {
+  position: fixed; inset: 0; z-index: 9999; margin: 0; border-radius: 0;
+  display: flex; flex-direction: column;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: var(--bg-card); overflow: hidden;
+}
+.chart-section.tab-kline.is-fullscreen .kline-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.cc-fill { flex: 1; min-height: 0; display: flex; flex-direction: column; }

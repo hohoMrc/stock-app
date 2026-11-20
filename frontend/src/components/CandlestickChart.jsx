@@ -173,7 +173,7 @@ const KD_PANE_HEIGHT   = 100;
 
 const DEFAULT_ACTIVE_MA = { ma5: false, ma10: false, ma20: false, ma30: false, ma60: false, ema10: true, ema60: true, ma18: true, ma54: true };
 
-export default function CandlestickChart({ data, period = "3mo", interval = "1d", height = 320, defaultMA = null, showMACD = true }) {
+export default function CandlestickChart({ data, period = "3mo", interval = "1d", height = 320, defaultMA = null, showMACD = true, fill = false }) {
   const containerRef    = useRef(null);
   const chartRef        = useRef(null);
   const candleSeriesRef = useRef(null);
@@ -576,7 +576,8 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
   const totalChartHeight = height + VOL_PANE_HEIGHT + (showMACD ? MACD_PANE_HEIGHT : 0) + KD_PANE_HEIGHT;
 
   return (
-    <div style={{ position: "relative" }}>
+    // fill：佔滿畫面模式，圖表高度跟著外層 flex 撐開（ResizeObserver 會把新高度套進圖表）
+    <div className={fill ? "cc-fill" : undefined} style={{ position: "relative" }}>
 
       {/* MA 切換列 */}
       <div className="ma-toggle-bar">
@@ -645,7 +646,7 @@ export default function CandlestickChart({ data, period = "3mo", interval = "1d"
       </div>
 
       {/* 圖表本體：固定高度確保 lightweight-charts 可以正確測量 */}
-      <div ref={containerRef} style={{ height: totalChartHeight, position: "relative" }}>
+      <div ref={containerRef} style={fill ? { flex: 1, minHeight: 0, position: "relative" } : { height: totalChartHeight, position: "relative" }}>
         {/* VOL 副圖標籤 */}
         <div className="kd-label-bar" style={{ top: volTop }}>
           <span className="kd-label-title">VOL(5,10,20)</span>

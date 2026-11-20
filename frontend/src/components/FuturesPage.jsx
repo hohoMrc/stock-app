@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
+import FullscreenIcon from "./FullscreenIcon";
 import { createChart, CandlestickSeries, LineSeries, HistogramSeries, createSeriesMarkers } from "lightweight-charts";
 import {
   getFuturesQuote, getFuturesCandles, getFuturesInstitutional, getUtBotSignals, getSupertrendSignals,
@@ -247,16 +248,6 @@ function QuoteHeader({ quote, loading, livePrice, priceFlash, lastClose }) {
 
 // 桌機放大方便看盤，手機維持原高度避免一個畫面塞不下
 const defaultChartHeight = () => (window.innerWidth < 768 ? 380 : 720);
-
-const FullscreenIcon = ({ exit }) => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    {exit ? (
-      <path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" />
-    ) : (
-      <path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6" />
-    )}
-  </svg>
-);
 
 const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, activeMA, showKD, showUtBot, showSuperTrend }, ref) {
   const containerRef    = useRef(null);

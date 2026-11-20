@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, ReferenceDot, ComposedChart, Legend } from "recharts";
 import CandlestickChart from "./CandlestickChart";
 import AlertModal from "./AlertModal";
+import FullscreenIcon from "./FullscreenIcon";
 import { getStock, getStockLiveQuote, getHistory, analyzeStock, getInstitutionalTrades, getIntradayChart, getIntradayCandles, getTickerRevenue, getOrderbook, getTrades } from "../api";
 import { OrderBook, TradeList } from "./TradingTerminal";
 import { isTradingHours } from "../marketHours";
@@ -107,6 +108,13 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
   const [intradayData, setIntradayData] = useState([]);
   const [intradayLoading, setIntradayLoading] = useState(false);
   const intradayPollRef = useRef(null);
+  // K 線佔滿瀏覽器畫面（只用 CSS 蓋滿視窗，不進瀏覽器全螢幕），按 Esc 還原
+  const [klineFull, setKlineFull] = useState(false);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") setKlineFull(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
   // 前 5 個完整交易日的平均成交量（張），給當日走勢標題列比較今天量能用
   const [avgVol5, setAvgVol5] = useState(null);
   useEffect(() => {
@@ -454,7 +462,7 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
         </div>
       </div>
 
-      <div className={`chart-section tab-kline ${mobileTab === "kline" ? "mobile-active" : ""}`}>
+      <div className={`chart-section tab-kline ${mobileTab === "kline" ? "mobile-active" : ""} ${klineFull ? "is-fullscreen" : ""}`}>
         <div className="chart-header">
           <div className="chart-header-left">
             <h3>股價走勢</h3>
@@ -506,16 +514,24 @@ export default function StockDetail({ ticker, scanContext = null, onBack, onIndu
                   {{ "5d":"5天","1mo":"1個月","3mo":"3個月","6mo":"6個月","1y":"1年","2y":"2年","5y":"5年" }[p]}
                 </button>
               ))}
+              <button
+                className="futures-fullscreen-btn"
+                onClick={() => setKlineFull((v) => !v)}
+                title={klineFull ? "還原（Esc）" : "佔滿畫面"}
+                aria-label={klineFull ? "還原" : "佔滿畫面"}
+              >
+                <FullscreenIcon exit={klineFull} />
+              </button>
             </div>
           </div>
         </div>
 
-        <div style={{ opacity: chartLoading ? 0.5 : 1, transition: "opacity 0.15s" }}>
+        <div className="kline-body" style={{ opacity: chartLoading ? 0.5 : 1, transition: "opacity 0.15s" }}>
         {history.length > 0 ? (
           chartType === "candle" ? (
-            <CandlestickChart data={history} period={period} interval={interval} height={320} defaultMA={SCAN_DEFAULT_MA[scanContext] ?? null} />
+            <CandlestickChart data={history} period={period} interval={interval} height={320} defaultMA={SCAN_DEFAULT_MA[scanContext] ?? null} fill={klineFull} />
           ) : (
-            <ResponsiveContainer width="100%" height={320}>
+            <ResponsiveContainer width="100%" height={klineFull ? "100%" : 320}>
               <LineChart data={history}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis
