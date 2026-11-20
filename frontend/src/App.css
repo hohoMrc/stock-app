@@ -2928,12 +2928,10 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   .intraday-side { border-left: none; padding-left: 0; border-top: 1px solid var(--border); padding-top: 8px; }
 }
 
-/* 台指期 K 線全螢幕 */
-.futures-chart-wrap { position: relative; }
+/* 台指期 K 線全螢幕（外框包住週期/指標按鈕列和圖表） */
 .futures-fullscreen-btn {
-  position: absolute; top: 0; right: 0; z-index: 2;
-  display: flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 26px; padding: 0; margin-left: 4px;
   background: var(--bg-elevated); color: var(--text-secondary);
   border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
 }
@@ -2942,7 +2940,10 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
   position: fixed; inset: 0; z-index: 9999;
   display: flex; flex-direction: column;
   padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-  background: #1a1a2e;
+  background: var(--bg, #0b1220);
+  overflow: hidden;
 }
-.futures-chart-wrap.is-fullscreen .futures-fullscreen-btn { top: 10px; right: 12px; }
+.futures-chart-wrap.is-fullscreen .futures-chart-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .futures-chart-wrap.is-fullscreen .futures-chart { flex: 1; min-height: 0; }
+.futures-chart-wrap.is-fullscreen .futures-chart-loading,
+.futures-chart-wrap.is-fullscreen .futures-chart-empty { flex: 1; height: auto; }
