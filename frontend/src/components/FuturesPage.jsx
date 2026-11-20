@@ -245,8 +245,47 @@ function QuoteHeader({ quote, loading, livePrice, priceFlash, lastClose }) {
   );
 }
 
+// 桌機放大方便看盤，手機維持原高度避免一個畫面塞不下
+const defaultChartHeight = () => (window.innerWidth < 768 ? 380 : 720);
+
+const FullscreenIcon = ({ exit }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    {exit ? (
+      <path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" />
+    ) : (
+      <path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6" />
+    )}
+  </svg>
+);
+
 const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, activeMA, showKD, showUtBot, showSuperTrend }, ref) {
   const containerRef    = useRef(null);
+  const wrapRef         = useRef(null);
+  const [fullscreen, setFullscreen] = useState(false);
+
+  // 全螢幕：用 CSS 讓外框蓋滿視窗（iPhone Safari 不支援一般元素的 Fullscreen API），
+  // 瀏覽器支援的話再呼叫 requestFullscreen 把網址列等也藏起來
+  const toggleFullscreen = () => {
+    if (fullscreen) {
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      setFullscreen(false);
+    } else {
+      setFullscreen(true);
+      wrapRef.current?.requestFullscreen?.().catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    // 按 Esc 離開瀏覽器全螢幕時，同步把 CSS 全螢幕也關掉
+    const onFsChange = () => { if (!document.fullscreenElement) setFullscreen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setFullscreen(false); };
+    document.addEventListener("fullscreenchange", onFsChange);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFsChange);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
   const chartRef        = useRef(null);
   const candleSeriesRef = useRef(null);
   const volSeriesRef    = useRef(null);
@@ -384,8 +423,7 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
 
     const chart = createChart(containerRef.current, {
       width:  containerRef.current.clientWidth,
-      // 桌機放大方便看盤，手機維持原高度避免一個畫面塞不下
-      height: window.innerWidth < 768 ? 380 : 720,
+      height: defaultChartHeight(),
       layout: { background: { color: "#1a1a2e" }, textColor: "#ccc" },
       grid:   { vertLines: { color: "#2a2a3e" }, horzLines: { color: "#2a2a3e" } },
       timeScale: {
@@ -574,7 +612,11 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
     }
 
     const ro = new ResizeObserver(() => {
-      chart.applyOptions({ width: containerRef.current?.clientWidth || 600 });
+      const el = containerRef.current;
+      if (!el) return;
+      // 全螢幕時外框用 flex 撐滿，圖表高度跟著容器；平常回到預設高度
+      const full = wrapRef.current?.classList.contains("is-fullscreen");
+      chart.applyOptions({ width: el.clientWidth || 600, height: full ? el.clientHeight : defaultChartHeight() });
     });
     ro.observe(containerRef.current);
 
@@ -590,7 +632,15 @@ const FuturesChart = forwardRef(function FuturesChart({ candles, timeframe, acti
   const barKD = bar ? kdValueMapRef.current.get(String(bar.time)) : null;
 
   return (
-    <div>
+    <div ref={wrapRef} className={`futures-chart-wrap ${fullscreen ? "is-fullscreen" : ""}`}>
+      <button
+        className="futures-fullscreen-btn"
+        onClick={toggleFullscreen}
+        title={fullscreen ? "離開全螢幕（Esc）" : "全螢幕"}
+        aria-label={fullscreen ? "離開全螢幕" : "全螢幕"}
+      >
+        <FullscreenIcon exit={fullscreen} />
+      </button>
       <div className="chart-info-bars">
         <div className="chart-info-line">
           {bar ? (
