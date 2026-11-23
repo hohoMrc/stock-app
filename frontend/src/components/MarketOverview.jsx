@@ -394,11 +394,11 @@ export default function MarketOverview({ onSelect, onSelectIndustry, onNavigate 
           <TaiexCard taiex={taiex} />
           <BreadthAndInstitutional breadth={data.breadth} institutional={data.institutional} />
           <div className="inst-history-toggle-row">
-            <button className="inst-history-toggle" onClick={() => setShowInstHistory((v) => !v)}>
-              📊 法人買賣超歷史 {showInstHistory ? "▴" : "▾"}
+            <button className="inst-history-toggle" onClick={() => setShowInstHistory(true)}>
+              📊 法人買賣超歷史
             </button>
           </div>
-          {showInstHistory && <InstitutionalHistory />}
+          {showInstHistory && <InstitutionalHistory onClose={() => setShowInstHistory(false)} />}
 
           <div className="market-overview-cols">
             <ScanCountsCard scanCounts={data.scan_counts} onNavigate={onNavigate} />

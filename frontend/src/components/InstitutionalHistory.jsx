@@ -17,8 +17,8 @@ const upDown = (v) => (v > 0 ? "up" : v < 0 ? "down" : "");
 const fmt = (v) => (v == null ? "—" : `${v > 0 ? "+" : ""}${v.toLocaleString(undefined, { maximumFractionDigits: 2 })}`);
 const round2 = (v) => Math.round(v * 100) / 100;
 
-// 大盤狀態：全市場三大法人買賣超歷史（億元），可切天數與上市/上櫃
-export default function InstitutionalHistory() {
+// 大盤狀態：全市場三大法人買賣超歷史（億元）彈窗，可切天數與上市/上櫃；點背景、✕ 或按 Esc 關閉
+export default function InstitutionalHistory({ onClose }) {
   const [days, setDays] = useState(20);
   const [market, setMarket] = useState("");
   const [records, setRecords] = useState(null); // null = 載入中
@@ -34,6 +34,18 @@ export default function InstitutionalHistory() {
     return () => { alive = false; };
   }, [days]);
 
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    // 彈窗開著時鎖住背景捲動，捲表格不會連帶捲到後面的頁面
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
   const val = (r, who) => r[`${who}_net_yi${market}`];
   const rows = (records || []).map((r) => {
     const v = Object.fromEntries(WHO.map(({ key }) => [key, val(r, key)]));
@@ -47,7 +59,12 @@ export default function InstitutionalHistory() {
   );
 
   return (
-    <div className="inst-history">
+    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-box inst-history" onClick={(e) => e.stopPropagation()}>
+      <div className="inst-history-head">
+        <h3>📊 法人買賣超歷史</h3>
+        <button className="inst-history-close" onClick={onClose} aria-label="關閉">✕</button>
+      </div>
       <div className="inst-history-controls">
         <div className="ranking-tabs">
           {[20, 60].map((d) => (
@@ -119,6 +136,7 @@ export default function InstitutionalHistory() {
           </div>
         </>
       )}
+    </div>
     </div>
   );
 }
