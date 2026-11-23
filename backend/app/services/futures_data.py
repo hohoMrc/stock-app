@@ -184,8 +184,76 @@ def _taifex_quote(symbol: str, night: bool) -> dict | None:
                 "volume": int(num(row.get("CTotalVolume")) or 0),
                 "bid":    num(row.get("CBestBidPrice")),
                 "ask":    num(row.get("CBestAskPrice")),
+                "symbol_id": row["SymbolID"],
             }
     return None
+
+
+def _current_session_start(now: datetime) -> datetime | None:
+    """現在正在交易的那一盤的開盤時間（日盤 08:45、夜盤 15:00）；不在交易時段回 None。
+    國定假日沒處理，假日由呼叫端檢查資料新鮮度擋掉。"""
+    mins, wd = now.hour * 60 + now.minute, now.weekday()
+    today = now.replace(second=0, microsecond=0)
+    if wd <= 4 and 8 * 60 + 45 <= mins < 13 * 60 + 45:
+        return today.replace(hour=8, minute=45)
+    if wd <= 4 and mins >= 15 * 60:
+        return today.replace(hour=15, minute=0)
+    if 1 <= wd <= 5 and mins < 5 * 60:
+        return (today - timedelta(days=1)).replace(hour=15, minute=0)
+    return None
+
+
+def _taifex_session_bars(symbol: str, tf_min: int) -> tuple[int, list] | None:
+    """期交所公開行情的本盤 K 棒（由 1 分 K 依盤別開盤時間切段合併成 tf_min 分）。
+    回傳 (本盤開盤 epoch, K 棒)；不在交易時段、查詢失敗或資料不新鮮回 None。"""
+    now = datetime.now(tz=TZ_TAIPEI)
+    start = _current_session_start(now)
+    if start is None:
+        return None
+    night = start.hour == 15
+    q = _taifex_quote(symbol, night)
+    if not q:
+        return None
+    try:
+        r = requests.post("https://mis.taifex.com.tw/futures/api/getChartData1M",
+                          json={"SymbolID": q["symbol_id"]}, timeout=5)
+        ticks = r.json()["RtData"]["Ticks"]
+    except Exception as e:
+        print(f"[futures] 期交所 1 分 K 查詢失敗: {e}")
+        return None
+    start_ts, step = int(start.timestamp()), tf_min * 60
+    buckets: dict[int, dict] = {}
+    for t, o, h, l, c, v in ticks:
+        # 期交所用結束時間標記（15:01 那根 = 15:00~15:01），換成富邦的開始時間；夜盤跨午夜要 +1 天
+        dt = start.replace(hour=int(t[:2]), minute=int(t[2:4]))
+        if dt < start:
+            dt += timedelta(days=1)
+        ts = int(dt.timestamp()) - 60
+        key = start_ts + (ts - start_ts) // step * step
+        o, h, l, c, v = float(o), float(h), float(l), float(c), int(v)
+        b = buckets.get(key)
+        if b is None:
+            buckets[key] = {"time": key, "open": o, "high": h, "low": l, "close": c, "volume": v}
+        else:
+            b["high"], b["low"], b["close"] = max(b["high"], h), min(b["low"], l), c
+            b["volume"] += v
+    bars = sorted(buckets.values(), key=lambda b: b["time"])
+    # 假日期交所會回上一盤的舊資料，時間對不上現在就不採用
+    if not bars or now.timestamp() - bars[-1]["time"] > 10 * 60 + step:
+        return None
+    return start_ts, bars
+
+
+def _patch_with_taifex(candles: list, symbol: str, tf_min: int) -> list:
+    """富邦行情暴量時 K 線會落後好幾十分鐘，本盤成交量比期交所少就整段改用期交所的 K 棒。"""
+    tx = _taifex_session_bars(symbol, tf_min)
+    if not tx:
+        return candles
+    start_ts, bars = tx
+    ours = [c for c in candles if c["time"] >= start_ts]
+    if sum(c.get("volume") or 0 for c in ours) >= sum(b["volume"] for b in bars):
+        return candles
+    return [c for c in candles if c["time"] < start_ts] + bars
 
 
 def get_futures_quote(symbol: str | None = None) -> dict:
@@ -347,6 +415,14 @@ def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> lis
                     }
             except Exception as e:
                 print(f"[futures] 日K 即時資料失敗: {e}")
+        tx = _taifex_session_bars(symbol, 60)
+        if tx:
+            start_ts, bars = tx
+            day_key = _trading_day_of(start_ts)
+            cur = {t: c for t, c in grouped.get(day_key, {}).items() if t >= start_ts}
+            if sum(c.get("volume") or 0 for c in cur.values()) < sum(b["volume"] for b in bars):
+                kept = {t: c for t, c in grouped.get(day_key, {}).items() if t < start_ts}
+                grouped[day_key] = {**kept, **{b["time"]: b for b in bars}}
         for d, candle_map in grouped.items():
             candles = sorted(candle_map.values(), key=lambda c: c["time"])
             result[d] = {
@@ -384,7 +460,7 @@ def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> lis
                 }
         except Exception as e:
             print(f"[futures] intraday.candles 失敗: {e}")
-    today_candles = sorted(today_candles.values(), key=lambda c: c["time"])
+    today_candles = _patch_with_taifex(sorted(today_candles.values(), key=lambda c: c["time"]), symbol, int(timeframe))
 
     # DB 歷史資料：日盤／夜盤共用同一個 (product, timeframe) 存放，時間本來就不重疊，
     # 直接接續成一條連續走勢
