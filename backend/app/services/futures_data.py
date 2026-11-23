@@ -154,6 +154,40 @@ def shutdown_sdk():
         _rest_client = None
 
 
+_TAIFEX_MIS_URL = "https://mis.taifex.com.tw/futures/api/getQuoteList"
+# 內部代號 → 期交所 CID（app 的 TMF 剛好跟期交所微台代號一樣）
+_TAIFEX_CID = {"TXF": "TXF", "TMF": "TMF"}
+
+
+def _taifex_quote(symbol: str, night: bool) -> dict | None:
+    """期交所公開行情的即時報價。富邦 API 在行情暴量時會落後好幾分鐘（實際遇過微台卡半小時），
+    拿來交叉比對；查不到或失敗回 None，不影響原本流程。"""
+    cid = _TAIFEX_CID.get(symbol[:3])
+    if not cid:
+        return None
+    try:
+        r = requests.post(_TAIFEX_MIS_URL, timeout=3, json={
+            "MarketType": "1" if night else "0", "SymbolType": "F", "KindID": "1", "CID": cid,
+            "ExpireMonth": "", "RowSize": "全部", "PageNo": "", "SortColumn": "", "AscDesc": "A",
+        })
+        rows = r.json().get("RtData", {}).get("QuoteList", [])
+    except Exception as e:
+        print(f"[futures] 期交所行情查詢失敗: {e}")
+        return None
+    num = lambda v: float(v) if v not in (None, "") else None
+    for row in rows:
+        if row.get("SymbolID", "").split("-")[0] == symbol and num(row.get("CLastPrice")):
+            return {
+                "price":  num(row["CLastPrice"]),
+                "high":   num(row.get("CHighPrice")),
+                "low":    num(row.get("CLowPrice")),
+                "volume": int(num(row.get("CTotalVolume")) or 0),
+                "bid":    num(row.get("CBestBidPrice")),
+                "ask":    num(row.get("CBestAskPrice")),
+            }
+    return None
+
+
 def get_futures_quote(symbol: str | None = None) -> dict:
     """即時報價：日夜盤不分開顯示，自動依現在時間查目前實際在交易的那一段。"""
     symbol = symbol or _current_symbol()
@@ -173,6 +207,15 @@ def get_futures_quote(symbol: str | None = None) -> dict:
             prev = day.get("closePrice") or prev
         except Exception as e:
             print(f"[futures] 取日盤收盤價失敗，沿用夜盤 previousClose: {e}")
+    high, low = data.get("highPrice"), data.get("lowPrice")
+    volume = (data.get("total") or {}).get("tradeVolume")
+    bid, ask = last_trade.get("bid"), last_trade.get("ask")
+    source = "fubon"
+    # 期交所成交量比富邦多 = 富邦行情落後，改用期交所的價格
+    tx = _taifex_quote(symbol, night)
+    if tx and tx["volume"] > (volume or 0):
+        price, high, low, volume, bid, ask = tx["price"], tx["high"], tx["low"], tx["volume"], tx["bid"], tx["ask"]
+        source = "taifex"
     change = round(price - prev, 0) if price and prev else None
     chg_pct = round(change / prev * 100, 2) if change and prev else None
     return {
@@ -182,15 +225,16 @@ def get_futures_quote(symbol: str | None = None) -> dict:
         "prev_close": prev,
         "session":    "night" if night else "day",
         "open":       data.get("openPrice"),
-        "high":       data.get("highPrice"),
-        "low":        data.get("lowPrice"),
-        "volume":     (data.get("total") or {}).get("tradeVolume"),
+        "high":       high,
+        "low":        low,
+        "volume":     volume,
         "change":     change,
         "change_pct": chg_pct,
         # 最近一筆成交當下的最佳買/賣價（不是完整五檔，富邦期貨API沒有提供），
         # 讓使用者知道現在想買/賣大概要用什麼價位
-        "bid":        last_trade.get("bid"),
-        "ask":        last_trade.get("ask"),
+        "bid":        bid,
+        "ask":        ask,
+        "source":     source,
     }
 
 

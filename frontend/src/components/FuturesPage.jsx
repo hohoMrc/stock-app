@@ -928,6 +928,9 @@ export default function FuturesPage({ username, onRequireLogin, onNavigate }) {
         if (!trades.length) return;
         const price = trades[trades.length - 1].price;
         if (!price) return;
+        // 富邦行情暴量時會落後好幾分鐘；過時的成交不要蓋掉 REST 輪詢拿到的期交所即時價
+        const t = trades[trades.length - 1].time ?? data.time;   // 微秒
+        if (t > 1e15 && Date.now() - t / 1000 > 15000) return;
         const volumeDelta = trades.reduce((s, t) => s + (t.size || 0), 0);
         const prev = prevPriceRef.current;
         setPriceFlash(prev == null ? null : price >= prev ? "up" : "down");
