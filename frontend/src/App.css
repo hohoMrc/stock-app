@@ -2980,3 +2980,5 @@ tr.row-down td:not(.col-ticker):not(.col-name) { color: var(--down) !important; 
 .inst-history-sums { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
 .inst-history-table td, .inst-history-table th { text-align: right; }
 .inst-history-table td:first-child, .inst-history-table th:first-child { text-align: left; }
+.inst-history .up { color: var(--up); }
+.inst-history .down { color: var(--down); }
