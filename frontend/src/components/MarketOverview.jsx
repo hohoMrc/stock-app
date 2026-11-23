@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { getMarketOverview, getIndustryTopMovers, getWeeklyCalendar, getPremarketNews, getTodayFocus, getTodayFocusSummary } from "../api";
 import { hasTodayCloseData } from "../marketHours";
+import InstitutionalHistory from "./InstitutionalHistory";
 
 const WS_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000")
   .replace(/^http/, "ws");
@@ -331,6 +332,7 @@ export default function MarketOverview({ onSelect, onSelectIndustry, onNavigate 
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
+  const [showInstHistory, setShowInstHistory] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -391,6 +393,12 @@ export default function MarketOverview({ onSelect, onSelectIndustry, onNavigate 
         <>
           <TaiexCard taiex={taiex} />
           <BreadthAndInstitutional breadth={data.breadth} institutional={data.institutional} />
+          <div className="inst-history-toggle-row">
+            <button className="inst-history-toggle" onClick={() => setShowInstHistory((v) => !v)}>
+              📊 法人買賣超歷史 {showInstHistory ? "▴" : "▾"}
+            </button>
+          </div>
+          {showInstHistory && <InstitutionalHistory />}
 
           <div className="market-overview-cols">
             <ScanCountsCard scanCounts={data.scan_counts} onNavigate={onNavigate} />

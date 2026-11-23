@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 
 from app.services.stock_data import (
-    get_taiex_quote, get_market_breadth, get_institutional_summary,
+    get_taiex_quote, get_market_breadth, get_institutional_summary, get_market_institutional_history,
     get_industry_performance, get_movers_ranking, get_weekly_calendar,
     scan_ma_squeeze,
 )
@@ -102,5 +102,14 @@ async def market_today_focus_summary(force: bool = Query(default=False)):
     try:
         summary = await run_in_threadpool(get_today_focus_summary, force)
         return {"summary": summary}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/institutional-history")
+async def institutional_history(days: int = Query(default=20, ge=1, le=120)):
+    """全市場三大法人買賣超歷史（億元），新到舊。"""
+    try:
+        return {"records": await run_in_threadpool(get_market_institutional_history, days)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

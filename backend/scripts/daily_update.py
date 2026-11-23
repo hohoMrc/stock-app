@@ -292,6 +292,9 @@ if __name__ == "__main__":
             print(f"[三大法人] 存入 {len(inst_records)} 筆")
             from app.services.stock_data import backfill_institutional
             backfill_institutional()
+            # 全市場三大法人金額（大盤狀態歷史用），順便補最近漏掉的日子
+            from app.services.stock_data import backfill_market_institutional
+            backfill_market_institutional((date.today() - timedelta(days=14)).isoformat())
 
             print("[法人連買] 開始掃描...")
             buy_hits = scan_institutional_buying(min_days=3, limit=200, min_total_net_zhang=5000)

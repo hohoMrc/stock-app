@@ -71,6 +71,13 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_candles_ticker
             ON candles(ticker, date DESC);
 
+        -- 全市場三大法人買賣超金額（元），大盤狀態「法人買賣超歷史」用
+        CREATE TABLE IF NOT EXISTS market_institutional (
+            date          TEXT PRIMARY KEY,
+            foreign_twse  REAL, trust_twse REAL, dealer_twse REAL,
+            foreign_tpex  REAL, trust_tpex REAL, dealer_tpex REAL
+        );
+
         CREATE TABLE IF NOT EXISTS institutional_trades (
             ticker      TEXT NOT NULL,
             date        TEXT NOT NULL,
@@ -698,6 +705,23 @@ def save_institutional_trades(records: list[dict]):
                 for r in records if r.get("ticker") and r.get("date")
             ]
         )
+
+
+def save_market_institutional(day: str, twse: dict, tpex: dict):
+    """存一天的全市場三大法人買賣超金額（元）；上市、上櫃都要有才存，避免存到只有一半的資料。"""
+    with _conn() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO market_institutional VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (day, twse["foreign"], twse["trust"], twse["dealer"], tpex["foreign"], tpex["trust"], tpex["dealer"]),
+        )
+
+
+def get_market_institutional_rows(since: str) -> list[dict]:
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM market_institutional WHERE date>=? ORDER BY date", (since,)
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def get_institutional_market_counts(since: str) -> dict[str, tuple[int, int]]:

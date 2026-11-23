@@ -3140,11 +3140,15 @@ def _institutional_amounts_twse(today: date) -> dict | None:
 
 
 def _institutional_amounts_tpex(today: date) -> dict | None:
-    """上櫃三大法人買賣差額（元），TPEx 官方統計。這支 API 只回最新一天，日期不是今天就當沒資料。"""
-    rows = _tpex_get("https://www.tpex.org.tw/openapi/v1/tpex_3insti_summary", timeout=15).json()
-    roc_today = f"{today.year - 1911}{today.strftime('%m%d')}"
-    # Investor 欄位子項目前面有全形空白縮排，要 strip 掉再比對
-    net = {r["Investor"].strip(): _parse_num(r["Net"]) or 0 for r in rows if r.get("Date") == roc_today}
+    """上櫃三大法人買賣差額（元），TPEx 官方統計（網站端點，可查指定日期；OpenAPI 只給最新一天）。"""
+    resp = _tpex_get(
+        "https://www.tpex.org.tw/www/zh-tw/insti/summary",
+        params={"type": "Daily", "date": today.strftime("%Y/%m/%d"), "response": "json"},
+        timeout=15,
+    )
+    tables = resp.json().get("tables") or []
+    # 單位名稱子項目前面有全形空白縮排，要 strip 掉再比對
+    net = {str(r[0]).strip(): _parse_num(r[3]) or 0 for r in (tables[0].get("data", []) if tables else [])}
     if not net:
         return None
     return {
@@ -3152,6 +3156,62 @@ def _institutional_amounts_tpex(today: date) -> dict | None:
         "trust":   net.get("投信", 0),
         "dealer":  net.get("自營商合計", 0),
     }
+
+
+def save_market_institutional_day(day: date) -> bool:
+    """抓指定日期上市+上櫃三大法人金額存 DB，兩邊都有資料才存。回傳是否存成功。"""
+    from app.db import save_market_institutional
+    twse = _institutional_amounts_twse(day)
+    tpex = _institutional_amounts_tpex(day)
+    if not twse or not tpex:
+        return False
+    save_market_institutional(day.isoformat(), twse, tpex)
+    return True
+
+
+def backfill_market_institutional(since: str) -> int:
+    """補抓 since 之後 DB 還沒有的交易日（用台積電日K當交易日曆），回傳補了幾天。"""
+    from app.db import get_market_institutional_rows, get_candles
+    have = {r["date"] for r in get_market_institutional_rows(since)}
+    n = 0
+    for c in get_candles("2330", since, date.today().isoformat()):
+        if c["date"] in have:
+            continue
+        try:
+            if save_market_institutional_day(date.fromisoformat(c["date"])):
+                n += 1
+        except Exception as e:
+            print(f"[法人金額補抓] {c['date']} 失敗: {e}")
+        time.sleep(3)  # 證交所對連續請求有頻率限制
+    return n
+
+
+def get_market_institutional_history(days: int = 20) -> list[dict]:
+    """最近 N 個交易日的三大法人買賣超（億元），新到舊。今天收盤後若 DB 還沒存，補上即時統計。"""
+    from app.db import get_market_institutional_rows
+    since = (date.today() - timedelta(days=days * 2 + 14)).isoformat()
+    rows = {r["date"]: r for r in get_market_institutional_rows(since)}
+
+    yi = lambda v: round(v / 1e8, 2) if v is not None else None
+    result = []
+    for d, r in rows.items():
+        item = {"date": d}
+        for who in ("foreign", "trust", "dealer"):
+            tw, tp = r[f"{who}_twse"], r[f"{who}_tpex"]
+            item[f"{who}_net_yi"] = yi(tw + tp)
+            item[f"{who}_net_yi_twse"] = yi(tw)
+            item[f"{who}_net_yi_tpex"] = yi(tp)
+        item["total_net_yi"] = round(item["foreign_net_yi"] + item["trust_net_yi"] + item["dealer_net_yi"], 2)
+        result.append(item)
+
+    today = get_institutional_summary()
+    if today.get("foreign_net_yi") is not None and today["date"] not in rows:
+        t = {k: v for k, v in today.items()}
+        t["total_net_yi"] = round(t["foreign_net_yi"] + t["trust_net_yi"] + t["dealer_net_yi"], 2)
+        result.append(t)
+
+    result.sort(key=lambda x: x["date"], reverse=True)
+    return result[:days]
 
 
 def get_institutional_summary() -> dict:
