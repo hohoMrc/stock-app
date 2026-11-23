@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Legend } from "recharts";
+import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import { getMarketInstitutionalHistory } from "../api";
 
 const WHO = [
@@ -7,6 +7,7 @@ const WHO = [
   { key: "trust",   label: "投信",   color: "#f59e0b" },
   { key: "dealer",  label: "自營商", color: "#a78bfa" },
 ];
+const CUM_COLOR = "#f472b6";
 const MARKETS = [
   { key: "",      label: "合計" },
   { key: "_twse", label: "上市" },
@@ -101,24 +102,31 @@ export default function InstitutionalHistory({ onClose }) {
             <span>三大法人合計 <b className={upDown(sums.total)}>{fmt(sums.total)}</b> 億</span>
           </div>
 
+          {/* 自訂圖例放在圖表上方，比 recharts 內建的小字圖例好認 */}
+          <div className="inst-legend">
+            {WHO.map(({ key, label, color }) => (
+              <span key={key}><i className="inst-legend-bar" style={{ background: color }} />{label}（單日，左軸）</span>
+            ))}
+            <span><i className="inst-legend-line" style={{ background: CUM_COLOR }} />三大法人累計（右軸）</span>
+          </div>
+
           <ResponsiveContainer width="100%" height={280}>
             <ComposedChart data={chartData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
               <YAxis yAxisId="day" tick={{ fontSize: 11 }} width={50} />
               {/* 累計值跟單日差一個量級，放右軸才看得出單日長條 */}
-              <YAxis yAxisId="cum" orientation="right" tick={{ fontSize: 11, fill: "#f472b6" }} width={60} />
+              <YAxis yAxisId="cum" orientation="right" tick={{ fontSize: 11, fill: CUM_COLOR }} width={60} />
               <Tooltip
                 formatter={(v, name) => [`${fmt(v)} 億`, name]}
                 contentStyle={{ background: "#111827", border: "1px solid #333" }}
               />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
               <ReferenceLine yAxisId="day" y={0} stroke="#666" />
               {WHO.map(({ key, label, color }) => (
                 <Bar key={key} yAxisId="day" dataKey={key} name={label} fill={color} />
               ))}
-              <Line yAxisId="cum" type="monotone" dataKey="cum" name="累計買賣超（右軸）"
-                stroke="#f472b6" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line yAxisId="cum" type="monotone" dataKey="cum" name="三大法人累計"
+                stroke={CUM_COLOR} strokeWidth={2} dot={false} isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
 
