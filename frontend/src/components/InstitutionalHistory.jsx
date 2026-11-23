@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Legend } from "recharts";
+import { ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine, Legend } from "recharts";
 import { getMarketInstitutionalHistory } from "../api";
 
 const WHO = [
@@ -52,8 +52,12 @@ export default function InstitutionalHistory({ onClose }) {
     const total = WHO.every(({ key }) => v[key] != null) ? round2(WHO.reduce((s, { key }) => s + v[key], 0)) : null;
     return { date: r.date, ...v, total };
   });
-  // 圖表由舊到新，日期只留月/日
-  const chartData = [...rows].reverse().map((r) => ({ ...r, label: r.date.slice(5).replace("-", "/") }));
+  // 圖表由舊到新，日期只留月/日；cum 是區間起點累加到當天的三大法人合計
+  let running = 0;
+  const chartData = [...rows].reverse().map((r) => {
+    running = round2(running + (r.total || 0));
+    return { ...r, label: r.date.slice(5).replace("-", "/"), cum: running };
+  });
   const sums = Object.fromEntries(
     [...WHO.map(({ key }) => key), "total"].map((k) => [k, round2(rows.reduce((s, r) => s + (r[k] || 0), 0))])
   );
@@ -97,21 +101,25 @@ export default function InstitutionalHistory({ onClose }) {
             <span>三大法人合計 <b className={upDown(sums.total)}>{fmt(sums.total)}</b> 億</span>
           </div>
 
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={280}>
+            <ComposedChart data={chartData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 11 }} width={50} />
+              <YAxis yAxisId="day" tick={{ fontSize: 11 }} width={50} />
+              {/* 累計值跟單日差一個量級，放右軸才看得出單日長條 */}
+              <YAxis yAxisId="cum" orientation="right" tick={{ fontSize: 11, fill: "#f472b6" }} width={60} />
               <Tooltip
                 formatter={(v, name) => [`${fmt(v)} 億`, name]}
                 contentStyle={{ background: "#111827", border: "1px solid #333" }}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <ReferenceLine y={0} stroke="#666" />
+              <ReferenceLine yAxisId="day" y={0} stroke="#666" />
               {WHO.map(({ key, label, color }) => (
-                <Bar key={key} dataKey={key} name={label} fill={color} />
+                <Bar key={key} yAxisId="day" dataKey={key} name={label} fill={color} />
               ))}
-            </BarChart>
+              <Line yAxisId="cum" type="monotone" dataKey="cum" name="累計買賣超（右軸）"
+                stroke="#f472b6" strokeWidth={2} dot={false} isAnimationActive={false} />
+            </ComposedChart>
           </ResponsiveContainer>
 
           <div className="ranking-table-wrap">
