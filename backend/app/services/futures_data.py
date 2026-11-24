@@ -176,7 +176,8 @@ def _taifex_quote(symbol: str, night: bool) -> dict | None:
         return None
     num = lambda v: float(v) if v not in (None, "") else None
     for row in rows:
-        if row.get("SymbolID", "").split("-")[0] == symbol and num(row.get("CLastPrice")):
+        # 還沒開盤時沒有成交價，但參考價（漲跌基準）一樣要拿
+        if row.get("SymbolID", "").split("-")[0] == symbol:
             return {
                 "price":  num(row["CLastPrice"]),
                 "high":   num(row.get("CHighPrice")),
@@ -185,6 +186,7 @@ def _taifex_quote(symbol: str, night: bool) -> dict | None:
                 "bid":    num(row.get("CBestBidPrice")),
                 "ask":    num(row.get("CBestAskPrice")),
                 "symbol_id": row["SymbolID"],
+                "ref":    num(row.get("CRefPrice")),
             }
     return None
 
@@ -281,7 +283,11 @@ def get_futures_quote(symbol: str | None = None) -> dict:
     source = "fubon"
     # 期交所成交量比富邦多 = 富邦行情落後，改用期交所的價格
     tx = _taifex_quote(symbol, night)
-    if tx and tx["volume"] > (volume or 0):
+    if tx and tx["ref"]:
+        # 漲跌基準用期交所參考價（前一日結算價），跟期交所／看盤軟體一致；
+        # 富邦日盤收盤價在夜盤收盤後換日、日盤還沒開時會回錯的值（遇過算成漲 5934 點）
+        prev = tx["ref"]
+    if tx and tx["price"] and tx["volume"] > (volume or 0):
         price, high, low, volume, bid, ask = tx["price"], tx["high"], tx["low"], tx["volume"], tx["bid"], tx["ask"]
         source = "taifex"
     change = round(price - prev, 0) if price and prev else None
