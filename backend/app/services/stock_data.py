@@ -2550,6 +2550,7 @@ def _passes_basic_filters(info: dict, filters: dict) -> bool:
 
 _ranking_cache: dict = {}
 RANKING_TTL = 300  # 5 分鐘（Fugle 即時資料不用快取太久）
+MARKET_QUOTES_TTL = 60  # 全市場報價快照（漲跌家數用），配合前端每分鐘更新
 
 
 def _parse_num(s) -> float | None:
@@ -3008,10 +3009,11 @@ def get_movers_ranking(direction: str = "up", limit: int = 50, force: bool = Fal
 
 def _get_all_market_quotes(force: bool = False) -> dict[str, dict]:
     """全市場（TSE+OTC）即時報價快照：{ticker: {change_pct, trade_value}}。
-    給產業表現、漲跌家數共用，避免同一時間重複打 Fugle API。5分鐘快取。
+    給產業表現、漲跌家數共用，避免同一時間重複打 Fugle API。
+    快取 1 分鐘：大盤狀態盤中每分鐘自動更新漲跌家數，多人同時開著也只打一次。
     """
     if not force:
-        cached = _cache_get(_ranking_cache, "market_quotes_snapshot", RANKING_TTL)
+        cached = _cache_get(_ranking_cache, "market_quotes_snapshot", MARKET_QUOTES_TTL)
         if cached is not None:
             return cached
 

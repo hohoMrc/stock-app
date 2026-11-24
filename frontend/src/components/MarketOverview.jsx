@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { getMarketOverview, getIndustryTopMovers, getWeeklyCalendar, getPremarketNews, getTodayFocus, getTodayFocusSummary } from "../api";
-import { hasTodayCloseData } from "../marketHours";
+import { getMarketOverview, getMarketBreadth, getIndustryTopMovers, getWeeklyCalendar, getPremarketNews, getTodayFocus, getTodayFocusSummary } from "../api";
+import { hasTodayCloseData, isTradingHours } from "../marketHours";
 import InstitutionalHistory from "./InstitutionalHistory";
 
 const WS_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000")
@@ -344,6 +344,17 @@ export default function MarketOverview({ onSelect, onSelectIndustry, onNavigate 
   };
 
   useEffect(() => { load(); }, []);
+
+  // 盤中每分鐘自動更新漲跌家數（只換 breadth，不重抓整包）；交易時段在 callback 裡每次判斷
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!isTradingHours()) return;
+      getMarketBreadth()
+        .then((res) => setData((d) => (d ? { ...d, breadth: res.data } : d)))
+        .catch(() => {});
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   // 加權指數 WebSocket 即時推播（富邦 indices，約 5 秒一筆）；只帶點位，漲跌用 REST 回來的昨收算
   const [liveTaiex, setLiveTaiex] = useState(null);

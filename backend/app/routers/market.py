@@ -106,6 +106,15 @@ async def market_today_focus_summary(force: bool = Query(default=False)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/breadth")
+async def market_breadth():
+    """漲跌家數（給大盤狀態盤中每分鐘自動更新用，不用重抓整包 overview）。"""
+    try:
+        return await run_in_threadpool(get_market_breadth)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/institutional-history")
 async def institutional_history(days: int = Query(default=20, ge=1, le=120)):
     """全市場三大法人買賣超歷史（億元），新到舊。"""
