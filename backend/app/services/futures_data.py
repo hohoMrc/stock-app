@@ -227,7 +227,8 @@ def _taifex_session_bars(symbol: str, tf_min: int) -> tuple[int, list] | None:
     buckets: dict[int, dict] = {}
     for t, o, h, l, c, v in ticks:
         # 期交所用結束時間標記（15:01 那根 = 15:00~15:01），換成富邦的開始時間；夜盤跨午夜要 +1 天
-        dt = start.replace(hour=int(t[:2]), minute=int(t[2:4]))
+        # 期交所偶爾會把 11:00 寫成 "106000"（10 點 60 分），用時×60+分換算才不會爆
+        dt = start.replace(hour=0, minute=0) + timedelta(minutes=int(t[:2]) * 60 + int(t[2:4]))
         if dt < start:
             dt += timedelta(days=1)
         ts = int(dt.timestamp()) - 60
@@ -248,7 +249,11 @@ def _taifex_session_bars(symbol: str, tf_min: int) -> tuple[int, list] | None:
 
 def _patch_with_taifex(candles: list, symbol: str, tf_min: int) -> list:
     """富邦行情暴量時 K 線會落後好幾十分鐘，本盤成交量比期交所少就整段改用期交所的 K 棒。"""
-    tx = _taifex_session_bars(symbol, tf_min)
+    try:
+        tx = _taifex_session_bars(symbol, tf_min)
+    except Exception as e:   # 期交所資料格式出怪狀況時退回富邦，不要讓整張 K 線掛掉
+        print(f"[futures] 期交所 K 棒解析失敗，沿用富邦: {e}")
+        return candles
     if not tx:
         return candles
     start_ts, bars = tx
@@ -421,7 +426,11 @@ def get_futures_candles(symbol: str | None = None, timeframe: str = "60") -> lis
                     }
             except Exception as e:
                 print(f"[futures] 日K 即時資料失敗: {e}")
-        tx = _taifex_session_bars(symbol, 60)
+        try:
+            tx = _taifex_session_bars(symbol, 60)
+        except Exception as e:
+            print(f"[futures] 期交所 K 棒解析失敗，沿用富邦: {e}")
+            tx = None
         if tx:
             start_ts, bars = tx
             day_key = _trading_day_of(start_ts)
